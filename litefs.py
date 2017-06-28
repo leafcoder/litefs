@@ -1006,13 +1006,11 @@ class Litefs(object):
                     )
                 )
             self.epoll.modify(fileno, EPOLLOUT)
-        except HttpError:
+        except Exception as e:
             self.epoll.modify(fileno, 0)
             sockio.shutdown()
-        except:
-            self.epoll.modify(fileno, 0)
-            sockio.shutdown()
-            raise
+            if not isinstance(e, HttpError):
+                raise
 
     def server_write(self, fileno):
         request = self.requests[fileno]
