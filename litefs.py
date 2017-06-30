@@ -25,7 +25,7 @@ from Cookie import SimpleCookie
 from cStringIO import StringIO
 from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN
 from functools import partial
-from greenlet import greenlet
+from greenlet import greenlet, getcurrent
 from gzip import GzipFile
 from hashlib import sha1
 from httplib import responses as http_status_codes
@@ -39,7 +39,7 @@ from posixpath import join as path_join, splitext as path_splitext, \
     split as path_split, realpath as path_realpath, \
     abspath as path_abspath, isfile as path_isfile, \
     isdir as path_isdir, exists as path_exists
-from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR, \
+from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR, EPOLLET, \
     epoll as select_epoll
 from sqlite3 import connect as sqlite3_connect
 from subprocess import Popen, PIPE
@@ -53,7 +53,7 @@ from watchdog.events import *
 from watchdog.observers import Observer
 from weakref import proxy as weakref_proxy
 from zlib import compress as zlib_compress
-from _pyio import RawIOBase, DEFAULT_BUFFER_SIZE
+from io import RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
 
 default_404 = '404'
 default_port = 9090
@@ -171,12 +171,11 @@ def make_server(address, request_size=-1):
         'port'   : port
     }
 
-def make_environ(app, sockio):
-    address = sockio.addr
+def make_environ(app, rwpair, address):
     environ = {}
     environ['SERVER_NAME'] = platform()
     environ['SERVER_PORT'] = int(app.server_info['port'])
-    s = sockio.readline(DEFAULT_BUFFER_SIZE)
+    s = rwpair.readline(DEFAULT_BUFFER_SIZE)
     if not s:
         # 注意：读出来为空字符串时，代表着服务器在等待读
         raise HttpError('invalid http headers')
@@ -196,7 +195,7 @@ def make_environ(app, sockio):
     environ['SERVER_PROTOCOL'] = protocol
     environ['SCRIPT_NAME'] = script_name
     environ['PATH_INFO'] = path_info
-    s = sockio.readline(DEFAULT_BUFFER_SIZE)
+    s = rwpair.readline(DEFAULT_BUFFER_SIZE)
     while True:
         if s in ('', '\n', '\r\n'):
             break
@@ -206,7 +205,7 @@ def make_environ(app, sockio):
         if k in environ:
             continue
         environ['HTTP_' + k] = v
-        s = sockio.readline(DEFAULT_BUFFER_SIZE)
+        s = rwpair.readline(DEFAULT_BUFFER_SIZE)
     size = environ.pop('HTTP_CONTENT_LENGTH', None)
     if size:
         size = int(size)
@@ -216,17 +215,17 @@ def make_environ(app, sockio):
             begin_boundary = ('--%s' % boundary)
             end_boundary = ('--%s--' % boundary)
             files = {}
-            s = sockio.readline(DEFAULT_BUFFER_SIZE).strip()
+            s = rwpair.readline(DEFAULT_BUFFER_SIZE).strip()
             while 1:
                 if s.strip() != begin_boundary:
                     assert s.strip() == end_boundary
                     break
                 headers = {}
-                s = sockio.readline(DEFAULT_BUFFER_SIZE).strip()
+                s = rwpair.readline(DEFAULT_BUFFER_SIZE).strip()
                 while s:
                     k, v = s.split(':', 1)
                     headers[k.strip().upper()] = v.strip()
-                    s = sockio.readline(DEFAULT_BUFFER_SIZE).strip()
+                    s = rwpair.readline(DEFAULT_BUFFER_SIZE).strip()
                 disposition = headers['CONTENT-DISPOSITION']
                 h, m, t = disposition.split(';')
                 name = m.split('=')[1].strip()
@@ -234,16 +233,16 @@ def make_environ(app, sockio):
                     fp = StringIO()
                 else:
                     fp = TemporaryFile(mode='w+b')
-                s = sockio.readline(DEFAULT_BUFFER_SIZE)
+                s = rwpair.readline(DEFAULT_BUFFER_SIZE)
                 while s.strip() != begin_boundary \
                         and s.strip() != end_boundary:
                     fp.write(s)
-                    s = sockio.readline(DEFAULT_BUFFER_SIZE)
+                    s = rwpair.readline(DEFAULT_BUFFER_SIZE)
                 fp.seek(0)
                 files[name[1:-1]] = fp
             environ['litefs.files'] = files
         else:
-            environ['POST_CONTENT'] = sockio.read(int(size))
+            environ['POST_CONTENT'] = rwpair.read(int(size))
             environ['CONTENT_LENGTH'] = len(environ['POST_CONTENT'])
     return environ
 
@@ -538,9 +537,9 @@ class Session(UserDict):
 
 class Request(object):
 
-    def __init__(self, app, sockio, environ):
+    def __init__(self, app, rwpair, environ):
         self.app = app
-        self.sockio = sockio
+        self.rwpair = rwpair
         self.environ = environ
         self.form = make_form(environ)
         self.session_id, self.session = self.get_session(environ)
@@ -576,11 +575,11 @@ class Request(object):
 
 class Response(object):
 
-    def __init__(self, app, request):
-        self.sockio = sockio = request.sockio
+    def __init__(self, app, request, address):
+        self.rwpair = request.rwpair
         self.headers_responsed = False
         self.buffers = StringIO()
-        self.address = sockio.addr
+        self.address = address
         self.request = request
         self.app = app
 
@@ -605,16 +604,19 @@ class Response(object):
         return self.request.session
 
     def finish(self, content):
-        sockio = self.sockio
+        rwpair = self.rwpair
         if not self.headers_responsed:
             self.start_response(200)
-        sockio.write(self.buffers.getvalue())
+        rwpair.write(self.buffers.getvalue())
         if isinstance(content, basestring):
-            sockio.write(content)
+            rwpair.write(content)
         else:
             for s in content:
-                sockio.write(s)
-        sockio.shutdown()
+                rwpair.write(s)
+        try:
+            rwpair.close()
+        except:
+            pass
 
     def __del__(self):
         files = self.request.environ.get('litefs.files')
@@ -908,21 +910,44 @@ class Response(object):
         finally:
             tmpf.close()
 
-class SocketIO(RawIOBase):
+class RawIO(RawIOBase):
 
-    def __init__(self, realsock, address):
+    def __init__(self, litefs, realsock, fileno):
+        RawIOBase.__init__(self)
+        self.litefs = litefs
         self.sock = realsock
-        self.addr = address
+        self.fileno = fileno
+        self.read_gr = None
+        self.write_gr = None
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return True
 
     def readinto(self, b):
-        while 1:
-            try:
-                data = self.sock.recv(len(b))
-                break
-            except socket.error as e:
-                # Fixed: Resource temporarily unavailable
-                if e.errno not in should_retry_error:
-                    raise
+        epoll = self.litefs.epoll
+        fileno = self.fileno
+        curr = getcurrent()
+        self.read_gr = curr
+        if self.write_gr is None:
+            epoll.register(fileno, EPOLLIN | EPOLLET)
+        else:
+            epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
+        try:
+            curr.parent.switch()
+            data = self.sock.recv(len(b))
+        except socket.error as e:
+            # Fixed: Resource temporarily unavailable
+            if e.errno not in should_retry_error:
+                raise
+        finally:
+            self.read_gr = None
+            if self.write_gr is None:
+                epoll.unregister(fileno)
+            else:
+                epoll.modify(fileno, EPOLLOUT | EPOLLET)
         n = len(data)
         try:
             b[:n] = data
@@ -934,25 +959,35 @@ class SocketIO(RawIOBase):
         return n
 
     def write(self, data):
-        while data:
-            try:
-                sent = self.sock.send(data)
-            except socket.error as e:
-                # Fixed: Resource temporarily unavailable
-                if e.errno not in should_retry_error:
-                    raise
-                continue
-            data = data[sent:]
+        epoll = self.litefs.epoll
+        fileno = self.fileno
+        curr = getcurrent()
+        self.write_gr = curr
+        if self.read_gr is None:
+            epoll.register(fileno, EPOLLOUT | EPOLLET)
+        else:
+            epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
+        try:
+            curr.parent.switch()
+            return self.sock.send(data)
+        except socket.error as e:
+            # Fixed: Resource temporarily unavailable
+            if e.errno not in should_retry_error:
+                raise
+        finally:
+            self.write_gr = None
+            if self.read_gr is None:
+                epoll.unregister(fileno)
+            else:
+                epoll.modify(fileno, EPOLLIN | EPOLLET)
 
-    def shutdown(self):
+    def close(self):
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
         except socket.error as e:
             # The server might already have closed the connection
             if e.errno != ENOTCONN:
                 raise
-
-    def close(self):
         self.sock.close()
 
 class Litefs(object):
@@ -971,28 +1006,37 @@ class Litefs(object):
         self.caches = TreeCache()
         self.files  = TreeCache()
         self.epoll = select_epoll()
-        self.epoll.register(fileno, EPOLLIN)
-        self.requests = {}
-        self.sockios = {}
+        self.epoll.register(fileno, EPOLLIN | EPOLLET)
+        self.grs = {}
         sys.stdout.write((
             'server is running at %s\n'
             'hit ctrl-c to quit.\n\n'
         ) % address)
 
     def server_accept(self):
-        sock, addr = self.socket.accept()
-        sock.setblocking(0)
-        fileno = sock.fileno()
-        sockio = SocketIO(sock, addr)
-        self.epoll.register(fileno, EPOLLIN)
-        self.sockios[fileno] = sockio
+        while True:
+            try:
+                sock, addr = self.socket.accept()
+            except socket.error as e:
+                errno = e.args[0]
+                if EAGAIN == errno or EWOULDBLOCK == errno:
+                    return
+                raise
+            sock.setblocking(0)
+            fileno = sock.fileno()
+            raw = RawIO(self, sock, fileno)
+            self.grs[fileno] = gr = greenlet(
+                partial(self.request_handler, fileno, raw, addr)
+            )
+            gr.switch()
 
-    def server_read(self, fileno):
-        config = self.config
-        sockio = self.sockios[fileno]
+    def request_handler(self, fileno, raw, address):
         try:
-            environ = make_environ(self, sockio)
-            self.requests[fileno] = Request(self, sockio, environ)
+            config = self.config
+            curr = getcurrent()
+            rwpair = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
+            environ = make_environ(self, rwpair, address)
+            request = Request(self, rwpair, environ)
             path_info = environ['PATH_INFO']
             if path_info.endswith('/'):
                 path_info = ''.join((path_info, config.default_page))
@@ -1005,64 +1049,62 @@ class Litefs(object):
                         path_info
                     )
                 )
-            self.epoll.modify(fileno, EPOLLOUT)
+            Response(self, request, address).handler()
+        except socket.error as e:
+            if e.errno == errno.EPIPE:
+                raise greenlet.GreenletExit
+            raise
         except Exception as e:
-            self.epoll.modify(fileno, 0)
-            sockio.shutdown()
             if not isinstance(e, HttpError):
                 raise
-
-    def server_write(self, fileno):
-        request = self.requests[fileno]
-        sockio = self.sockios[fileno]
-        response = Response(self, request)
-        try:
-            response.handler()
         finally:
-            self.epoll.modify(fileno, 0)
-            sockio.shutdown()
-
-    def server_error(self, fileno):
-        try:
-            self.epoll.unregister(fileno)
-        finally:
-            self.requests.pop(fileno, None)
-            self.sockios.pop(fileno).close()
+            try:
+                if raw.read_gr is not None:
+                    raw.read_gr.throw()
+                if raw.write_gr is not None:
+                    raw.write_gr.throw()
+            finally:
+                self.grs.pop(fileno, None)
+                try:
+                    raw.close()
+                except:
+                    pass
 
     def poll(self, timeout=.2):
-        for fileno, event in self.epoll.poll(timeout):
-            if fileno == self.fileno:
-                try:
-                    greenlet(self.server_accept).switch()
-                except KeyboardInterrupt:
-                    break
-                except socket.error as e:
-                    if e.errno == EMFILE:
-                        raise
-                    log_error(self.logger)
-                except:
-                    log_error(self.logger)
-            elif event & EPOLLIN:
-                try:
-                    greenlet(self.server_read).switch(fileno)
-                except KeyboardInterrupt:
-                    break
-                except:
-                    log_error(self.logger)
-            elif event & EPOLLOUT:
-                try:
-                    greenlet(self.server_write).switch(fileno)
-                except KeyboardInterrupt:
-                    break
-                except:
-                    log_error(self.logger)
-            elif event & (EPOLLHUP | EPOLLERR):
-                try:
-                    greenlet(self.server_error).switch(fileno)
-                except KeyboardInterrupt:
-                    break
-                except:
-                    log_error(self.logger)
+        while True:
+            for fileno, event in self.epoll.poll(timeout):
+                if fileno == self.fileno:
+                    try:
+                        self.server_accept()
+                    except KeyboardInterrupt:
+                        break
+                    except socket.error as e:
+                        if e.errno == EMFILE:
+                            raise
+                        log_error(self.logger)
+                    except:
+                        log_error(self.logger)
+                elif event & EPOLLIN:
+                    try:
+                        self.grs[fileno].switch()
+                    except KeyboardInterrupt:
+                        break
+                    except:
+                        log_error(self.logger)
+                elif event & EPOLLOUT:
+                    try:
+                        self.grs[fileno].switch()
+                    except KeyboardInterrupt:
+                        break
+                    except:
+                        log_error(self.logger)
+                elif event & (EPOLLHUP | EPOLLERR):
+                    try:
+                        self.grs[fileno].throw()
+                    except KeyboardInterrupt:
+                        break
+                    except:
+                        log_error(self.logger)
 
     def run(self, timeout=.2):
         observer = Observer()
@@ -1070,8 +1112,7 @@ class Litefs(object):
         observer.schedule(event_handler, self.config.webroot, True)
         observer.start()
         try:
-            while True:
-                self.poll(timeout=timeout)
+            self.poll(timeout=timeout)
         except KeyboardInterrupt:
             pass
         except:
