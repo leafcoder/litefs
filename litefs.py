@@ -25,7 +25,7 @@ from Cookie import SimpleCookie
 from cStringIO import StringIO
 from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN
 from functools import partial
-from greenlet import greenlet, getcurrent
+from greenlet import greenlet, getcurrent, GreenletExit
 from gzip import GzipFile
 from hashlib import sha1
 from httplib import responses as http_status_codes
@@ -65,6 +65,8 @@ default_cgi_dir = '/cgi-bin'
 default_request_size = 10240
 default_litefs_sid = '%s.sid' % default_prefix
 
+server_name = 'litefs %s' % __version__
+EOFS = ('', '\n', '\r\n')
 date_format = '%Y/%m/%d %H:%M:%S'
 should_retry_error = (EWOULDBLOCK, EAGAIN)
 double_slash_sub = re.compile(r'\/{2,}').sub
@@ -173,7 +175,7 @@ def make_server(address, request_size=-1):
 
 def make_environ(app, rwpair, address):
     environ = {}
-    environ['SERVER_NAME'] = platform()
+    environ['SERVER_NAME'] = server_name
     environ['SERVER_PORT'] = int(app.server_info['port'])
     s = rwpair.readline(DEFAULT_BUFFER_SIZE)
     if not s:
@@ -197,7 +199,7 @@ def make_environ(app, rwpair, address):
     environ['PATH_INFO'] = path_info
     s = rwpair.readline(DEFAULT_BUFFER_SIZE)
     while True:
-        if s in ('', '\n', '\r\n'):
+        if s in EOFS:
             break
         k, v = s.split(':', 1)
         k, v = k.strip(), v.strip()
@@ -229,7 +231,7 @@ def make_environ(app, rwpair, address):
                 disposition = headers['CONTENT-DISPOSITION']
                 h, m, t = disposition.split(';')
                 name = m.split('=')[1].strip()
-                if size <= (5 * 1024 * 1024):
+                if size <= 5242880: # <= 5M file save in memory
                     fp = StringIO()
                 else:
                     fp = TemporaryFile(mode='w+b')
@@ -1052,7 +1054,7 @@ class Litefs(object):
             Response(self, request, address).handler()
         except socket.error as e:
             if e.errno == errno.EPIPE:
-                raise greenlet.GreenletExit
+                raise GreenletExit
             raise
         except Exception as e:
             if not isinstance(e, HttpError):
