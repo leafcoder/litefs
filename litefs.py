@@ -67,6 +67,7 @@ default_litefs_sid = '%s.sid' % default_prefix
 
 server_name = 'litefs %s' % __version__
 EOFS = ('', '\n', '\r\n')
+FILES_HEADER_NAME = 'litefs.files'
 date_format = '%Y/%m/%d %H:%M:%S'
 should_retry_error = (EWOULDBLOCK, EAGAIN)
 double_slash_sub = re.compile(r'\/{2,}').sub
@@ -82,7 +83,7 @@ cgi_runners = {
     '.php': '/usr/bin/php',
 }
 
-DEFAULT_STATUS_MESSAGE = """
+DEFAULT_STATUS_MESSAGE = """\
 <html>
     <head>
         <meta charset="utf-8">
@@ -173,11 +174,11 @@ def make_server(address, request_size=-1):
         'port'   : port
     }
 
-def make_environ(app, rwpair, address):
+def make_environ(app, rw, address):
     environ = {}
     environ['SERVER_NAME'] = server_name
     environ['SERVER_PORT'] = int(app.server_info['port'])
-    s = rwpair.readline(DEFAULT_BUFFER_SIZE)
+    s = rw.readline(DEFAULT_BUFFER_SIZE)
     if not s:
         # 注意：读出来为空字符串时，代表着服务器在等待读
         raise HttpError('invalid http headers')
@@ -197,7 +198,7 @@ def make_environ(app, rwpair, address):
     environ['SERVER_PROTOCOL'] = protocol
     environ['SCRIPT_NAME'] = script_name
     environ['PATH_INFO'] = path_info
-    s = rwpair.readline(DEFAULT_BUFFER_SIZE)
+    s = rw.readline(DEFAULT_BUFFER_SIZE)
     while True:
         if s in EOFS:
             break
@@ -206,46 +207,47 @@ def make_environ(app, rwpair, address):
         k = k.replace('-', '_').upper()
         if k in environ:
             continue
-        environ['HTTP_' + k] = v
-        s = rwpair.readline(DEFAULT_BUFFER_SIZE)
+        environ['HTTP_%s' % k] = v
+        s = rw.readline(DEFAULT_BUFFER_SIZE)
     size = environ.pop('HTTP_CONTENT_LENGTH', None)
-    if size:
-        size = int(size)
-        content_type = environ.get('HTTP_CONTENT_TYPE', '')
-        if content_type.startswith('multipart/form-data'):
-            boundary = content_type.split('=')[1]
-            begin_boundary = ('--%s' % boundary)
-            end_boundary = ('--%s--' % boundary)
-            files = {}
-            s = rwpair.readline(DEFAULT_BUFFER_SIZE).strip()
-            while 1:
-                if s.strip() != begin_boundary:
-                    assert s.strip() == end_boundary
-                    break
-                headers = {}
-                s = rwpair.readline(DEFAULT_BUFFER_SIZE).strip()
-                while s:
-                    k, v = s.split(':', 1)
-                    headers[k.strip().upper()] = v.strip()
-                    s = rwpair.readline(DEFAULT_BUFFER_SIZE).strip()
-                disposition = headers['CONTENT-DISPOSITION']
-                h, m, t = disposition.split(';')
-                name = m.split('=')[1].strip()
-                if size <= 5242880: # <= 5M file save in memory
-                    fp = StringIO()
-                else:
-                    fp = TemporaryFile(mode='w+b')
-                s = rwpair.readline(DEFAULT_BUFFER_SIZE)
-                while s.strip() != begin_boundary \
-                        and s.strip() != end_boundary:
-                    fp.write(s)
-                    s = rwpair.readline(DEFAULT_BUFFER_SIZE)
-                fp.seek(0)
-                files[name[1:-1]] = fp
-            environ['litefs.files'] = files
-        else:
-            environ['POST_CONTENT'] = rwpair.read(int(size))
-            environ['CONTENT_LENGTH'] = len(environ['POST_CONTENT'])
+    if not size:
+        return environ
+    size = int(size)
+    content_type = environ.get('HTTP_CONTENT_TYPE', '')
+    if content_type.startswith('multipart/form-data'):
+        boundary = content_type.split('=')[1]
+        begin_boundary = ('--%s' % boundary)
+        end_boundary = ('--%s--' % boundary)
+        files = {}
+        s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+        while True:
+            if s.strip() != begin_boundary:
+                assert s.strip() == end_boundary
+                break
+            headers = {}
+            s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+            while s:
+                k, v = s.split(':', 1)
+                headers[k.strip().upper()] = v.strip()
+                s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+            disposition = headers['CONTENT-DISPOSITION']
+            h, m, t = disposition.split(';')
+            name = m.split('=')[1].strip()
+            if size <= 5242880: # <= 5M file save in memory
+                fp = StringIO()
+            else:
+                fp = TemporaryFile(mode='w+b')
+            s = rw.readline(DEFAULT_BUFFER_SIZE)
+            while s.strip() != begin_boundary \
+                    and s.strip() != end_boundary:
+                fp.write(s)
+                s = rw.readline(DEFAULT_BUFFER_SIZE)
+            fp.seek(0)
+            files[name[1:-1]] = fp
+        environ[FILES_HEADER_NAME] = files
+    else:
+        environ['POST_CONTENT'] = rw.read(int(size))
+        environ['CONTENT_LENGTH'] = len(environ['POST_CONTENT'])
     return environ
 
 def parse_form(form, qstr):
@@ -310,12 +312,12 @@ class FileEventHandler(FileSystemEventHandler):
 
     def __init__(self, app):
         FileSystemEventHandler.__init__(self)
-        self.app = weakref_proxy(app)
+        self._app = weakref_proxy(app)
 
     def on_moved(self, event):
         src_path = event.src_path
         dest_path = event.dest_path
-        webroot = self.app.config.webroot
+        webroot = self._app.config.webroot
         if webroot == src_path and event.is_directory:
             return
         if not src_path.startswith(webroot+'/'):
@@ -326,8 +328,8 @@ class FileEventHandler(FileSystemEventHandler):
             return
         src_path  = '/%s' % src_path [len(webroot):].strip('/')
         dest_path = '/%s' % dest_path[len(webroot):].strip('/')
-        caches = self.app.caches
-        files = self.app.files
+        caches = self._app.caches
+        files = self._app.files
         caches.delete(src_path)
         files.delete(src_path)
         caches.delete(dest_path)
@@ -343,14 +345,14 @@ class FileEventHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         src_path = event.src_path
-        webroot = self.app.config.webroot
+        webroot = self._app.config.webroot
         if webroot == src_path and event.is_directory:
             return
         if not src_path.startswith(webroot+'/'):
             return
         src_path = '/%s' % src_path[len(webroot):].strip('/')
-        caches = self.app.caches
-        files = self.app.files
+        caches = self._app.caches
+        files = self._app.files
         caches.delete(src_path)
         files.delete(src_path)
         src_path, suffix = path_splitext(src_path)
@@ -382,12 +384,12 @@ class LiteFile(object):
         headers.append(('Connection', 'close'))
         self.headers = headers
 
-    def handler(self, response):
-        environ = response.environ
+    def handler(self, httpfile):
+        environ = httpfile.environ
         if_modified_since = environ.get('HTTP_IF_MODIFIED_SINCE')
         if if_modified_since == self.last_modified:
-            result = response._response(304)
-            return response.finish(result)
+            result = httpfile._response(304)
+            return httpfile._finish(result)
         if_none_match = environ.get('HTTP_IF_NONE_MATCH')
         accept_encodings = environ.get(
             'HTTP_ACCEPT_ENCODING', '').split(',')
@@ -395,27 +397,27 @@ class LiteFile(object):
         headers = list(self.headers)
         if 'gzip' in accept_encodings:
             if if_none_match == self.gzip_etag:
-                result = response._response(304)
-                return response.finish(result)
+                result = httpfile._response(304)
+                return httpfile._finish(result)
             headers.append(('Etag', self.gzip_etag))
             headers.append(('Content-Encoding', 'gzip'))
             text = self.gzip_text
         elif 'deflate' in accept_encodings:
             if if_none_match == self.zlib_etag:
-                result = response._response(304)
-                return response.finish(result)
+                result = httpfile._response(304)
+                return httpfile._finish(result)
             headers.append(('Etag', self.zlib_etag))
             headers.append(('Content-Encoding', 'deflate'))
             text = self.zlib_text
         else:
             if if_none_match == self.etag:
-                result = response._response(304)
-                return response.finish(result)
+                result = httpfile._response(304)
+                return httpfile._finish(result)
             headers.append(('Etag', self.etag))
             text = self.text
         headers.append(('Content-Length', '%d' % len(text)))
-        result = response._response(200, headers=headers, content=text)
-        return response.finish(result)
+        result = httpfile._response(200, headers=headers, content=text)
+        return httpfile._finish(result)
 
 class TreeCache(object):
 
@@ -537,18 +539,24 @@ class Session(UserDict):
         self.id = session_id
         self.data = {}
 
-class Request(object):
+    def __str__(self):
+        return '<Session Id=%s>' % self.id
 
-    def __init__(self, app, rwpair, environ):
-        self.app = app
-        self.rwpair = rwpair
-        self.environ = environ
-        self.form = make_form(environ)
-        self.session_id, self.session = self.get_session(environ)
-        self.files = environ.pop('litefs.files', None)
+class HttpFile(object):
 
-    def get_session(self, environ):
-        app = self.app
+    def __init__(self, app, rw, environ, address):
+        self._rw = rw
+        self._app = app
+        self._environ = environ
+        self._address = address
+        self._buffers = StringIO()
+        self._headers_responsed = False
+        self._form = make_form(environ)
+        self._session_id, self._session = self._get_session(environ)
+        self._files = environ.pop(FILES_HEADER_NAME, None)
+
+    def _get_session(self, environ):
+        app = self._app
         sessions = app.sessions
         cookie = environ.get('HTTP_COOKIE')
         cookie = SimpleCookie(cookie)
@@ -556,16 +564,16 @@ class Request(object):
         if morsel is not None:
             session_id = morsel.value
         else:
-            session_id = self.new_session_id()
+            session_id = self._new_session_id()
         session = sessions.get(session_id)
         if session is not None:
             return session_id, session
         session = Session(session_id)
         sessions.put(session_id, session)
-        return None, session
+        return session_id, session
 
-    def new_session_id(self):
-        app = self.app
+    def _new_session_id(self):
+        app = self._app
         sessions = app.sessions
         while 1:
             token = '%s%s' % (urandom(24), time())
@@ -575,60 +583,37 @@ class Request(object):
                 break
         return session_id
 
-class Response(object):
+    @property
+    def config(self):
+        return self._app.config
 
-    def __init__(self, app, request, address):
-        self.rwpair = request.rwpair
-        self.headers_responsed = False
-        self.buffers = StringIO()
-        self.address = address
-        self.request = request
-        self.app = app
+    @property
+    def address(self):
+        return self._address
 
     @property
     def files(self):
-        return self.request.files
+        return self._files
 
     @property
     def environ(self):
-        return self.request.environ
+        return self._environ
 
     @property
     def form(self):
-        return self.request.form
+        return self._form
 
     @property
     def session_id(self):
-        return self.request.session_id
+        return self._session_id
 
     @property
     def session(self):
-        return self.request.session
-
-    def finish(self, content):
-        rwpair = self.rwpair
-        if not self.headers_responsed:
-            self.start_response(200)
-        rwpair.write(self.buffers.getvalue())
-        if isinstance(content, basestring):
-            rwpair.write(content)
-        else:
-            for s in content:
-                rwpair.write(s)
-        try:
-            rwpair.close()
-        except:
-            pass
-
-    def __del__(self):
-        files = self.request.environ.get('litefs.files')
-        if files:
-            for fp in files.values():
-                fp.close()
+        return self._session
 
     def start_response(self, status_code=200, headers=None):
-        buffers = self.buffers
-        if self.headers_responsed:
+        buffers = self._buffers
+        if self._headers_responsed:
             raise ValueError('Http headers already responsed.')
         response_headers = {}
         response_headers['Server'] = server_info
@@ -649,10 +634,48 @@ class Response(object):
             cookie[default_litefs_sid]['path'] = '/'
             buffers.write('%s\r\n' % cookie.output())
         buffers.write('\r\n')
-        self.headers_responsed = True
+        self._headers_responsed = True
+
+    def redirect(self, url=None):
+        if self._headers_responsed:
+            raise ValueError('Http headers already responsed.')
+        url = '/' if url is None else url
+        response_headers = {}
+        response_headers['Content-Type'] = 'text/html;charset=utf-8'
+        response_headers['Location'] = 'http://%s%s' % (
+            self._environ['HTTP_HOST'], url
+        )
+        status_code = 302
+        status_text = http_status_codes[status_code]
+        content = '%d %s' % (status_code, status_text)
+        headers = response_headers.items()
+        self.start_response(status_code, headers=headers)
+        return content
+
+    def _finish(self, content):
+        rw = self._rw
+        if not self._headers_responsed:
+            self.start_response(200)
+        rw.write(self._buffers.getvalue())
+        if isinstance(content, basestring):
+            rw.write(content)
+        else:
+            for s in content:
+                rw.write(s)
+        try:
+            rw.close()
+        except:
+            pass
+
+    def __del__(self):
+        files = self._environ.get(FILES_HEADER_NAME)
+        if not files:
+            return
+        for fp in files.values():
+            fp.close()
 
     def _response(self, status_code, headers=None, content=None):
-        if self.headers_responsed:
+        if self._headers_responsed:
             raise ValueError('Http headers already responsed.')
         status_code = int(status_code)
         status_text = http_status_codes[status_code]
@@ -665,31 +688,15 @@ class Response(object):
             }
         return content
 
-    def redirect(self, url=None):
-        if self.headers_responsed:
-            raise ValueError('Http headers already responsed.')
-        url = '/' if url is None else url
-        response_headers = {}
-        response_headers['Content-Type'] = 'text/html;charset=utf-8'
-        response_headers['Location'] = 'http://%s%s' % (
-            self.request.environ['HTTP_HOST'], url
-        )
-        status_code = 302
-        status_text = http_status_codes[status_code]
-        content = '%d %s' % (status_code, status_text)
-        headers = response_headers.items()
-        self.start_response(status_code, headers=headers)
-        return content
-
-    def handler(self):
-        app = self.app
+    def _handler(self):
+        app = self._app
         environ = self.environ
         path_info = environ['PATH_INFO']
         path = startswith_dot_sub('/', path_info)
         path = double_slash_sub('/', path)
         if path != path_info:
             result = self.redirect(path)
-            return self.finish(result)
+            return self._finish(result)
         base, name = path_split(path)
         if not name:
             name = app.config.default_page
@@ -703,11 +710,11 @@ class Response(object):
                 if app.config.debug:
                     content = exceptions.html_error_template().render()
                     result = self._response(500, content=content)
-                    return self.finish(result)
+                    return self._finish(result)
                 result = self._response(500)
-                return self.finish(result)
+                return self._finish(result)
             else:
-                return self.finish(result)
+                return self._finish(result)
         litefile = app.files.get(path)
         if litefile is not None:
             return litefile.handler(self)
@@ -716,8 +723,8 @@ class Response(object):
         )
         if path_isdir(realpath):
             result = self.redirect(path + '/')
-            return self.finish(result)
-        module = self.load_script(base, name)
+            return self._finish(result)
+        module = self._load_script(base, name)
         if module is not None and hasattr(module, 'handler'):
             basepath, ext = path_splitext(path)
             if ext in ('.mako', ):
@@ -731,17 +738,17 @@ class Response(object):
                 if app.config.debug:
                     content = exceptions.html_error_template().render()
                     result = self._response(500, content=content)
-                    return self.finish(result)
+                    return self._finish(result)
                 result = self._response(500)
-                return self.finish(result)
+                return self._finish(result)
             else:
-                return self.finish(result)
+                return self._finish(result)
         try:
-            litefile = self.load_static_file(base, name)
+            litefile = self._load_static_file(base, name)
         except IOError:
             log_error(app.logger)
             result = self._response(404)
-            return self.finish(result)
+            return self._finish(result)
         if litefile is not None:
             app.files.put(path, litefile)
             try:
@@ -751,15 +758,15 @@ class Response(object):
                 if app.config.debug:
                     content = exceptions.html_error_template().render()
                     result = self._response(500, content=content)
-                    return self.finish(result)
+                    return self._finish(result)
                 result = self._response(500)
-                return self.finish(result)
+                return self._finish(result)
         path = app.config.not_found
         base, name = path_split(path)
         if not name:
             name = default_404
         try:
-            litefile = self.load_static_file(base, name)
+            litefile = self._load_static_file(base, name)
         except IOError:
             litefile = None
         if litefile is not None:
@@ -771,14 +778,14 @@ class Response(object):
                 if app.config.debug:
                     content = exceptions.html_error_template().render()
                     result = self._response(500, content=content)
-                    return self.finish(result)
+                    return self._finish(result)
                 result = self._response(500)
-                return self.finish(result)
+                return self._finish(result)
         result = self._response(404)
-        return self.finish(result)
+        return self._finish(result)
 
-    def load_static_file(self, base, name):
-        app = self.app
+    def _load_static_file(self, base, name):
+        app = self._app
         webroot = app.config.webroot
         realbase = path_realpath(
             path_abspath(path_join(webroot, base.lstrip('/')))
@@ -791,8 +798,8 @@ class Response(object):
             text = fp.read()
         return LiteFile(realpath, base, name, text)
 
-    def load_template(self, base, name):
-        app = self.app
+    def _load_template(self, base, name):
+        app = self._app
         webroot = app.config.webroot
         script_uri = path_join(base.lstrip('/'), name)
         path = path_join('/%s' % base.rstrip('/'), name)
@@ -801,7 +808,7 @@ class Response(object):
             def _handler(self):
                 try:
                     template = mylookup.get_template(script_uri)
-                    content = template.render(response=self)
+                    content = template.render(http=self)
                     headers = getattr(template.module, 'headers', None)
                     if headers:
                         headers = '\r\n'.join(
@@ -825,8 +832,8 @@ class Response(object):
         module.handler = handler(mylookup, script_uri)
         return module
 
-    def load_script(self, base, name):
-        app = self.app
+    def _load_script(self, base, name):
+        app = self._app
         webroot = app.config.webroot
         realbase = path_realpath(
             path_abspath(path_join(webroot, base.lstrip('/')))
@@ -845,11 +852,11 @@ class Response(object):
                 module = new_module()
                 module.handler = handler()
                 return module
-            return self.load_cgi(runner, script_uri, webroot)
+            return self._load_cgi(runner, script_uri, webroot)
         tmplname = '%s.mako' % name
         tmplpath = path_join(realbase, tmplname)
         if path_exists(tmplpath):
-            return self.load_template(base, tmplname)
+            return self._load_template(base, tmplname)
         try:
             fp, pathname, description = find_module(name, [realbase])
         except ImportError:
@@ -877,8 +884,8 @@ class Response(object):
         sys.modules.pop(module_name, None)
         return module
 
-    def load_cgi(self, runner, script_uri, webroot):
-        app = self.app
+    def _load_cgi(self, runner, script_uri, webroot):
+        app = self._app
         tmpf = NamedTemporaryFile('w+')
         try:
             p = Popen(
@@ -914,13 +921,14 @@ class Response(object):
 
 class RawIO(RawIOBase):
 
-    def __init__(self, litefs, realsock, fileno):
+    def __init__(self, app, sock):
         RawIOBase.__init__(self)
-        self.litefs = litefs
-        self.sock = realsock
-        self.fileno = fileno
-        self.read_gr = None
-        self.write_gr = None
+        self._fileno = sock.fileno()
+        self._sock = sock
+        self._app = app
+
+    def fileno(self):
+        return self._fileno
 
     def readable(self):
         return True
@@ -929,8 +937,8 @@ class RawIO(RawIOBase):
         return True
 
     def readinto(self, b):
-        epoll = self.litefs.epoll
-        fileno = self.fileno
+        epoll = self._app.epoll
+        fileno = self._fileno
         curr = getcurrent()
         self.read_gr = curr
         if self.write_gr is None:
@@ -939,7 +947,7 @@ class RawIO(RawIOBase):
             epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
         try:
             curr.parent.switch()
-            data = self.sock.recv(len(b))
+            data = self._sock.recv(len(b))
         except socket.error as e:
             # Fixed: Resource temporarily unavailable
             if e.errno not in should_retry_error:
@@ -961,8 +969,8 @@ class RawIO(RawIOBase):
         return n
 
     def write(self, data):
-        epoll = self.litefs.epoll
-        fileno = self.fileno
+        epoll = self._app.epoll
+        fileno = self._fileno
         curr = getcurrent()
         self.write_gr = curr
         if self.read_gr is None:
@@ -971,7 +979,7 @@ class RawIO(RawIOBase):
             epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
         try:
             curr.parent.switch()
-            return self.sock.send(data)
+            return self._sock.send(data)
         except socket.error as e:
             # Fixed: Resource temporarily unavailable
             if e.errno not in should_retry_error:
@@ -984,13 +992,18 @@ class RawIO(RawIOBase):
                 epoll.modify(fileno, EPOLLIN | EPOLLET)
 
     def close(self):
+        if self.closed:
+            return
+        RawIOBase.close(self)
         try:
-            self.sock.shutdown(socket.SHUT_RDWR)
+            self._sock.shutdown(socket.SHUT_RDWR)
         except socket.error as e:
             # The server might already have closed the connection
             if e.errno != ENOTCONN:
                 raise
-        self.sock.close()
+        self._sock.close()
+
+    read_gr = write_gr = None
 
 class Litefs(object):
 
@@ -1015,10 +1028,10 @@ class Litefs(object):
             'hit ctrl-c to quit.\n\n'
         ) % address)
 
-    def server_accept(self):
+    def _handler_accept(self):
         while True:
             try:
-                sock, addr = self.socket.accept()
+                sock, address = self.socket.accept()
             except socket.error as e:
                 errno = e.args[0]
                 if EAGAIN == errno or EWOULDBLOCK == errno:
@@ -1026,32 +1039,29 @@ class Litefs(object):
                 raise
             sock.setblocking(0)
             fileno = sock.fileno()
-            raw = RawIO(self, sock, fileno)
+            raw = RawIO(self, sock)
             self.grs[fileno] = gr = greenlet(
-                partial(self.request_handler, fileno, raw, addr)
+                partial(self._handler_io, raw, address)
             )
             gr.switch()
 
-    def request_handler(self, fileno, raw, address):
+    def _handler_io(self, raw, address):
         try:
             config = self.config
-            curr = getcurrent()
-            rwpair = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
-            environ = make_environ(self, rwpair, address)
-            request = Request(self, rwpair, environ)
-            path_info = environ['PATH_INFO']
-            if path_info.endswith('/'):
-                path_info = ''.join((path_info, config.default_page))
+            fileno = raw.fileno()
+            rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
+            environ = make_environ(self, rw, address)
+            httpfile = HttpFile(self, rw, environ, address)
             if config.debug:
                 log_debug(self.logger,
                     '%s - "%s %s %s"' % (
                         environ['REMOTE_HOST'],
                         environ['SERVER_PROTOCOL'],
                         environ['REQUEST_METHOD'],
-                        path_info
+                        environ['PATH_INFO']
                     )
                 )
-            Response(self, request, address).handler()
+            httpfile._handler()
         except socket.error as e:
             if e.errno == errno.EPIPE:
                 raise GreenletExit
@@ -1072,12 +1082,13 @@ class Litefs(object):
                 except:
                     pass
 
-    def poll(self, timeout=.2):
+    def _poll(self, timeout=.2):
         while True:
-            for fileno, event in self.epoll.poll(timeout):
+            events = self.epoll.poll(timeout)
+            for fileno, event in events:
                 if fileno == self.fileno:
                     try:
-                        self.server_accept()
+                        self._handler_accept()
                     except KeyboardInterrupt:
                         break
                     except socket.error as e:
@@ -1114,7 +1125,7 @@ class Litefs(object):
         observer.schedule(event_handler, self.config.webroot, True)
         observer.start()
         try:
-            self.poll(timeout=timeout)
+            self._poll(timeout=timeout)
         except KeyboardInterrupt:
             pass
         except:
