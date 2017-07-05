@@ -1,3 +1,0 @@
-sudo apt-add-repository ppa:mc3man/older
-
-sudo apt update && sudo apt install gedit gedit-plugins gedit-common
