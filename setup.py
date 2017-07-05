@@ -7,6 +7,7 @@ try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+from Cython.Build import cythonize
 
 __author__ = 'Leo Zhang'
 __version__ = '0.0.1-dev'
@@ -23,6 +24,7 @@ setup(name='litefs',
       author_email='leafcoder@gmail.com',
       url='https://coding.net/u/leafcoder/p/litefs',
       py_modules=['litefs'],
+      ext_modules=cythonize('litefs.py'),
       scripts=['litefs.py'],
       license='MIT',
       platforms='any',

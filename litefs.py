@@ -1145,7 +1145,7 @@ def test_server():
     parser.add_argument('--port', action="store", dest="port", type=int,
         required=False, default=default_port)
     parser.add_argument('--webroot', action="store", dest="webroot",
-        required=False, default=default_root)
+        required=False, default=default_webroot)
     parser.add_argument('--debug', action="store", dest="debug",
         required=False, default=False)
     parser.add_argument('--not-found', action="store", dest="not_found",
