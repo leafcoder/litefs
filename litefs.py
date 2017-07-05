@@ -1151,8 +1151,8 @@ def test_server():
     parser.add_argument('--not-found', action="store", dest="not_found",
         required=False, default=default_404)
     parser.add_argument('--default-page', action="store",
-        desc="default_page", required=False, default=default_page)
-    parser.add_argument('--cgi-dir', action="store", desc="cgi_dir",
+        dest="default_page", required=False, default=default_page)
+    parser.add_argument('--cgi-dir', action="store", dest="cgi_dir",
         required=False, default=default_cgi_dir)
     args = parser.parse_args()
     litefs = Litefs(
