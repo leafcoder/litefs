@@ -611,12 +611,17 @@ class HttpFile(object):
     def session(self):
         return self._session
 
+    @property
+    def path_info(self):
+        return self.environ['PATH_INFO']
+
     def start_response(self, status_code=200, headers=None):
         buffers = self._buffers
         if self._headers_responsed:
             raise ValueError('Http headers already responsed.')
         response_headers = {}
         response_headers['Server'] = server_info
+        response_headers['Content-Type'] = 'text/html;charset=utf-8'
         status_code = int(status_code)
         status_text = http_status_codes[status_code]
         buffers.write('HTTP/1.1 %d %s\r\n' % (status_code, status_text))
@@ -656,7 +661,7 @@ class HttpFile(object):
         rw = self._rw
         if not self._headers_responsed:
             self.start_response(200)
-        rw.write(self._buffers.getvalue())
+            rw.write(self._buffers.getvalue())
         if isinstance(content, basestring):
             rw.write(content)
         else:
@@ -699,7 +704,12 @@ class HttpFile(object):
         path = double_slash_sub('/', path)
         if path != path_info:
             result = self.redirect(path)
-            return self._finish(result)
+            try:
+                return self._finish(result)
+            except:
+                content = exceptions.html_error_template().render()
+                result = self._response(500, content=content)
+                return self._finish(result)
         base, name = path_split(path)
         if not name:
             name = app.config.default_page
@@ -717,7 +727,11 @@ class HttpFile(object):
                 result = self._response(500)
                 return self._finish(result)
             else:
-                return self._finish(result)
+                try:
+                    return self._finish(result)
+                except:
+                    result = exceptions.html_error_template().render()
+                    return self._finish(result)
         litefile = app.files.get(path)
         if litefile is not None:
             return litefile.handler(self)
@@ -745,7 +759,11 @@ class HttpFile(object):
                 result = self._response(500)
                 return self._finish(result)
             else:
-                return self._finish(result)
+                try:
+                    return self._finish(result)
+                except:
+                    result = exceptions.html_error_template().render()
+                    return self._finish(result)
         try:
             litefile = self._load_static_file(base, name)
         except IOError:
