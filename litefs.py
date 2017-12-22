@@ -661,7 +661,10 @@ class HttpFile(object):
             rw.write(content)
         else:
             for s in content:
-                rw.write(s)
+                if isinstance(basestring):
+                    rw.write(s)
+                else:
+                    rw.write('%r' % s)
         try:
             rw.close()
         except:
