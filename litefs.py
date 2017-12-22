@@ -661,7 +661,7 @@ class HttpFile(object):
             rw.write(content)
         else:
             for s in content:
-                if isinstance(basestring):
+                if isinstance(s, basestring):
                     rw.write(s)
                 else:
                     rw.write('%r' % s)
