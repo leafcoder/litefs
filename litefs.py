@@ -664,7 +664,7 @@ class HttpFile(object):
         rw = self._rw
         if not self._headers_responsed:
             self.start_response(200)
-            rw.write(self._buffers.getvalue())
+        rw.write(self._buffers.getvalue())
         if isinstance(content, basestring):
             rw.write(content)
         else:
