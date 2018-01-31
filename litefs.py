@@ -23,7 +23,7 @@ import _socket as socket
 from collections import deque
 from Cookie import SimpleCookie
 from cStringIO import StringIO
-from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN
+from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
 from functools import partial
 from greenlet import greenlet, getcurrent, GreenletExit
 from gzip import GzipFile
@@ -1084,7 +1084,7 @@ class Litefs(object):
                 )
             httpfile._handler()
         except socket.error as e:
-            if e.errno == errno.EPIPE:
+            if e.errno == EPIPE:
                 raise GreenletExit
             raise
         except Exception as e:
