@@ -2,3 +2,8 @@ nohup.out
 lib/
 *.sublime-project
 *.sublime-workspace
+.pypirc
+dist/
+*.c
+*.egg-info/
+
