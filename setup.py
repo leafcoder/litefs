@@ -16,7 +16,6 @@ __author__  = litefs.__author__
 __version__ = litefs.__version__
 __license__ = litefs.__license__
 
-print litefs.__doc__
 setup(
     name='litefs',
     version=__version__,
