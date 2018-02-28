@@ -24,7 +24,7 @@ setup(
     long_description=litefs.__doc__,
     author=__author__,
     author_email='leafcoder@gmail.com',
-    url='https://coding.net/u/leafcoder/p/litefs',
+    url='https://github.com/leafcoder/litefs',
     py_modules=['litefs'],
     ext_modules=cythonize('litefs.py'),
     scripts=['litefs.py'],

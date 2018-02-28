@@ -48,7 +48,6 @@ from sqlite3 import connect as sqlite3_connect
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile, TemporaryFile
 from time import time, strftime, gmtime
-from traceback import print_exc
 from urllib import splitport, unquote_plus
 from UserDict import UserDict
 from uuid import uuid4
@@ -615,8 +614,40 @@ class HttpFile(object):
         return self._session
 
     @property
+    def request_method(self):
+        return self.environ['REQUEST_METHOD']
+
+    @property
+    def server_protocol(self):
+        return self.environ['SERVER_PROTOCOL']
+
+    @property
     def path_info(self):
         return self.environ['PATH_INFO']
+
+    @property
+    def query_string(self):
+        return self.environ['QUERY_STRING']
+
+    @property
+    def request_uri(self):
+        environ = self.environ
+        path_info    = environ['PATH_INFO']
+        query_string = environ['QUERY_STRING']
+        if not query_string:
+            return path_info
+        return '?'.join((path_info, query_string))
+
+    @property
+    def referer(self):
+        return self.environ.get('HTTP_REFERER')
+
+    @property
+    def cookie(self):
+        cookie_str = self.environ.get('HTTP_COOKIE', '')
+        cookie = SimpleCookie()
+        cookie.load(cookie_str)
+        return cookie
 
     def start_response(self, status_code=200, headers=None):
         buffers = self._buffers
@@ -1033,7 +1064,7 @@ class Litefs(object):
 
     def __init__(self, **kwargs):
         self.config = config = make_config(**kwargs)
-        level = logging.ERROR if config.debug else logging.DEBUG
+        level = logging.DEBUG if config.debug else logging.ERROR
         self.logger = make_logger(__name__, level=level)
         self.server_info = server_info = make_server(
             config.address, request_size=config.request_size
