@@ -8,15 +8,15 @@
 Name: leozhang
 Email: leafcoder@gmail.com
 
-Copyright (c) 2017, Leo Zhang.
+Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
 version_major = 0
 version_minor = 2
 version_build = 0
-__version__ = '%s.%s.%s-dev' % (version_major, version_minor, version_build)
-__author__  = 'Leo Zhang'
+__version__ = '%s.%s.%s' % (version_major, version_minor, version_build)
+__author__  = 'Leafcoder'
 __license__ = 'MIT'
 
 import logging
@@ -26,7 +26,7 @@ import _socket as socket
 from collections import deque
 from Cookie import SimpleCookie
 from cStringIO import StringIO
-from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN
+from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
 from functools import partial
 from greenlet import greenlet, getcurrent, GreenletExit
 from gzip import GzipFile
@@ -1087,7 +1087,7 @@ class Litefs(object):
                 )
             httpfile._handler()
         except socket.error as e:
-            if e.errno == errno.EPIPE:
+            if e.errno == EPIPE:
                 raise GreenletExit
             raise
         except Exception as e:
