@@ -5,15 +5,15 @@
 安全、灵活的构建 Web 项目的服务器框架。 litefs 是一个高性能的 Http 服务器。Litefs 具\
 有高稳定性、丰富的功能、系统消耗低的特点。
 
-Copyright (c) 2017, Leo Zhang.
+Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
 version_major = 0
 version_minor = 0
-version_build = 1
-__version__ = '%s.%s.%s-dev' % (version_major, version_minor, version_build)
-__author__  = 'Leo Zhang'
+version_build = 2
+__version__ = '%s.%s.%s' % (version_major, version_minor, version_build)
+__author__  = 'Leafcoder'
 __license__ = 'MIT'
 
 import logging
