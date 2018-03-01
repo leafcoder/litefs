@@ -39,5 +39,15 @@ setup(
     scripts=['litefs.py'],
     license=__license__,
     platforms='any',
-    install_requires=open("requirements.pip").read().splitlines()
+    install_requires=[
+        'Mako==1.0.6',
+        'MarkupSafe==1.0',
+        'greenlet==0.4.13',
+        'PyYAML==3.12',
+        'argh==0.26.2',
+        'argparse==1.2.1',
+        'pathtools==0.1.2',
+        'watchdog==0.8.3',
+        'wsgiref==0.1.2'
+    ]
 )

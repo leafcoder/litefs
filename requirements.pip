@@ -1,8 +1,8 @@
+argh==0.26.2
+greenlet==0.4.13
 Mako==1.0.6
 MarkupSafe==1.0
-PyYAML==3.12
-argh==0.26.2
-argparse==1.2.1
 pathtools==0.1.2
+pkg-resources==0.0.0
+PyYAML==3.12
 watchdog==0.8.3
-wsgiref==0.1.2
