@@ -22,7 +22,7 @@ Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
