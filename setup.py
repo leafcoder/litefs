@@ -22,7 +22,7 @@ Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
-__version__ = '0.2.3'
+__version__ = '0.2.4'
 __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
@@ -38,6 +38,10 @@ setup(
     ext_modules=cythonize('litefs.py'),
     license=__license__,
     platforms='any',
+    package_data={
+        '': ["*.txt", 'LICENSE'],
+        'demo': ['site/*', '*.py']
+    },
     install_requires=[
         'Mako==1.0.6',
         'MarkupSafe==1.0',
