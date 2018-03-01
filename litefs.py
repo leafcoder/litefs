@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
 '''使用 Python 从零开始构建一个 Web 服务器框架。 开发 Litefs 的是为了实现一个能快速、安\
@@ -11,7 +12,7 @@ Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
