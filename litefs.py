@@ -152,7 +152,7 @@ def log_error(logger, message=None):
 def log_debug(logger, message=None):
     if message is None:
         message = 'debug'
-    logger.debug(message, exc_info=True)
+    logger.debug(message)
 
 def make_server(address, request_size=-1):
     host, port = splitport(address)
@@ -1080,8 +1080,8 @@ class Litefs(object):
         self.epoll.register(fileno, EPOLLIN | EPOLLET)
         self.grs = {}
         sys.stdout.write((
-            'server is running at %s\n'
-            'hit ctrl-c to quit.\n\n'
+            ' * Server is running at http://%s/\n'
+            ' * Press ctrl-c to quit.\n\n'
         ) % address)
 
     def _handler_accept(self):
