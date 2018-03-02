@@ -20,7 +20,7 @@ import logging
 import re
 import sys
 import _socket as socket
-from collections import deque
+from collections import deque, Iterable
 from Cookie import SimpleCookie
 from cStringIO import StringIO
 from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
@@ -695,12 +695,16 @@ class HttpFile(object):
         rw.write(self._buffers.getvalue())
         if isinstance(content, basestring):
             rw.write(content)
-        else:
+        elif isinstance(content, dict):
+            rw.write(repr(content))
+        elif isinstance(content, Iterable):
             for s in content:
                 if isinstance(s, basestring):
                     rw.write(s)
                 else:
-                    rw.write('%r' % s)
+                    rw.write(repr(s))
+        else:
+            rw.write(repr(s))
         try:
             rw.close()
         except:
