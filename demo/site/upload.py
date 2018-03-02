@@ -1,4 +1,4 @@
 def handler(self):
     files = self.files
-    print files
-    return 'ok'
+    for fobj in files.values():
+        yield fobj.read()
