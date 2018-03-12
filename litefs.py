@@ -704,7 +704,7 @@ class HttpFile(object):
                 else:
                     rw.write(repr(s))
         else:
-            rw.write(repr(s))
+            rw.write(repr(content))
         try:
             rw.close()
         except:

@@ -8,7 +8,12 @@ try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
-from Cython.Build import cythonize
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    import os
+    os.system('pip install cython')
+    from Cython.Build import cythonize
 
 long_description = '''\
 使用 Python 从零开始构建一个 Web 服务器框架。 开发 Litefs 的是为了实现一个能快速、安\
