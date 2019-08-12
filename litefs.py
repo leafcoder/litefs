@@ -206,7 +206,10 @@ def make_environ(app, rw, address):
         k = k.replace('-', '_').upper()
         if k in environ:
             continue
-        environ['HTTP_%s' % k] = v
+        if k.startswith('_'):
+            environ[k] = v
+        else:
+            environ['HTTP_%s' % k] = v
         s = rw.readline(DEFAULT_BUFFER_SIZE)
     size = environ.pop('HTTP_CONTENT_LENGTH', None)
     if not size:
@@ -379,6 +382,8 @@ class LiteFile(object):
         headers = [('Content-Type', 'text/html;charset=utf-8')]
         if mimetype is not None:
             headers = [('Content-Type', '%s;charset=utf-8' % mimetype)]
+        else:
+            headers = [('Content-Type', 'application/octet-stream;charset=utf-8')]
         headers.append(('Last-Modified', self.last_modified))
         headers.append(('Connection', 'close'))
         self.headers = headers
