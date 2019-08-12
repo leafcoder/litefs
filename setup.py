@@ -27,7 +27,7 @@ Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
-__version__ = '0.2.4'
+__version__ = '0.2.5'
 __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
