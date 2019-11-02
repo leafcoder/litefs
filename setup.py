@@ -51,7 +51,7 @@ setup(
         'Mako==1.0.6',
         'MarkupSafe==1.0',
         'greenlet==0.4.13',
-        'PyYAML==3.12',
+        'PyYAML==5.1',
         'argh==0.26.2',
         'argparse==1.2.1',
         'pathtools==0.1.2',
