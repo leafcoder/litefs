@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-'''使用 Python 从零开始构建一个 Web 服务器框架。 开发 Litefs 的是为了实现一个能快速、安\
-全、灵活的构建 Web 项目的服务器框架。 Litefs 是一个高性能的 HTTP 服务器。Litefs 具有高\
-稳定性、丰富的功能、系统消耗低的特点。
+'''Build a web server framework using Python. Litefs was developed to imple\
+ment a server framework that can quickly, securely, and flexibly build Web \
+projects. Litefs is a high-performance HTTP server. Litefs has the characte\
+ristics of high stability, rich functions, and low system consumption.
 
-Name: leafcoder
+Author: leafcoder
 Email: leafcoder@gmail.com
 
 Copyright (c) 2017, Leafcoder.
@@ -19,16 +20,12 @@ __license__ = 'MIT'
 import logging
 import re
 import sys
-import _socket as socket
 from collections import deque, Iterable
-from Cookie import SimpleCookie
-from cStringIO import StringIO
 from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
 from functools import partial
 from greenlet import greenlet, getcurrent, GreenletExit
 from gzip import GzipFile
 from hashlib import sha1
-from httplib import responses as http_status_codes
 from imp import find_module, load_module, new_module as imp_new_module
 from mako import exceptions
 from mako.lookup import TemplateLookup
@@ -45,14 +42,31 @@ from sqlite3 import connect as sqlite3_connect
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile, TemporaryFile
 from time import time, strftime, gmtime
-from urllib import splitport, unquote_plus
-from UserDict import UserDict
 from uuid import uuid4
 from watchdog.events import *
 from watchdog.observers import Observer
 from weakref import proxy as weakref_proxy
 from zlib import compress as zlib_compress
 from io import RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
+
+PY3 = sys.version_info.major > 2
+
+if PY3:
+    # Import modules in py3
+    import socket
+    from http.client import responses as http_status_codes
+    from http.cookies import SimpleCookie
+    from io import BytesIO as StringIO
+    from urllib.parse import splitport, unquote_plus
+    from collections import UserDict
+else:
+    # Import modules in py2
+    import _socket as socket
+    from Cookie import SimpleCookie
+    from cStringIO import StringIO
+    from httplib import responses as http_status_codes
+    from urllib import splitport, unquote_plus
+    from UserDict import UserDict
 
 default_404 = '404'
 default_port = 9090
@@ -178,6 +192,7 @@ def make_environ(app, rw, address):
     environ['SERVER_NAME'] = server_name
     environ['SERVER_PORT'] = int(app.server_info['port'])
     s = rw.readline(DEFAULT_BUFFER_SIZE)
+    if PY3: s = s.decode('utf-8')
     if not s:
         # 注意：读出来为空字符串时，代表着服务器在等待读
         raise HttpError('invalid http headers')
@@ -186,6 +201,7 @@ def make_environ(app, rw, address):
         path_info, query_string = path_info.split('?')
     else:
         path_info, query_string = path_info, ''
+    path_info = unquote_plus(path_info)
     base_uri, script_name = path_info.split('/', 1)
     if '' == script_name:
         script_name = app.config.default_page
@@ -198,6 +214,7 @@ def make_environ(app, rw, address):
     environ['SCRIPT_NAME'] = script_name
     environ['PATH_INFO'] = path_info
     s = rw.readline(DEFAULT_BUFFER_SIZE)
+    if PY3: s = s.decode('utf-8')
     while True:
         if s in EOFS:
             break
@@ -208,27 +225,31 @@ def make_environ(app, rw, address):
             continue
         environ['HTTP_%s' % k] = v
         s = rw.readline(DEFAULT_BUFFER_SIZE)
+        if PY3: s = s.decode('utf-8')
     size = environ.pop('HTTP_CONTENT_LENGTH', None)
     if not size:
         return environ
     size = int(size)
     content_type = environ.get('HTTP_CONTENT_TYPE', '')
     if content_type.startswith('multipart/form-data'):
-        boundary = content_type.split('=')[1]
+        boundary = content_type.split('=')[1].strip()
         begin_boundary = ('--%s' % boundary)
         end_boundary = ('--%s--' % boundary)
         files = {}
         s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+        if PY3: s = s.decode('utf-8')
         while True:
             if s.strip() != begin_boundary:
                 assert s.strip() == end_boundary
                 break
             headers = {}
             s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+            if PY3: s = s.decode('utf-8')
             while s:
                 k, v = s.split(':', 1)
                 headers[k.strip().upper()] = v.strip()
                 s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+                if PY3: s = s.decode('utf-8')
             disposition = headers['CONTENT-DISPOSITION']
             h, m, t = disposition.split(';')
             name = m.split('=')[1].strip()
@@ -237,15 +258,20 @@ def make_environ(app, rw, address):
             else:
                 fp = TemporaryFile(mode='w+b')
             s = rw.readline(DEFAULT_BUFFER_SIZE)
+            if PY3: s = s.decode('utf-8')
             while s.strip() != begin_boundary \
                     and s.strip() != end_boundary:
-                fp.write(s)
+                fp.write(s.encode('utf-8'))
                 s = rw.readline(DEFAULT_BUFFER_SIZE)
+                if PY3: s = s.decode('utf-8')
             fp.seek(0)
             files[name[1:-1]] = fp
         environ[FILES_HEADER_NAME] = files
     else:
         environ['POST_CONTENT'] = rw.read(int(size))
+        if PY3:
+            environ['POST_CONTENT'] \
+                = environ['POST_CONTENT'].decode('utf-8')
         environ['CONTENT_LENGTH'] = len(environ['POST_CONTENT'])
     return environ
 
@@ -370,7 +396,7 @@ class LiteFile(object):
         self.zlib_text = zlib_text = zlib_compress(text, 9)[2:-4]
         self.zlib_etag = sha1(zlib_text).hexdigest()
         stream = StringIO()
-        with GzipFile(fileobj=stream, mode="w") as f:
+        with GzipFile(fileobj=stream, mode="wb") as f:
             f.write(text)
         self.gzip_text = gzip_text = stream.getvalue()
         self.gzip_etag = sha1(gzip_text).hexdigest()
@@ -576,7 +602,11 @@ class HttpFile(object):
         sessions = app.sessions
         while 1:
             token = '%s%s' % (urandom(24), time())
+            if PY3:
+                token = token.encode('utf-8')
             session_id = sha1(token).hexdigest()
+            if PY3:
+                session_id = session_id.encode('utf-8')
             session = sessions.get(session_id)
             if session is None:
                 break
@@ -592,7 +622,7 @@ class HttpFile(object):
 
     @property
     def files(self):
-        return self._files
+        return self._files or {}
 
     @property
     def environ(self):
@@ -655,21 +685,43 @@ class HttpFile(object):
         response_headers['Content-Type'] = 'text/html;charset=utf-8'
         status_code = int(status_code)
         status_text = http_status_codes[status_code]
-        buffers.write('HTTP/1.1 %d %s\r\n' % (status_code, status_text))
-        for name, text in response_headers.items():
-            buffers.write('%s: %s\r\n' % (name, text))
+        line = 'HTTP/1.1 %d %s\r\n' % (status_code, status_text)
+        if PY3:
+            line = line.encode('utf-8')
+        buffers.write(line)
+        header_names = []
         if headers is not None:
             for header in headers:
-                if isinstance(header, basestring):
-                    buffers.write(header)
-                else:
-                    buffers.write('%s: %s\r\n' % header)
+                if not isinstance(header, (list, tuple)):
+                    if PY3:
+                        header = header.encode('utf-8')
+                    k, v = header.split(':')
+                    k, v = k.strip(), v.strip()
+                    header = (k, v)
+                header_names.append(header[0])
+                line = '%s: %s\r\n' % header
+                if PY3:
+                    line = line.encode('utf-8')
+                buffers.write(line)
+        for name, text in response_headers.items():
+            if name in header_names:
+                continue
+            line = '%s: %s\r\n' % (name, text)
+            if PY3:
+                line = line.encode('utf-8')
+            buffers.write(line)
         if self.session_id is None:
             cookie = SimpleCookie()
             cookie[default_litefs_sid] = self.session.id
             cookie[default_litefs_sid]['path'] = '/'
-            buffers.write('%s\r\n' % cookie.output())
-        buffers.write('\r\n')
+            line = '%s\r\n' % cookie.output()
+            if PY3:
+                line = line.encode('utf-8')
+            buffers.write(line)
+        if PY3:
+            buffers.write(b'\r\n')
+        else:
+            buffers.write('\r\n')
         self._headers_responsed = True
 
     def redirect(self, url=None):
@@ -693,18 +745,35 @@ class HttpFile(object):
         if not self._headers_responsed:
             self.start_response(200)
         rw.write(self._buffers.getvalue())
-        if isinstance(content, basestring):
-            rw.write(content)
-        elif isinstance(content, dict):
-            rw.write(repr(content))
-        elif isinstance(content, Iterable):
-            for s in content:
-                if isinstance(s, basestring):
-                    rw.write(s)
-                else:
-                    rw.write(repr(s))
+        if PY3:
+            if isinstance(content, str):
+                rw.write(content.encode('utf-8'))
+            elif isinstance(content, bytes):
+                rw.write(content)
+            elif isinstance(content, dict):
+                rw.write(str(content).encode('utf-8'))
+            elif isinstance(content, Iterable):
+                for s in content:
+                    if isinstance(s, str):
+                        rw.write(s.encode('utf-8'))
+                    elif isinstance(s, bytes):
+                        rw.write(s)
+                    else:
+                        rw.write(str(s).encode('utf-8'))
+            else:
+                rw.write(str(content).encode('utf-8'))
         else:
-            rw.write(repr(content))
+            if isinstance(content, basestring):
+                rw.write(content)
+            elif isinstance(content, unicode):
+                rw.write(content.encode('utf-8'))
+            elif isinstance(content, dict):
+                rw.write(str(content))
+            elif isinstance(content, Iterable):
+                for s in content:
+                    rw.write(str(s))
+            else:
+                rw.write(str(content))
         try:
             rw.close()
         except:
