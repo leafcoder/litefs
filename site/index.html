@@ -1,1 +1,26 @@
-Hello world
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>demo</title>
+</head>
+<body>
+    <h1>Submit form</h1>
+    <form action="./demo" method="post">
+        <div>Name: <input type="text" name="name"></div>
+        <br>
+        <div>Name: <input type="text" name="name"></div>
+        <br>
+        <div><input type="submit"/></div>
+    </form>
+
+    <h1>Upload file</h1>
+    <form action="./demo" method="post" enctype="multipart/form-data">
+        <div><input type="file" name="file" /></div>
+        <br>
+        <div><input type="file" name="file1" /></div>
+        <br>
+        <div><input type="submit" value="upload" /></div>
+    </form>
+</body>
+</html>

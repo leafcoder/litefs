@@ -13,7 +13,7 @@ Copyright (c) 2017, Leafcoder.
 License: MIT (see LICENSE for details)
 '''
 
-__version__ = '0.2.4'
+__version__ = '0.3.0'
 __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
@@ -162,6 +162,11 @@ def log_error(logger, message=None):
     if message is None:
         message = 'error occured'
     logger.error(message, exc_info=True)
+
+def log_info(logger, message=None):
+    if message is None:
+        message = 'info'
+    logger.info(message)
 
 def log_debug(logger, message=None):
     if message is None:
@@ -351,6 +356,8 @@ class FileEventHandler(FileSystemEventHandler):
             return
         if not dest_path.startswith(webroot+'/'):
             return
+        log_info(self._app.logger, '%s has been moved to %s' \
+            % (src_path, dest_path))
         src_path  = '/%s' % src_path [len(webroot):].strip('/')
         dest_path = '/%s' % dest_path[len(webroot):].strip('/')
         caches = self._app.caches
@@ -375,6 +382,7 @@ class FileEventHandler(FileSystemEventHandler):
             return
         if not src_path.startswith(webroot+'/'):
             return
+        log_info(self._app.logger, '%s has been modified' % src_path)
         src_path = '/%s' % src_path[len(webroot):].strip('/')
         caches = self._app.caches
         files = self._app.files
@@ -1134,7 +1142,7 @@ class Litefs(object):
 
     def __init__(self, **kwargs):
         self.config = config = make_config(**kwargs)
-        level = logging.DEBUG if config.debug else logging.ERROR
+        level = logging.DEBUG if config.debug else logging.INFO
         self.logger = make_logger(__name__, level=level)
         self.server_info = server_info = make_server(
             config.address, request_size=config.request_size
