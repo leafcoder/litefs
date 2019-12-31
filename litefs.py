@@ -31,7 +31,6 @@ from mako import exceptions
 from mako.lookup import TemplateLookup
 from mimetypes import guess_type
 from os import urandom, stat
-from platform import platform
 from posixpath import join as path_join, splitext as path_splitext, \
     split as path_split, realpath as path_realpath, \
     abspath as path_abspath, isfile as path_isfile, \
