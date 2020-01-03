@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-'''Build a web server framework using Python. Litefs was developed to imple\
+__doc__ = '''\
+Build a web server framework using Python. Litefs was developed to imple\
 ment a server framework that can quickly, securely, and flexibly build Web \
 projects. Litefs is a high-performance HTTP server. Litefs has the characte\
 ristics of high stability, rich functions, and low system consumption.
@@ -17,10 +18,12 @@ __version__ = '0.3.0'
 __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
+import argparse
 import logging
 import re
 import sys
 from collections import deque, Iterable
+from datetime import datetime
 from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
 from functools import partial
 from greenlet import greenlet, getcurrent, GreenletExit
@@ -58,6 +61,10 @@ if PY3:
     from io import BytesIO as StringIO
     from urllib.parse import splitport, unquote_plus
     from collections import UserDict
+    def is_unicode(s):
+        return isinstance(s, str)
+    def is_bytes(s):
+        return isinstance(s, bytes)
 else:
     # Import modules in py2
     import _socket as socket
@@ -66,18 +73,18 @@ else:
     from httplib import responses as http_status_codes
     from urllib import splitport, unquote_plus
     from UserDict import UserDict
+    def is_unicode(s):
+        return isinstance(s, unicode)
+    def is_bytes(s):
+        return isinstance(s, basestring)
 
-default_404 = '404'
-default_port = 9090
-default_host = 'localhost'
-default_prefix = 'litefs'
-default_page = 'index.html'
-default_webroot = './site'
-default_cgi_dir = '/cgi-bin'
-default_request_size = 10240
-default_litefs_sid = '%s.sid' % default_prefix
+server_name = 'litefs'
+server_software = 'litefs %s' % __version__
 
-server_name = 'litefs %s' % __version__
+default_404 = 'not_found'
+default_sid = '%s.sid' % server_name
+default_content_type = 'text/plain'
+
 EOFS = ('', '\n', '\r\n')
 FILES_HEADER_NAME = 'litefs.files'
 date_format = '%Y/%m/%d %H:%M:%S'
@@ -85,6 +92,7 @@ should_retry_error = (EWOULDBLOCK, EAGAIN)
 double_slash_sub = re.compile(r'\/{2,}').sub
 startswith_dot_sub = re.compile(r'\/\.+').sub
 suffixes = ('.py', '.pyc', '.pyo', '.so', '.mako')
+cgi_suffixes = ('.pl', '.py', '.pyc', '.pyo', '.php')
 form_dict_match = re.compile(r'(.+)\[([^\[\]]+)\]').match
 server_info = 'litefs/%s python/%s' % (__version__, sys.version.split()[0])
 cgi_runners = {
@@ -109,54 +117,6 @@ DEFAULT_STATUS_MESSAGE = """\
     </body>
 </html>"""
 
-class HttpError(Exception):
-    pass
-
-def gmt_date(timestamp=None):
-    if timestamp is None:
-        timestamp = time()
-    return strftime('%a, %d %b %Y %H:%M:%S GMT', gmtime(timestamp))
-
-def new_module(**kwargs):
-    '''创建新模块
-
-    新创建的模块不会加入到 sys.path 中，并导入自定义属性。
-    '''
-    mod_name = ''.join((default_prefix, uuid4().hex))
-    mod = imp_new_module(mod_name)
-    mod.__dict__.update(kwargs)
-    return mod
-
-def make_config(**kwargs):
-    default_config = {
-        'address'     : '%s:%d' % (default_host, default_port),
-        'webroot'     : default_webroot,
-        'cgi_dir'     : default_cgi_dir,
-        'default_page': default_page,
-        'not_found'   : default_404,
-        'debug'       : False,
-        'request_size': default_request_size
-    }
-    default_config.update(kwargs)
-    config = new_module(**default_config)
-    config.webroot = path_abspath(config.webroot)
-    return config
-
-def make_logger(name, level=logging.DEBUG):
-    '''创建日志对象
-
-    输出 HTTP 访问日志和错误异常。
-    '''
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    handler = logging.StreamHandler()
-    fmt = logging.Formatter(
-        '%(asctime)s - %(message)s', datefmt=date_format
-    )
-    handler.setFormatter(fmt)
-    logger.addHandler(handler)
-    return logger
-
 def log_error(logger, message=None):
     if message is None:
         message = 'error occured'
@@ -172,29 +132,92 @@ def log_debug(logger, message=None):
         message = 'debug'
     logger.debug(message)
 
-def make_server(address, request_size=-1):
-    host, port = splitport(address)
-    port = 80 if port is None else int(port)
+class HttpError(Exception):
+    pass
+
+def render_error():
+    return exceptions.html_error_template().render()
+
+def gmt_date(timestamp=None):
+    if timestamp is None:
+        timestamp = time()
+    return strftime('%a, %d %b %Y %H:%M:%S GMT', gmtime(timestamp))
+
+def new_module(**kwargs):
+    '''创建新模块
+
+    新创建的模块不会加入到 sys.path 中，并导入自定义属性。
+    '''
+    module_name = ''.join((server_name, uuid4().hex))
+    module = imp_new_module(module_name)
+    module.__dict__.update(kwargs)
+    return module
+
+def make_config(**kwargs):
+    args = _cmd_args(sys.argv)
+    default_config = {}
+    default_config.update(kwargs)
+    default_config.update(vars(args))
+    config = new_module(**default_config)
+    config.webroot = path_abspath(config.webroot)
+    return config
+
+def make_logger(name, log=None, level=logging.DEBUG):
+    '''创建日志对象
+
+    输出 HTTP 访问日志和错误异常。
+    '''
+    logger = logging.getLogger(name)
+    fmt = logging.Formatter(
+        ('%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message'
+         ')s'),
+        datefmt=date_format
+    )
+    logger.setLevel(level)
+    if log:
+        handler = logging.FileHandler(log)
+        handler.setFormatter(fmt)
+        logger.addHandler(handler)
+    handler = logging.StreamHandler()
+    handler.setFormatter(fmt)
+    logger.addHandler(handler)
+    return logger
+
+def make_server(host, port, request_size=-1):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
     if -1 == request_size:
-        request_size = default_request_size
+        request_size = 1024
     sock.listen(request_size)
     sock.setblocking(0)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    return {
-        'address': '%s:%d' % (host, port),
-        'fileno' : sock.fileno(),
-        'socket' : sock,
-        'host'   : host,
-        'port'   : port
-    }
+    return sock
 
-def make_environ(app, rw, address):
+def make_headers(rw):
+    """Read HTTP headers"""
+    headers = {}
+    s = rw.readline(DEFAULT_BUFFER_SIZE)
+    if PY3: s = s.decode('utf-8')
+    while True:
+        if s in EOFS:
+            break
+        k, v = s.split(':', 1)
+        k, v = k.lower().strip(), v.strip()
+        headers[k] = v
+        s = rw.readline(DEFAULT_BUFFER_SIZE)
+        if PY3: s = s.decode('utf-8')
+    return headers
+
+def make_environ(app, rw, client_address):
     environ = {}
     environ['SERVER_NAME'] = server_name
-    environ['SERVER_PORT'] = int(app.server_info['port'])
+    environ['SERVER_SOFTWARE'] = server_software
+    environ['SERVER_PORT'] = app.port
+    environ['REMOTE_ADDR'] = client_address
+    environ['REMOTE_HOST'] = client_address[0]
+    environ['REMOTE_PORT'] = client_address[1]
+    # Read first line
     s = rw.readline(DEFAULT_BUFFER_SIZE)
     if PY3: s = s.decode('utf-8')
     if not s:
@@ -202,82 +225,90 @@ def make_environ(app, rw, address):
         raise HttpError('invalid http headers')
     request_method, path_info, protocol = s.strip().split()
     if '?' in path_info:
-        path_info, query_string = path_info.split('?')
+        path_info, query_string = path_info.split('?', 1)
     else:
         path_info, query_string = path_info, ''
     path_info = unquote_plus(path_info)
     base_uri, script_name = path_info.split('/', 1)
     if '' == script_name:
         script_name = app.config.default_page
-    environ['REMOTE_ADDR'] = address
-    environ['REMOTE_HOST'] = address[0]
-    environ['REMOTE_PORT'] = address[1]
     environ['REQUEST_METHOD'] = request_method
-    environ['QUERY_STRING'] = query_string
+    environ['QUERY_STRING'] = unquote_plus(query_string)
     environ['SERVER_PROTOCOL'] = protocol
     environ['SCRIPT_NAME'] = script_name
     environ['PATH_INFO'] = path_info
-    s = rw.readline(DEFAULT_BUFFER_SIZE)
-    if PY3: s = s.decode('utf-8')
-    while True:
-        if s in EOFS:
-            break
-        k, v = s.split(':', 1)
-        k, v = k.strip(), v.strip()
+    headers = make_headers(rw)
+    length = headers.get('content-length')
+    if length:
+        environ['CONTENT_LENGTH'] = length = int(length)
+    content_type = headers.get('content-type')
+    if content_type:
+        environ['CONTENT_TYPE'] = content_type
+    else:
+        environ['CONTENT_TYPE'] = default_content_type
+    for k, v in headers.items():
         k = k.replace('-', '_').upper()
+        # skip content_length, content_type, etc.
         if k in environ:
             continue
-        environ['HTTP_%s' % k] = v
-        s = rw.readline(DEFAULT_BUFFER_SIZE)
-        if PY3: s = s.decode('utf-8')
-    size = environ.pop('HTTP_CONTENT_LENGTH', None)
-    if not size:
+        k = 'HTTP_%s' % k
+        if k in environ:
+            environ[k] += ',%s' % v # comma-separate multiple headers
+        else:
+            environ[k] = v
+    if not length:
         return environ
-    size = int(size)
-    content_type = environ.get('HTTP_CONTENT_TYPE', '')
+    content_type = environ.get('CONTENT_TYPE', '')
     if content_type.startswith('multipart/form-data'):
-        boundary = content_type.split('=')[1].strip()
-        begin_boundary = ('--%s' % boundary)
-        end_boundary = ('--%s--' % boundary)
-        files = {}
-        s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-        if PY3: s = s.decode('utf-8')
-        while True:
-            if s.strip() != begin_boundary:
-                assert s.strip() == end_boundary
-                break
-            headers = {}
-            s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-            if PY3: s = s.decode('utf-8')
-            while s:
-                k, v = s.split(':', 1)
-                headers[k.strip().upper()] = v.strip()
-                s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-                if PY3: s = s.decode('utf-8')
-            disposition = headers['CONTENT-DISPOSITION']
-            h, m, t = disposition.split(';')
-            name = m.split('=')[1].strip()
-            if size <= 5242880: # <= 5M file save in memory
-                fp = StringIO()
-            else:
-                fp = TemporaryFile(mode='w+b')
-            s = rw.readline(DEFAULT_BUFFER_SIZE)
-            if PY3: s = s.decode('utf-8')
-            while s.strip() != begin_boundary \
-                    and s.strip() != end_boundary:
-                fp.write(s.encode('utf-8'))
-                s = rw.readline(DEFAULT_BUFFER_SIZE)
-                if PY3: s = s.decode('utf-8')
-            fp.seek(0)
-            files[name[1:-1]] = fp
-        environ[FILES_HEADER_NAME] = files
+        environ[FILES_HEADER_NAME] \
+            = parse_multipart(rw, content_type, length)
     else:
-        environ['POST_CONTENT'] = rw.read(int(size))
+        environ['POST_CONTENT'] = post_content = rw.read(int(length))
         if PY3:
             environ['POST_CONTENT'] \
-                = environ['POST_CONTENT'].decode('utf-8')
+                = unquote_plus(post_content.decode('utf-8'))
         environ['CONTENT_LENGTH'] = len(environ['POST_CONTENT'])
+    for k in ('CONTENT_LENGTH', 'HTTP_USER_AGENT', 'HTTP_COOKIE',
+              'HTTP_REFERER'):
+        environ.setdefault(k, '')
     return environ
+
+def parse_multipart(rw, content_type, length):
+    boundary = content_type.split('=')[1].strip()
+    begin_boundary = ('--%s' % boundary)
+    end_boundary = ('--%s--' % boundary)
+    files = {}
+    s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+    if PY3: s = s.decode('utf-8')
+    while True:
+        if s.strip() != begin_boundary:
+            assert s.strip() == end_boundary
+            break
+        headers = {}
+        s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+        if PY3: s = s.decode('utf-8')
+        while s:
+            k, v = s.split(':', 1)
+            headers[k.strip().upper()] = v.strip()
+            s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+            if PY3: s = s.decode('utf-8')
+        disposition = headers['CONTENT-DISPOSITION']
+        h, m, t = disposition.split(';')
+        name = m.split('=')[1].strip()
+        if length <= 5242880: # <= 5M file save in memory
+            fp = StringIO()
+        else:
+            fp = TemporaryFile(mode='w+b')
+        s = rw.readline(DEFAULT_BUFFER_SIZE)
+        if PY3: s = s.decode('utf-8')
+        while s.strip() != begin_boundary \
+                and s.strip() != end_boundary:
+            fp.write(s.encode('utf-8'))
+            s = rw.readline(DEFAULT_BUFFER_SIZE)
+            if PY3: s = s.decode('utf-8')
+        fp.seek(0)
+        files[name[1:-1]] = fp
+    return files
 
 def parse_form(form, qstr):
     qstr = unquote_plus(qstr)
@@ -416,12 +447,12 @@ class LiteFile(object):
         headers.append(('Connection', 'close'))
         self.headers = headers
 
-    def handler(self, httpfile):
-        environ = httpfile.environ
+    def handler(self, request):
+        environ = request.environ
         if_modified_since = environ.get('HTTP_IF_MODIFIED_SINCE')
         if if_modified_since == self.last_modified:
-            result = httpfile._response(304)
-            return httpfile._finish(result)
+            result = request._response(304)
+            return request.finish(result)
         if_none_match = environ.get('HTTP_IF_NONE_MATCH')
         accept_encodings = environ.get(
             'HTTP_ACCEPT_ENCODING', '').split(',')
@@ -429,27 +460,27 @@ class LiteFile(object):
         headers = list(self.headers)
         if 'gzip' in accept_encodings:
             if if_none_match == self.gzip_etag:
-                result = httpfile._response(304)
-                return httpfile._finish(result)
+                result = request._response(304)
+                return request.finish(result)
             headers.append(('Etag', self.gzip_etag))
             headers.append(('Content-Encoding', 'gzip'))
             text = self.gzip_text
         elif 'deflate' in accept_encodings:
             if if_none_match == self.zlib_etag:
-                result = httpfile._response(304)
-                return httpfile._finish(result)
+                result = request._response(304)
+                return request.finish(result)
             headers.append(('Etag', self.zlib_etag))
             headers.append(('Content-Encoding', 'deflate'))
             text = self.zlib_text
         else:
             if if_none_match == self.etag:
-                result = httpfile._response(304)
-                return httpfile._finish(result)
+                result = request._response(304)
+                return request.finish(result)
             headers.append(('Etag', self.etag))
             text = self.text
         headers.append(('Content-Length', '%d' % len(text)))
-        result = httpfile._response(200, headers=headers, content=text)
-        return httpfile._finish(result)
+        result = request._response(200, headers=headers, content=text)
+        return request.finish(result)
 
 class TreeCache(object):
 
@@ -574,25 +605,34 @@ class Session(UserDict):
     def __str__(self):
         return '<Session Id=%s>' % self.id
 
-class HttpFile(object):
+class HttpRequest(object):
 
-    def __init__(self, app, rw, environ, address):
+    def __init__(self, app, rw, environ, client_address):
         self._rw = rw
         self._app = app
         self._environ = environ
-        self._address = address
+        self._client_address = client_address
         self._buffers = StringIO()
         self._headers_responsed = False
         self._form = make_form(environ)
         self._session_id, self._session = self._get_session(environ)
         self._files = environ.pop(FILES_HEADER_NAME, None)
+        if app.config.debug:
+            log_debug(app.logger,
+                '%s - "%s %s %s"' % (
+                    environ['REMOTE_HOST'],
+                    environ['SERVER_PROTOCOL'],
+                    environ['REQUEST_METHOD'],
+                    environ['PATH_INFO']
+                )
+            )
 
     def _get_session(self, environ):
         app = self._app
         sessions = app.sessions
         cookie = environ.get('HTTP_COOKIE')
         cookie = SimpleCookie(cookie)
-        morsel = cookie.get(default_litefs_sid)
+        morsel = cookie.get(default_sid)
         if morsel is not None:
             session_id = morsel.value
         else:
@@ -624,8 +664,8 @@ class HttpFile(object):
         return self._app.config
 
     @property
-    def address(self):
-        return self._address
+    def client_address(self):
+        return self._client_address
 
     @property
     def files(self):
@@ -656,6 +696,10 @@ class HttpFile(object):
         return self.environ['SERVER_PROTOCOL']
 
     @property
+    def content_type(self):
+        return self.environ.get('CONTENT_TYPE')
+
+    @property
     def path_info(self):
         return self.environ['PATH_INFO']
 
@@ -666,7 +710,7 @@ class HttpFile(object):
     @property
     def request_uri(self):
         environ = self.environ
-        path_info    = environ['PATH_INFO']
+        path_info = environ['PATH_INFO']
         query_string = environ['QUERY_STRING']
         if not query_string:
             return path_info
@@ -719,8 +763,8 @@ class HttpFile(object):
             buffers.write(line)
         if self.session_id is None:
             cookie = SimpleCookie()
-            cookie[default_litefs_sid] = self.session.id
-            cookie[default_litefs_sid]['path'] = '/'
+            cookie[default_sid] = self.session.id
+            cookie[default_sid]['path'] = '/'
             line = '%s\r\n' % cookie.output()
             if PY3:
                 line = line.encode('utf-8')
@@ -747,40 +791,31 @@ class HttpFile(object):
         self.start_response(status_code, headers=headers)
         return content
 
-    def _finish(self, content):
+    def finish(self, content):
         rw = self._rw
         if not self._headers_responsed:
             self.start_response(200)
         rw.write(self._buffers.getvalue())
-        if PY3:
-            if isinstance(content, str):
-                rw.write(content.encode('utf-8'))
-            elif isinstance(content, bytes):
-                rw.write(content)
-            elif isinstance(content, dict):
-                rw.write(str(content).encode('utf-8'))
-            elif isinstance(content, Iterable):
-                for s in content:
-                    if isinstance(s, str):
-                        rw.write(s.encode('utf-8'))
-                    elif isinstance(s, bytes):
-                        rw.write(s)
-                    else:
-                        rw.write(str(s).encode('utf-8'))
-            else:
-                rw.write(str(content).encode('utf-8'))
+        if is_unicode(content):
+            rw.write(content.encode('utf-8'))
+        elif is_bytes(content):
+            rw.write(content)
+        elif isinstance(content, (list, tuple, Iterable)):
+            for s in content:
+                if is_unicode(s):
+                    rw.write(s.encode('utf-8'))
+                elif is_bytes(s):
+                    rw.write(s)
+                else:
+                    s = str(s)
+                    if PY3:
+                        s = s.encode('utf-8')
+                    rw.write(s)
         else:
-            if isinstance(content, basestring):
-                rw.write(content)
-            elif isinstance(content, unicode):
-                rw.write(content.encode('utf-8'))
-            elif isinstance(content, dict):
-                rw.write(str(content))
-            elif isinstance(content, Iterable):
-                for s in content:
-                    rw.write(str(s))
-            else:
-                rw.write(str(content))
+            content = str(content)
+            if PY3:
+                content = content.encode('utf-8')
+            rw.write(content)
         try:
             rw.close()
         except:
@@ -807,7 +842,7 @@ class HttpFile(object):
             }
         return content
 
-    def _handler(self):
+    def handler(self):
         app = self._app
         environ = self.environ
         path_info = environ['PATH_INFO']
@@ -816,11 +851,11 @@ class HttpFile(object):
         if path != path_info:
             result = self.redirect(path)
             try:
-                return self._finish(result)
+                return self.finish(result)
             except:
-                content = exceptions.html_error_template().render()
+                content = render_error()
                 result = self._response(500, content=content)
-                return self._finish(result)
+                return self.finish(result)
         base, name = path_split(path)
         if not name:
             name = app.config.default_page
@@ -832,17 +867,17 @@ class HttpFile(object):
             except:
                 log_error(app.logger)
                 if app.config.debug:
-                    content = exceptions.html_error_template().render()
+                    content = render_error()
                     result = self._response(500, content=content)
-                    return self._finish(result)
+                    return self.finish(result)
                 result = self._response(500)
-                return self._finish(result)
+                return self.finish(result)
             else:
                 try:
-                    return self._finish(result)
+                    return self.finish(result)
                 except:
-                    result = exceptions.html_error_template().render()
-                    return self._finish(result)
+                    result = render_error()
+                    return self.finish(result)
         litefile = app.files.get(path)
         if litefile is not None:
             return litefile.handler(self)
@@ -851,7 +886,7 @@ class HttpFile(object):
         )
         if path_isdir(realpath):
             result = self.redirect(path + '/')
-            return self._finish(result)
+            return self.finish(result)
         module = self._load_script(base, name)
         if module is not None and hasattr(module, 'handler'):
             basepath, ext = path_splitext(path)
@@ -864,23 +899,23 @@ class HttpFile(object):
             except:
                 log_error(app.logger)
                 if app.config.debug:
-                    content = exceptions.html_error_template().render()
+                    content = render_error()
                     result = self._response(500, content=content)
-                    return self._finish(result)
+                    return self.finish(result)
                 result = self._response(500)
-                return self._finish(result)
+                return self.finish(result)
             else:
                 try:
-                    return self._finish(result)
+                    return self.finish(result)
                 except:
-                    result = exceptions.html_error_template().render()
-                    return self._finish(result)
+                    result = render_error()
+                    return self.finish(result)
         try:
             litefile = self._load_static_file(base, name)
         except IOError:
             log_error(app.logger)
             result = self._response(404)
-            return self._finish(result)
+            return self.finish(result)
         if litefile is not None:
             app.files.put(path, litefile)
             try:
@@ -888,11 +923,11 @@ class HttpFile(object):
             except:
                 log_error(app.logger)
                 if app.config.debug:
-                    content = exceptions.html_error_template().render()
+                    content = render_error()
                     result = self._response(500, content=content)
-                    return self._finish(result)
+                    return self.finish(result)
                 result = self._response(500)
-                return self._finish(result)
+                return self.finish(result)
         path = app.config.not_found
         base, name = path_split(path)
         if not name:
@@ -908,13 +943,13 @@ class HttpFile(object):
             except:
                 log_error(app.logger)
                 if app.config.debug:
-                    content = exceptions.html_error_template().render()
+                    content = render_error()
                     result = self._response(500, content=content)
-                    return self._finish(result)
+                    return self.finish(result)
                 result = self._response(500)
-                return self._finish(result)
+                return self.finish(result)
         result = self._response(404)
-        return self._finish(result)
+        return self.finish(result)
 
     def _load_static_file(self, base, name):
         app = self._app
@@ -956,7 +991,7 @@ class HttpFile(object):
                 except:
                     log_error(app.logger)
                     if app.config.debug:
-                        content = exceptions.html_error_template().render()
+                        content = render_error()
                         return self._response(500, content=content)
                     return self._response(500)
             return _handler
@@ -972,7 +1007,7 @@ class HttpFile(object):
         )
         script_uri = path_join(base.lstrip('/'), name)
         script_name, ext = path_splitext(name)
-        if ext in ('.pl', '.py', '.pyc', '.pyo', '.php') and \
+        if ext in cgi_suffixes and \
                 base.startswith(app.config.cgi_dir):
             runner = cgi_runners[ext]
             script_path = path_join(webroot, script_uri)
@@ -1001,7 +1036,7 @@ class HttpFile(object):
             log_error(app.logger)
             content = None
             if app.config.debug:
-                content = exceptions.html_error_template().render()
+                content = render_error()
             def handler(content):
                 def _handler(self):
                     return self._response(500, content=content)
@@ -1142,28 +1177,31 @@ class Litefs(object):
     def __init__(self, **kwargs):
         self.config = config = make_config(**kwargs)
         level = logging.DEBUG if config.debug else logging.INFO
-        self.logger = make_logger(__name__, level=level)
-        self.server_info = server_info = make_server(
-            config.address, request_size=config.request_size
+        self.logger = make_logger(__name__, log=config.log, level=level)
+        self.host = host = config.host
+        self.port = port = config.port
+        self.server_address = '%s:%d' % (host, port)
+        self.socket = socket = make_server(
+            host, port, request_size=config.listen
         )
-        self.address = address = server_info['address']
-        self.fileno = fileno = server_info['fileno']
-        self.socket = server_info['socket']
+        self.fileno = fileno = socket.fileno()
         self.sessions = MemoryCache(max_size=1000000)
         self.caches = TreeCache()
         self.files  = TreeCache()
         self.epoll = select_epoll()
         self.epoll.register(fileno, EPOLLIN | EPOLLET)
         self.grs = {}
+        now = datetime.now().strftime('%B %d, %Y - %X')
         sys.stdout.write((
-            ' * Server is running at http://%s/\n'
-            ' * Press ctrl-c to quit.\n\n'
-        ) % address)
+            "Litefs %s - %s\n"
+            "Starting server at http://%s:%d/\n"
+            "Quit the server with CONTROL-C.\n"
+        ) % (__version__, now, host, port))
 
-    def _handler_accept(self):
+    def handle_accept(self):
         while True:
             try:
-                sock, address = self.socket.accept()
+                sock, client_address = self.socket.accept()
             except socket.error as e:
                 errno = e.args[0]
                 if EAGAIN == errno or EWOULDBLOCK == errno:
@@ -1173,27 +1211,16 @@ class Litefs(object):
             fileno = sock.fileno()
             raw = RawIO(self, sock)
             self.grs[fileno] = gr = greenlet(
-                partial(self._handler_io, raw, address)
+                partial(self.handle_io, raw, client_address)
             )
             gr.switch()
 
-    def _handler_io(self, raw, address):
+    def handle_io(self, raw, client_address):
         try:
-            config = self.config
-            fileno = raw.fileno()
             rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
-            environ = make_environ(self, rw, address)
-            httpfile = HttpFile(self, rw, environ, address)
-            if config.debug:
-                log_debug(self.logger,
-                    '%s - "%s %s %s"' % (
-                        environ['REMOTE_HOST'],
-                        environ['SERVER_PROTOCOL'],
-                        environ['REQUEST_METHOD'],
-                        environ['PATH_INFO']
-                    )
-                )
-            httpfile._handler()
+            environ = make_environ(self, rw, client_address)
+            request = HttpRequest(self, rw, environ, client_address)
+            request.handler()
         except socket.error as e:
             if e.errno == EPIPE:
                 raise GreenletExit
@@ -1208,19 +1235,20 @@ class Litefs(object):
                 if raw.write_gr is not None:
                     raw.write_gr.throw()
             finally:
+                fileno = raw.fileno()
                 self.grs.pop(fileno, None)
-                try:
-                    raw.close()
-                except:
-                    pass
+            try:
+                raw.close()
+            except:
+                pass
 
-    def _poll(self, timeout=.2):
+    def poll(self, timeout=.2):
         while True:
             events = self.epoll.poll(timeout)
             for fileno, event in events:
                 if fileno == self.fileno:
                     try:
-                        self._handler_accept()
+                        self.handle_accept()
                     except KeyboardInterrupt:
                         break
                     except socket.error as e:
@@ -1229,14 +1257,7 @@ class Litefs(object):
                         log_error(self.logger)
                     except:
                         log_error(self.logger)
-                elif event & EPOLLIN:
-                    try:
-                        self.grs[fileno].switch()
-                    except KeyboardInterrupt:
-                        break
-                    except:
-                        log_error(self.logger)
-                elif event & EPOLLOUT:
+                elif (event & EPOLLIN) or (event & EPOLLOUT):
                     try:
                         self.grs[fileno].switch()
                     except KeyboardInterrupt:
@@ -1257,7 +1278,7 @@ class Litefs(object):
         observer.schedule(event_handler, self.config.webroot, True)
         observer.start()
         try:
-            self._poll(timeout=timeout)
+            self.poll(timeout=timeout)
         except KeyboardInterrupt:
             pass
         except:
@@ -1269,32 +1290,31 @@ class Litefs(object):
             self.epoll.close()
             self.socket.close()
 
-def test_server():
-    import argparse
-    parser = argparse.ArgumentParser(description='Litefs with epoll')
-    parser.add_argument('--host', action="store", dest="host",
-        required=False, default=default_host)
-    parser.add_argument('--port', action="store", dest="port", type=int,
-        required=False, default=default_port)
-    parser.add_argument('--webroot', action="store", dest="webroot",
-        required=False, default=default_webroot)
-    parser.add_argument('--debug', action="store", dest="debug",
+def _cmd_args(args):
+    parser = argparse.ArgumentParser(args[0], description=__doc__)
+    parser.add_argument('--host', action='store', dest='host',
+        required=False, default='localhost')
+    parser.add_argument('--port', action='store', dest='port', type=int,
+        required=False, default=9090)
+    parser.add_argument('--webroot', action='store', dest='webroot',
+        required=False, default='./site')
+    parser.add_argument('--debug', action='store', dest='debug',
         required=False, default=False)
-    parser.add_argument('--not-found', action="store", dest="not_found",
+    parser.add_argument('--not-found', action='store', dest="not_found",
         required=False, default=default_404)
-    parser.add_argument('--default-page', action="store",
-        dest="default_page", required=False, default=default_page)
-    parser.add_argument('--cgi-dir', action="store", dest="cgi_dir",
-        required=False, default=default_cgi_dir)
-    args = parser.parse_args()
-    litefs = Litefs(
-        address='%s:%d' % (args.host, args.port),
-        webroot=args.webroot,
-        debug=args.debug,
-        default_page=args.default_page,
-        not_found=args.not_found,
-        cgi_dir=args.cgi_dir
-    )
+    parser.add_argument('--default-page', action='store',
+        dest='default_page', required=False, default='index.html')
+    parser.add_argument('--cgi-dir', action='store', dest='cgi_dir',
+        required=False, default='/cgi-bin')
+    parser.add_argument('--log', action='store', dest='log',
+        required=False)
+    parser.add_argument('--listen', action='store', dest='listen', type=int,
+        required=False, default=1024)
+    args = parser.parse_args(args and args[1:])
+    return args
+
+def test_server():
+    litefs = Litefs()
     litefs.run(timeout=2.)
 
 if '__main__' == __name__:

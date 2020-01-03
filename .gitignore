@@ -9,3 +9,7 @@ dist/
 .eggs/
 build/
 *.so
+.tox/
+__pycache__/
+*.pyc
+*.log
