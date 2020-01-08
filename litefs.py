@@ -30,6 +30,7 @@ from greenlet import greenlet, getcurrent, GreenletExit
 from gzip import GzipFile
 from hashlib import sha1
 from imp import find_module, load_module, new_module as imp_new_module
+from io import RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
 from mako import exceptions
 from mako.lookup import TemplateLookup
 from mimetypes import guess_type
@@ -49,18 +50,17 @@ from watchdog.events import *
 from watchdog.observers import Observer
 from weakref import proxy as weakref_proxy
 from zlib import compress as zlib_compress
-from io import RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
 
 PY3 = sys.version_info.major > 2
 
 if PY3:
     # Import modules in py3
     import socket
+    from collections import UserDict
     from http.client import responses as http_status_codes
     from http.cookies import SimpleCookie
     from io import BytesIO as StringIO
     from urllib.parse import splitport, unquote_plus
-    from collections import UserDict
     def is_unicode(s):
         return isinstance(s, str)
     def is_bytes(s):
@@ -68,10 +68,10 @@ if PY3:
 else:
     # Import modules in py2
     import _socket as socket
-    from Cookie import SimpleCookie
     from cStringIO import StringIO
     from httplib import responses as http_status_codes
     from urllib import splitport, unquote_plus
+    from Cookie import SimpleCookie
     from UserDict import UserDict
     def is_unicode(s):
         return isinstance(s, unicode)
@@ -79,14 +79,14 @@ else:
         return isinstance(s, basestring)
 
 server_name = 'litefs'
-server_software = 'litefs %s' % __version__
+server_software = '%s %s' % (server_name, __version__)
 
 default_404 = 'not_found'
 default_sid = '%s.sid' % server_name
-default_content_type = 'text/plain'
+default_content_type = 'text/plain; charset=utf-8'
 
 EOFS = ('', '\n', '\r\n')
-FILES_HEADER_NAME = 'litefs.files'
+FILES_HEADER_NAME = '%s.files' % server_name
 date_format = '%Y/%m/%d %H:%M:%S'
 should_retry_error = (EWOULDBLOCK, EAGAIN)
 double_slash_sub = re.compile(r'\/{2,}').sub
@@ -94,7 +94,8 @@ startswith_dot_sub = re.compile(r'\/\.+').sub
 suffixes = ('.py', '.pyc', '.pyo', '.so', '.mako')
 cgi_suffixes = ('.pl', '.py', '.pyc', '.pyo', '.php')
 form_dict_match = re.compile(r'(.+)\[([^\[\]]+)\]').match
-server_info = 'litefs/%s python/%s' % (__version__, sys.version.split()[0])
+server_info = '%s/%s python/%s' \
+    % (server_name, __version__, sys.version.split()[0])
 cgi_runners = {
     '.pl' : '/usr/bin/perl',
     '.py' : '/usr/bin/python',
@@ -1028,7 +1029,7 @@ class HttpRequest(object):
             fp, pathname, description = find_module(name, [realbase])
         except ImportError:
             return None
-        module_name = 'litefs_%s' % uuid4().hex
+        module_name = '%s_%s' % (server_name, uuid4().hex)
         sys.dont_write_bytecode = True
         try:
             module = load_module(module_name, fp, pathname, description)

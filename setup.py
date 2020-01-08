@@ -32,17 +32,12 @@ def get_long_str(var_name):
     return re.search(
         r"%s\s*=\s*['\"]{3}([^'\"]+)['\"]{3}" % var_name, src_py).group(1)
 
-version = get_str('__version__')
-author  = get_str('__author__')
-license = get_str('__license__')
-long_description = get_long_str('__doc__')
-
 setup(
     name='litefs',
-    version=version,
+    version=get_str('__version__'),
     description='Build a web server framework using Python.',
-    long_description=long_description,
-    author=author,
+    long_description=get_long_str('__doc__'),
+    author=get_str('__author__'),
     author_email='leafcoder@gmail.com',
     url='https://github.com/leafcoder/litefs',
     py_modules=['litefs'],
@@ -52,7 +47,7 @@ setup(
             'language_level' : language_level
         }
     ),
-    license=license,
+    license=get_str('__license__'),
     platforms='any',
     package_data={
         '': ['*.txt', '*.md', 'LICENSE', 'example.py', 'MANIFEST.in'],
