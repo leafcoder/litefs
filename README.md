@@ -1,94 +1,121 @@
+# Litefs: A Lite Python Web Framework
 
-# 1. 快速启动
+Build a web server framework using Python. Litefs was developed to implement a server framework that can quickly, securely, and flexibly build Web projects. Litefs is a high-performance HTTP server. Litefs has the characteristics of high stability, rich functions, and low system consumption.
 
-1.1 启动脚本
----------------
+## Installation
 
-    import sys
-    sys.dont_write_bytecode = True
+It can be installed via pip:
+
+    $ pip install litefs
+
+It can be installed via source code:
+
+    $ git clone https://github.com/leafcoder/litefs.git litefs
+    $ cd litefs
+    $ python setup.py install
+
+## Quickstart: "Hello world"
+
+Firstly, let's write a basci example via litefs. Save it to "example.py".
+
+    # /usr/bin/env python
 
     import litefs
-    litefs = litefs.Litefs(
-        address='0.0.0.0:8080', webroot='./site', debug=True
-    )
-    litefs.run(timeout=2.)
+    litefs.test_server()
 
-将上面的代码保存为 run.py 文件。
+Secondly, you should create a directory named "site" (or any other name which is same as __"--webroot"__).
 
-1.2 页面脚本
----------------
+    $ mkdir ./site
 
-在网站目录（注：启动脚本中 webroot 的目录）中，添加一个后缀名为 **.py** 的文件，如 example.py，代码如下：
+Thirdly, you can copy the below code into a new file "./site/helloworld.py".
 
     def handler(self):
-        self.start_response(200, headers=[])
-        return 'Hello world!'
+        return "Hello World!"
 
-    or
+Run "example.py", visit "http://localhost:9090/helloworld" via your browser. You can see "Hello World!" in your browser.
 
-    def handler(self):
-        return 'Hello world!'
+    $ ./example.py
+    Litefs 0.3.0 - January 15, 2020 - 10:46:39
+    Starting server at http://localhost:9090/
+    Quit the server with CONTROL-C.
 
-1.3 启动网站
------------
+## Command Help
 
-    $ python run.py
-    Server is running at 0.0.0.0:8080
-    Hit Ctrl-C to quit.
+    $ ./example --help
+    usage: example.py [-h] [--host HOST] [--port PORT] [--webroot WEBROOT]
+                    [--debug] [--not-found NOT_FOUND]
+                    [--default-page DEFAULT_PAGE] [--cgi-dir CGI_DIR]
+                    [--log LOG] [--listen LISTEN]
 
-运行启动脚本后，访问 http://0.0.0.0:8080/example，您会看到 `Hello world!`。
+    Build a web server framework using Python. Litefs was developed to implement a
+    server framework that can quickly, securely, and flexibly build Web projects.
+    Litefs is a high-performance HTTP server. Litefs has the characteristics of
+    high stability, rich functions, and low system consumption. Author: leafcoder
+    Email: leafcoder@gmail.com Copyright (c) 2017, Leafcoder. License: MIT (see
+    LICENSE for details)
+
+    optional arguments:
+    -h, --help            show this help message and exit
+    --host HOST           bind server to HOST
+    --port PORT           bind server to PORT
+    --webroot WEBROOT     use WEBROOT as root directory
+    --debug               start server in debug mode
+    --not-found NOT_FOUND
+                            use NOT_FOUND as 404 page
+    --default-page DEFAULT_PAGE
+                            use DEFAULT_PAGE as web default page
+    --cgi-dir CGI_DIR     use CGI_DIR as cgi scripts directory
+    --log LOG             save log to LOG
+    --listen LISTEN       server LISTEN
 
 
-# 2. CGI 规则
+## Object "self "
 
-2.1 httpfile 对象是服务器上下文接口，接口如下：
---------------------------------------
+List attributes of "self".
 
-接口类型 | 接口使用 | 接口描述
----- | --- | ----
-环境变量（只读） | httpfile.environ | 环境变量
-某环境变量 | httpfile.environ`[`_*envname*_`]` | 获取某环境变量
-Session | httpfile.session | session 对象，可临时保存或获取内存数据
-Session ID | httpfile.session_id | session 对象 ID，将通过 SET_COOKIE 环境变量返回给客户端浏览器
-Form | httpfile.form | form 为字典对象，保存您提交到服务器的数据
-Config | httpfile.config | 服务器的配置对象，可获取初始化服务器的配置信息
-files | httpfile.files | 字典对象，保存上传的文件，格式为：{ *filename1*: *\<StringIO object\>*, *filename2*: *\<StringIO object\>* }
-cookie | httpfile.cookie | SimpleCookie 对象，获取 Cookie 数据
-页面跳转 | httpfile.redirect(url=None) | 跳转到某一页面
-HTTP头部 | httpfile.start_response(status_code=200, headers=None) | HTTP 返回码和头部
+Attributes                                           | Description
+---------------------------------------------------- | -----------
+self.environ                                         | 环境变量（只读）
+self.environ`[`_*envname*_`]`                        | 获取某环境变量
+self.session                                         | session 对象，可临时保存或获取内存数据
+self.session_id                                      | session 对象 ID，将通过 SET_COOKIE 环境变量返回给客户端浏览器
+self.form                                            | form 为字典对象，保存您提交到服务器的数据
+self.config                                          | 服务器的配置对象，可获取初始化服务器的配置信息
+self.files                                           | 字典对象，保存上传的文件，格式为：{ *filename1*: *\<StringIO object\>*, *filename2*: *\<StringIO object\>* }
+self.cookie                                          | SimpleCookie 对象，获取 Cookie 数据
+self.redirect(url=None)                              | 跳转到某一页面
+self.start_response(status_code=200, headers=None)   | HTTP 返回码和头部
 
-2.2 以下为 httpfile 对象中环境变量（environ）包含的变量对应表
----------------------------------------------------
+## HTTP Headers in Environ
 
-环境变量 | 描述 | 例子
-------- | ------ | ----
-REQUEST_METHOD | 请求方法 | GET、POST、PUT、HEAD等
-SERVER_PROTOCOL | 请求协议/版本 | HTTP/1.1"
-REMOTE_ADDR | 请求客户端的IP地址 | 192.168.1.5
-REMOTE_PORT | 请求客户端的端口 | 9999
-REQUEST_URI | 完整 uri | /user_info?name=li&age=20
-PATH_INFO | 页面地址 | /user_info
-QUERY_STRING | 请求参数 | name=li&age=20
-CONTENT_TYPE | POST 等报文类型 | application/x-www-form-urlencoded 或 text/html;charset=utf-8
-CONTENT_LENGTH | POST 等报文长度 | 1024
-HTTP_*_HEADERNAME_* | 其他请求头部 | 如 HTTP_REFERER：https://www.baidu.com/
+环境变量            | 描述                  | 例子
+------------------- | --------------------- | ----
+REQUEST_METHOD      | 请求方法              | GET、POST、PUT、HEAD等
+SERVER_PROTOCOL     | 请求协议/版本         | HTTP/1.1"
+REMOTE_ADDR         | 请求客户端的IP地址    | 192.168.1.5
+REMOTE_PORT         | 请求客户端的端口      | 9999
+REQUEST_URI         | 完整 uri              | /user_info?name=li&age=20
+PATH_INFO           | 页面地址              | /user_info
+QUERY_STRING        | 请求参数              | name=li&age=20
+CONTENT_TYPE        | POST 等报文类型       | application/x-www-form-urlencoded 或 text/html;charset=utf-8
+CONTENT_LENGTH      | POST 等报文长度       | 1024
+HTTP_*_HEADERNAME_* | 其他请求头部          | 如 HTTP_REFERER：https://www.baidu.com/
 
-2.3 部分环境变量也可以使用 httpfile 属性的方式获取
-------------------------------------------
+## Get HTTP Header via "self"
 
-环境变量 | 对应属性
-------- | -------
-PATH_INFO | httpfile.path_Info
-QUERY_STRING | httpfile.query_string
-REQUEST_URI | httpfile.request_uri
-REFERER | httpfile.referer
-REQUEST_METHOD | httpfile.request_method
-SERVER_PROTOCOL | httpfile.server_protocol
+环境变量        | 对应属性
+--------------- | -------
+PATH_INFO       | self.path_Info
+QUERY_STRING    | self.query_string
+REQUEST_URI     | self.request_uri
+REFERER         | self.referer
+REQUEST_METHOD  | self.request_method
+SERVER_PROTOCOL | self.server_protocol
 
-# 3. Mako 文件支持
+## Mako Template Page
 
-TODO
+## CGI Script Page
 
-# 4. CGI 支持
+## Python Script Page
 
-TODO
+## Static Files
