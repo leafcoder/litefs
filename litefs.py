@@ -1293,24 +1293,33 @@ class Litefs(object):
 
 def _cmd_args(args):
     parser = argparse.ArgumentParser(args[0], description=__doc__)
-    parser.add_argument('--host', action='store', dest='host',
-        required=False, default='localhost')
+    parser.add_argument('--host', dest='host',
+        required=False, default='localhost',
+        help='bind server to HOST')
     parser.add_argument('--port', action='store', dest='port', type=int,
-        required=False, default=9090)
-    parser.add_argument('--webroot', action='store', dest='webroot',
-        required=False, default='./site')
-    parser.add_argument('--debug', action='store', dest='debug',
-        required=False, default=False)
-    parser.add_argument('--not-found', action='store', dest="not_found",
-        required=False, default=default_404)
-    parser.add_argument('--default-page', action='store',
-        dest='default_page', required=False, default='index.html')
-    parser.add_argument('--cgi-dir', action='store', dest='cgi_dir',
-        required=False, default='/cgi-bin')
-    parser.add_argument('--log', action='store', dest='log',
-        required=False)
-    parser.add_argument('--listen', action='store', dest='listen', type=int,
-        required=False, default=1024)
+        required=False, default=9090,
+        help='bind server to PORT')
+    parser.add_argument('--webroot', dest='webroot',
+        required=False, default='./site',
+        help='use WEBROOT as root directory')
+    parser.add_argument('--debug', action='store_true', dest='debug',
+        required=False, default=False,
+        help='start server in debug mode')
+    parser.add_argument('--not-found', dest="not_found",
+        required=False, default=default_404,
+        help='use NOT_FOUND as 404 page')
+    parser.add_argument('--default-page', dest='default_page',
+        required=False, default='index.html',
+        help='use DEFAULT_PAGE as web default page')
+    parser.add_argument('--cgi-dir', dest='cgi_dir',
+        required=False, default='/cgi-bin',
+        help='use CGI_DIR as cgi scripts directory')
+    parser.add_argument('--log', dest='log',
+        required=False, default='./default.log',
+        help='save log to LOG')
+    parser.add_argument('--listen', dest='listen', type=int,
+        required=False, default=1024,
+        help='server LISTEN')
     args = parser.parse_args(args and args[1:])
     return args
 
