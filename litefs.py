@@ -19,6 +19,7 @@ __author__  = 'Leafcoder'
 __license__ = 'MIT'
 
 import argparse
+import itertools
 import logging
 import re
 import sys
@@ -45,6 +46,7 @@ from sqlite3 import connect as sqlite3_connect
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile, TemporaryFile
 from time import time, strftime, gmtime
+from traceback import print_exc
 from uuid import uuid4
 from watchdog.events import *
 from watchdog.observers import Observer
@@ -65,11 +67,13 @@ if PY3:
         return isinstance(s, str)
     def is_bytes(s):
         return isinstance(s, bytes)
+    imap = map
 else:
     # Import modules in py2
     import _socket as socket
     from cStringIO import StringIO
     from httplib import responses as http_status_codes
+    from itertools import imap
     from urllib import splitport, unquote_plus
     from Cookie import SimpleCookie
     from UserDict import UserDict
@@ -78,15 +82,15 @@ else:
     def is_bytes(s):
         return isinstance(s, basestring)
 
-server_name = 'litefs'
-server_software = '%s %s' % (server_name, __version__)
+server_software = 'litefs/%s' % __version__
 
+default_page = 'index.html'
 default_404 = 'not_found'
-default_sid = '%s.sid' % server_name
+default_sid = 'litefs.sid'
 default_content_type = 'text/plain; charset=utf-8'
 
 EOFS = ('', '\n', '\r\n')
-FILES_HEADER_NAME = '%s.files' % server_name
+FILES_HEADER_NAME = 'litefs.files'
 date_format = '%Y/%m/%d %H:%M:%S'
 should_retry_error = (EWOULDBLOCK, EAGAIN)
 double_slash_sub = re.compile(r'\/{2,}').sub
@@ -94,8 +98,7 @@ startswith_dot_sub = re.compile(r'\/\.+').sub
 suffixes = ('.py', '.pyc', '.pyo', '.so', '.mako')
 cgi_suffixes = ('.pl', '.py', '.pyc', '.pyo', '.php')
 form_dict_match = re.compile(r'(.+)\[([^\[\]]+)\]').match
-server_info = '%s/%s python/%s' \
-    % (server_name, __version__, sys.version.split()[0])
+server_info = 'litefs/%s python/%s' % (__version__, sys.version.split()[0])
 cgi_runners = {
     '.pl' : '/usr/bin/perl',
     '.py' : '/usr/bin/python',
@@ -149,16 +152,14 @@ def new_module(**kwargs):
 
     新创建的模块不会加入到 sys.path 中，并导入自定义属性。
     '''
-    module_name = ''.join((server_name, uuid4().hex))
+    module_name = ''.join(('litefs', uuid4().hex))
     module = imp_new_module(module_name)
     module.__dict__.update(kwargs)
     return module
 
 def make_config(**kwargs):
-    args = _cmd_args(sys.argv)
-    default_config = {}
+    default_config = vars(_cmd_args([]))
     default_config.update(kwargs)
-    default_config.update(vars(args))
     config = new_module(**default_config)
     config.webroot = path_abspath(config.webroot)
     return config
@@ -210,11 +211,11 @@ def make_headers(rw):
         if PY3: s = s.decode('utf-8')
     return headers
 
-def make_environ(app, rw, client_address):
+def make_environ(server, rw, client_address):
     environ = {}
-    environ['SERVER_NAME'] = server_name
+    environ['SERVER_NAME'] = server.server_name
     environ['SERVER_SOFTWARE'] = server_software
-    environ['SERVER_PORT'] = app.port
+    environ['SERVER_PORT'] = server.server_port
     environ['REMOTE_ADDR'] = client_address
     environ['REMOTE_HOST'] = client_address[0]
     environ['REMOTE_PORT'] = client_address[1]
@@ -232,8 +233,8 @@ def make_environ(app, rw, client_address):
     path_info = unquote_plus(path_info)
     base_uri, script_name = path_info.split('/', 1)
     if '' == script_name:
-        script_name = app.config.default_page
-    environ['REQUEST_METHOD'] = request_method
+        script_name = default_page
+    environ['REQUEST_METHOD'] = request_method.upper()
     environ['QUERY_STRING'] = unquote_plus(query_string)
     environ['SERVER_PROTOCOL'] = protocol
     environ['SCRIPT_NAME'] = script_name
@@ -276,23 +277,24 @@ def make_environ(app, rw, client_address):
 
 def parse_multipart(rw, content_type, length):
     boundary = content_type.split('=')[1].strip()
-    begin_boundary = ('--%s' % boundary)
-    end_boundary = ('--%s--' % boundary)
+    if PY3:
+        boundary = boundary.encode('utf-8')
+    begin_boundary = (b'--%s' % boundary)
+    end_boundary = (b'--%s--' % boundary)
     files = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-    if PY3: s = s.decode('utf-8')
     while True:
         if s.strip() != begin_boundary:
             assert s.strip() == end_boundary
             break
         headers = {}
         s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-        if PY3: s = s.decode('utf-8')
         while s:
+            if PY3: s = s.decode('utf-8')
             k, v = s.split(':', 1)
             headers[k.strip().upper()] = v.strip()
             s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-            if PY3: s = s.decode('utf-8')
+        content_type = headers.get('CONTENT-TYPE')
         disposition = headers['CONTENT-DISPOSITION']
         h, m, t = disposition.split(';')
         name = m.split('=')[1].strip()
@@ -301,15 +303,18 @@ def parse_multipart(rw, content_type, length):
         else:
             fp = TemporaryFile(mode='w+b')
         s = rw.readline(DEFAULT_BUFFER_SIZE)
-        if PY3: s = s.decode('utf-8')
         while s.strip() != begin_boundary \
                 and s.strip() != end_boundary:
-            fp.write(s.encode('utf-8'))
+            fp.write(s)
             s = rw.readline(DEFAULT_BUFFER_SIZE)
-            if PY3: s = s.decode('utf-8')
         fp.seek(0)
         files[name[1:-1]] = fp
     return files
+
+class Request(object):
+
+    def __init__(self, environ):
+        self.environ = environ
 
 def parse_form(form, qstr):
     qstr = unquote_plus(qstr)
@@ -452,8 +457,7 @@ class LiteFile(object):
         environ = request.environ
         if_modified_since = environ.get('HTTP_IF_MODIFIED_SINCE')
         if if_modified_since == self.last_modified:
-            result = request._response(304)
-            return request.finish(result)
+            return request._response(304)
         if_none_match = environ.get('HTTP_IF_NONE_MATCH')
         accept_encodings = environ.get(
             'HTTP_ACCEPT_ENCODING', '').split(',')
@@ -461,27 +465,23 @@ class LiteFile(object):
         headers = list(self.headers)
         if 'gzip' in accept_encodings:
             if if_none_match == self.gzip_etag:
-                result = request._response(304)
-                return request.finish(result)
+                return request._response(304)
             headers.append(('Etag', self.gzip_etag))
             headers.append(('Content-Encoding', 'gzip'))
             text = self.gzip_text
         elif 'deflate' in accept_encodings:
             if if_none_match == self.zlib_etag:
-                result = request._response(304)
-                return request.finish(result)
+                return request._response(304)
             headers.append(('Etag', self.zlib_etag))
             headers.append(('Content-Encoding', 'deflate'))
             text = self.zlib_text
         else:
             if if_none_match == self.etag:
-                result = request._response(304)
-                return request.finish(result)
+                return request._response(304)
             headers.append(('Etag', self.etag))
             text = self.text
         headers.append(('Content-Length', '%d' % len(text)))
-        result = request._response(200, headers=headers, content=text)
-        return request.finish(result)
+        return request._response(200, headers=headers, content=text)
 
 class TreeCache(object):
 
@@ -606,15 +606,21 @@ class Session(UserDict):
     def __str__(self):
         return '<Session Id=%s>' % self.id
 
-class HttpRequest(object):
+class RequestHandler(object):
 
-    def __init__(self, app, rw, environ, client_address):
+    default_headers = {
+        'Content-Type': 'text/plain; charset=utf-8'
+    }
+
+    def __init__(self, app, rw, environ):
         self._rw = rw
         self._app = app
         self._environ = environ
-        self._client_address = client_address
         self._buffers = StringIO()
         self._headers_responsed = False
+        self._response_headers = {}
+        self._cookies = None
+        self._status_code = 200
         self._form = make_form(environ)
         self._session_id, self._session = self._get_session(environ)
         self._files = environ.pop(FILES_HEADER_NAME, None)
@@ -660,13 +666,20 @@ class HttpRequest(object):
                 break
         return session_id
 
+    def set_cookie(self, name, value, **options):
+        cookies = self._cookies
+        if not cookies:
+            cookies = SimpleCookie()
+        cookies[name] = value
+        for key, value in options.items():
+            if not value:
+                continue
+            cookies[name][key] = value
+        self._cookies = cookies
+
     @property
     def config(self):
         return self._app.config
-
-    @property
-    def client_address(self):
-        return self._client_address
 
     @property
     def files(self):
@@ -729,19 +742,12 @@ class HttpRequest(object):
         return cookie
 
     def start_response(self, status_code=200, headers=None):
-        buffers = self._buffers
         if self._headers_responsed:
             raise ValueError('Http headers already responsed.')
-        response_headers = {}
+        self._status_code = int(status_code)
+        response_headers = self._response_headers
         response_headers['Server'] = server_info
         response_headers['Content-Type'] = 'text/html;charset=utf-8'
-        status_code = int(status_code)
-        status_text = http_status_codes[status_code]
-        line = 'HTTP/1.1 %d %s\r\n' % (status_code, status_text)
-        if PY3:
-            line = line.encode('utf-8')
-        buffers.write(line)
-        header_names = []
         if headers is not None:
             for header in headers:
                 if not isinstance(header, (list, tuple)):
@@ -749,38 +755,18 @@ class HttpRequest(object):
                         header = header.encode('utf-8')
                     k, v = header.split(':')
                     k, v = k.strip(), v.strip()
-                    header = (k, v)
-                header_names.append(header[0])
-                line = '%s: %s\r\n' % header
-                if PY3:
-                    line = line.encode('utf-8')
-                buffers.write(line)
-        for name, text in response_headers.items():
-            if name in header_names:
-                continue
-            line = '%s: %s\r\n' % (name, text)
-            if PY3:
-                line = line.encode('utf-8')
-            buffers.write(line)
+                else:
+                    k, v = header
+                response_headers[k] = v
         if self.session_id is None:
-            cookie = SimpleCookie()
-            cookie[default_sid] = self.session.id
-            cookie[default_sid]['path'] = '/'
-            line = '%s\r\n' % cookie.output()
-            if PY3:
-                line = line.encode('utf-8')
-            buffers.write(line)
-        if PY3:
-            buffers.write(b'\r\n')
-        else:
-            buffers.write('\r\n')
+            self.set_cookie(default_sid, self.session.id, path='/')
         self._headers_responsed = True
 
     def redirect(self, url=None):
         if self._headers_responsed:
             raise ValueError('Http headers already responsed.')
         url = '/' if url is None else url
-        response_headers = {}
+        response_headers = self._response_headers
         response_headers['Content-Type'] = 'text/html;charset=utf-8'
         response_headers['Location'] = 'http://%s%s' % (
             self._environ['HTTP_HOST'], url
@@ -792,35 +778,59 @@ class HttpRequest(object):
         self.start_response(status_code, headers=headers)
         return content
 
+    def _cast(self, s=None):
+        response_headers = self._response_headers
+        if not s:
+            if 'Content-Length' not in response_headers:
+                response_headers['Content-Length'] = 0
+            return []
+        if isinstance(s, (tuple, list)) \
+                and (is_unicode(s[0]) or is_bytes(s[0])):
+            join_chr = s[0][:0]
+            s = join_chr.join(s)
+        if is_unicode(s):
+            s = s.encode('utf-8')
+        if is_bytes(s):
+            if 'Content-Length' not in response_headers:
+                response_headers['Content-Length'] = len(s)
+            return [s]
+        try:
+            iter_s = iter(s)
+            first = next(iter_s)
+            while not first:
+                first = next(iter_s)
+        except StopIteration:
+            return self._cast()
+        if is_bytes(first):
+            new_iter_s = itertools.chain([first], iter_s)
+        elif is_unicode(first):
+            encoder = lambda item: item.encode('utf-8')
+            new_iter_s = itertools.chain([first], iter_s)
+            new_iter_s = imap(encoder, new_iter_s)
+        else:
+            raise TypeError('response type is not allowd: %s' % type(first))
+        return new_iter_s
+
     def finish(self, content):
         rw = self._rw
-        if not self._headers_responsed:
-            self.start_response(200)
-        rw.write(self._buffers.getvalue())
-        if is_unicode(content):
-            rw.write(content.encode('utf-8'))
-        elif is_bytes(content):
-            rw.write(content)
-        elif isinstance(content, (list, tuple, Iterable)):
-            for s in content:
-                if is_unicode(s):
-                    rw.write(s.encode('utf-8'))
-                elif is_bytes(s):
-                    rw.write(s)
-                else:
-                    s = str(s)
-                    if PY3:
-                        s = s.encode('utf-8')
-                    rw.write(s)
-        else:
-            content = str(content)
+        status_code = self._status_code
+        status_text = http_status_codes[status_code]
+        line = 'HTTP/1.1 %d %s\r\n' % (status_code, status_text)
+        if PY3:
+            line = line.encode('utf-8')
+        rw.write(line)
+        headers = self._response_headers
+        if not headers:
+            headers = self.default_headers
+        for header, value in headers.items():
+            line = '%s: %s\r\n' % (header, value)
             if PY3:
-                content = content.encode('utf-8')
-            rw.write(content)
-        try:
-            rw.close()
-        except:
-            pass
+                line = line.encode('utf-8')
+            rw.write(line)
+        rw.write('\r\n'.encode('utf-8'))
+        for _ in self._cast(content):
+            rw.write(_)
+        rw.close()
 
     def __del__(self):
         files = self._environ.get(FILES_HEADER_NAME)
@@ -850,35 +860,21 @@ class HttpRequest(object):
         path = startswith_dot_sub('/', path_info)
         path = double_slash_sub('/', path)
         if path != path_info:
-            result = self.redirect(path)
-            try:
-                return self.finish(result)
-            except:
-                content = render_error()
-                result = self._response(500, content=content)
-                return self.finish(result)
+            return self.redirect(path)
         base, name = path_split(path)
         if not name:
-            name = app.config.default_page
+            name = default_page
         path = path_join(base, name)
         module = app.caches.get(path)
         if module is not None:
             try:
-                result = module.handler(self)
+                return module.handler(self)
             except:
                 log_error(app.logger)
                 if app.config.debug:
                     content = render_error()
-                    result = self._response(500, content=content)
-                    return self.finish(result)
-                result = self._response(500)
-                return self.finish(result)
-            else:
-                try:
-                    return self.finish(result)
-                except:
-                    result = render_error()
-                    return self.finish(result)
+                    return self._response(500, content=content)
+                return self._response(500)
         litefile = app.files.get(path)
         if litefile is not None:
             return litefile.handler(self)
@@ -886,8 +882,7 @@ class HttpRequest(object):
             path_join(app.config.webroot, path.lstrip('/'))
         )
         if path_isdir(realpath):
-            result = self.redirect(path + '/')
-            return self.finish(result)
+            return self.redirect(path + '/')
         module = self._load_script(base, name)
         if module is not None and hasattr(module, 'handler'):
             basepath, ext = path_splitext(path)
@@ -896,27 +891,18 @@ class HttpRequest(object):
             else:
                 app.caches.put(path, module)
             try:
-                result = module.handler(self)
+                return module.handler(self)
             except:
                 log_error(app.logger)
                 if app.config.debug:
                     content = render_error()
-                    result = self._response(500, content=content)
-                    return self.finish(result)
-                result = self._response(500)
-                return self.finish(result)
-            else:
-                try:
-                    return self.finish(result)
-                except:
-                    result = render_error()
-                    return self.finish(result)
+                    return self._response(500, content=content)
+                return self._response(500)
         try:
             litefile = self._load_static_file(base, name)
         except IOError:
             log_error(app.logger)
-            result = self._response(404)
-            return self.finish(result)
+            return self._response(404)
         if litefile is not None:
             app.files.put(path, litefile)
             try:
@@ -925,10 +911,8 @@ class HttpRequest(object):
                 log_error(app.logger)
                 if app.config.debug:
                     content = render_error()
-                    result = self._response(500, content=content)
-                    return self.finish(result)
-                result = self._response(500)
-                return self.finish(result)
+                    return self._response(500, content=content)
+                return self._response(500)
         path = app.config.not_found
         base, name = path_split(path)
         if not name:
@@ -945,12 +929,9 @@ class HttpRequest(object):
                 log_error(app.logger)
                 if app.config.debug:
                     content = render_error()
-                    result = self._response(500, content=content)
-                    return self.finish(result)
-                result = self._response(500)
-                return self.finish(result)
-        result = self._response(404)
-        return self.finish(result)
+                    return self._response(500, content=content)
+                return self._response(500)
+        return self._response(404)
 
     def _load_static_file(self, base, name):
         app = self._app
@@ -1029,7 +1010,7 @@ class HttpRequest(object):
             fp, pathname, description = find_module(name, [realbase])
         except ImportError:
             return None
-        module_name = '%s_%s' % (server_name, uuid4().hex)
+        module_name = 'litefs_%s' % uuid4().hex
         sys.dont_write_bytecode = True
         try:
             module = load_module(module_name, fp, pathname, description)
@@ -1087,13 +1068,13 @@ class HttpRequest(object):
         finally:
             tmpf.close()
 
-class RawIO(RawIOBase):
+class SocketIO(RawIOBase):
 
-    def __init__(self, app, sock):
+    def __init__(self, server, sock):
         RawIOBase.__init__(self)
         self._fileno = sock.fileno()
         self._sock = sock
-        self._app = app
+        self._server = server
 
     def fileno(self):
         return self._fileno
@@ -1105,14 +1086,17 @@ class RawIO(RawIOBase):
         return True
 
     def readinto(self, b):
-        epoll = self._app.epoll
+        real_epoll = epoll._epoll
         fileno = self._fileno
         curr = getcurrent()
         self.read_gr = curr
         if self.write_gr is None:
-            epoll.register(fileno, EPOLLIN | EPOLLET)
+            real_epoll.register(fileno, EPOLLIN | EPOLLET)
         else:
-            epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
+            real_epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
+        data = ''
+        if PY3:
+            data = b''
         try:
             curr.parent.switch()
             data = self._sock.recv(len(b))
@@ -1123,9 +1107,9 @@ class RawIO(RawIOBase):
         finally:
             self.read_gr = None
             if self.write_gr is None:
-                epoll.unregister(fileno)
+                real_epoll.unregister(fileno)
             else:
-                epoll.modify(fileno, EPOLLOUT | EPOLLET)
+                real_epoll.modify(fileno, EPOLLOUT | EPOLLET)
         n = len(data)
         try:
             b[:n] = data
@@ -1137,14 +1121,14 @@ class RawIO(RawIOBase):
         return n
 
     def write(self, data):
-        epoll = self._app.epoll
+        real_epoll = epoll._epoll
         fileno = self._fileno
         curr = getcurrent()
         self.write_gr = curr
         if self.read_gr is None:
-            epoll.register(fileno, EPOLLOUT | EPOLLET)
+            real_epoll.register(fileno, EPOLLOUT | EPOLLET)
         else:
-            epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
+            real_epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
         try:
             curr.parent.switch()
             return self._sock.send(data)
@@ -1155,9 +1139,9 @@ class RawIO(RawIOBase):
         finally:
             self.write_gr = None
             if self.read_gr is None:
-                epoll.unregister(fileno)
+                real_epoll.unregister(fileno)
             else:
-                epoll.modify(fileno, EPOLLIN | EPOLLET)
+                real_epoll.modify(fileno, EPOLLIN | EPOLLET)
 
     def close(self):
         if self.closed:
@@ -1173,55 +1157,157 @@ class RawIO(RawIOBase):
 
     read_gr = write_gr = None
 
-class Litefs(object):
+############################################################################
 
-    def __init__(self, **kwargs):
-        self.config = config = make_config(**kwargs)
-        level = logging.DEBUG if config.debug else logging.INFO
-        self.logger = make_logger(__name__, log=config.log, level=level)
-        self.host = host = config.host
-        self.port = port = config.port
-        self.server_address = '%s:%d' % (host, port)
-        self.socket = socket = make_server(
-            host, port, request_size=config.listen
-        )
-        self.fileno = fileno = socket.fileno()
-        self.sessions = MemoryCache(max_size=1000000)
-        self.caches = TreeCache()
-        self.files  = TreeCache()
-        self.epoll = select_epoll()
-        self.epoll.register(fileno, EPOLLIN | EPOLLET)
-        self.grs = {}
-        now = datetime.now().strftime('%B %d, %Y - %X')
-        sys.stdout.write((
-            "Litefs %s - %s\n"
-            "Starting server at http://%s:%d/\n"
-            "Quit the server with CONTROL-C.\n"
-        ) % (__version__, now, host, port))
+class Epoll(object):
 
-    def handle_accept(self):
+    def __init__(self):
+        self._epoll = select_epoll()
+        self._servers = {}
+        self._greenlets = {}
+
+    def register(self, server_socket):
+        servers = self._servers
+        fileno = server_socket.fileno()
+        servers[fileno] = server_socket
+        self._epoll.register(fileno, EPOLLIN | EPOLLET)
+
+    def close(self):
+        for fileno, server_socket in self._servers.items():
+            self._epoll.unregister(fileno)
+            server_socket.server_close()
+        self._epoll.close()
+
+    def poll(self, poll_interval=.2):
+        servers = self._servers
+        greenlets = self._greenlets
+        _poll = self._epoll.poll
+        while True:
+            events = _poll(poll_interval)
+            for fileno, event in events:
+                if fileno in servers:
+                    server = servers[fileno]
+                    try:
+                        server.handle_request()
+                    except KeyboardInterrupt:
+                        break
+                    except socket.error as e:
+                        if e.errno == EMFILE:
+                            raise
+                        print_exc()
+                    except:
+                        print_exc()
+                elif (event & EPOLLIN) or (event & EPOLLOUT):
+                    try:
+                        greenlets[fileno].switch()
+                    except KeyboardInterrupt:
+                        break
+                    except:
+                        print_exc()
+                elif event & (EPOLLHUP | EPOLLERR):
+                    try:
+                        greenlets[fileno].throw()
+                    except KeyboardInterrupt:
+                        break
+                    except:
+                        print_exc()
+
+class TCPServer(object):
+    """Classic Python TCPServer"""
+
+    allow_reuse_address = True
+    request_queue_size  = 4194304
+    address_family, socket_type = socket.AF_INET, socket.SOCK_STREAM
+
+    def __init__(self, server_address, RequestHandlerClass,
+                       bind_and_activate=True):
+        self.server_address = server_address
+        self.RequestHandlerClass = RequestHandlerClass
+        self.socket = socket.socket(self.address_family,
+                                    self.socket_type)
+        self._started = False
+        if bind_and_activate:
+            try:
+                self.server_bind()
+                self.server_activate()
+            except:
+                self.server_close()
+                raise
+
+    def server_bind(self):
+        if self.allow_reuse_address:
+            self.socket.setsockopt(socket.SOL_SOCKET,
+                                   socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.socket.bind(self.server_address)
+        self.socket.setblocking(0)
+
+    def server_activate(self):
+        self.socket.listen(self.request_queue_size)
+
+    def server_close(self):
+        self.socket.close()
+
+    def fileno(self):
+        return self.socket.fileno()
+
+    def get_request(self):
+        return self.socket.accept()
+
+    def handle_request(self):
+        self._handle_request_noblock()
+
+    def _handle_request_noblock(self):
         while True:
             try:
-                sock, client_address = self.socket.accept()
+                request, client_address = self.get_request()
             except socket.error as e:
                 errno = e.args[0]
                 if EAGAIN == errno or EWOULDBLOCK == errno:
                     return
                 raise
-            sock.setblocking(0)
-            fileno = sock.fileno()
-            raw = RawIO(self, sock)
-            self.grs[fileno] = gr = greenlet(
-                partial(self.handle_io, raw, client_address)
-            )
-            gr.switch()
+            if self.verify_request(request, client_address):
+                try:
+                    self.process_request(request, client_address)
+                except:
+                    self.handle_error(request, client_address)
+                    self.shutdown_request(request)
+            else:
+                self.shutdown_request(request)
 
-    def handle_io(self, raw, client_address):
+    def handle_timeout(self):
+        """Called if no new request arrives within self.timeout.
+
+        Overridden by ForkingMixIn.
+        """
+        pass
+
+    def verify_request(self, request, client_address):
+        return True
+
+    def process_request(self, request, client_address):
+        try:
+            self.finish_request(request, client_address)
+        except:
+            self.handle_error(request, client_address)
+            self.shutdown_request(request)
+
+    def finish_request(self, request, client_address):
+        """Finish one request by instantiating RequestHandlerClass."""
+        request.setblocking(0)
+        fileno = request.fileno()
+        epoll._greenlets[fileno] = curr = greenlet(
+            partial(self._finish_request, request, client_address)
+        )
+        curr.switch()
+
+    def _finish_request(self, request, client_address):
+        raw = SocketIO(self, request)
         try:
             rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
             environ = make_environ(self, rw, client_address)
-            request = HttpRequest(self, rw, environ, client_address)
-            request.handler()
+            self.RequestHandlerClass(request, environ, self)
+            self.shutdown_request(request)
         except socket.error as e:
             if e.errno == EPIPE:
                 raise GreenletExit
@@ -1237,49 +1323,111 @@ class Litefs(object):
                     raw.write_gr.throw()
             finally:
                 fileno = raw.fileno()
-                self.grs.pop(fileno, None)
-            try:
-                raw.close()
-            except:
-                pass
+                epoll._greenlets.pop(fileno, None)
+            if not raw.closed:
+                try:
+                    raw.close()
+                except:
+                    pass
 
-    def poll(self, timeout=.2):
-        while True:
-            events = self.epoll.poll(timeout)
-            for fileno, event in events:
-                if fileno == self.fileno:
-                    try:
-                        self.handle_accept()
-                    except KeyboardInterrupt:
-                        break
-                    except socket.error as e:
-                        if e.errno == EMFILE:
-                            raise
-                        log_error(self.logger)
-                    except:
-                        log_error(self.logger)
-                elif (event & EPOLLIN) or (event & EPOLLOUT):
-                    try:
-                        self.grs[fileno].switch()
-                    except KeyboardInterrupt:
-                        break
-                    except:
-                        log_error(self.logger)
-                elif event & (EPOLLHUP | EPOLLERR):
-                    try:
-                        self.grs[fileno].throw()
-                    except KeyboardInterrupt:
-                        break
-                    except:
-                        log_error(self.logger)
+    def shutdown_request(self, request):
+        try:
+            #explicitly shutdown.  socket.close() merely releases
+            #the socket and waits for GC to perform the actual close.
+            request.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass #some platforms may raise ENOTCONN here
+        self.close_request(request)
 
-    def run(self, timeout=.2):
+    def close_request(self, request):
+        request.close()
+
+    def handle_error(self, request, client_address):
+        import traceback
+        traceback.print_exc() # XXX But this goes to stderr!
+
+    def server_forever(self, poll_interval=.1):
+        if not self._started:
+            epoll.register(self)
+        mainloop(poll_interval=poll_interval)
+
+    def start(self):
+        if not self._started:
+            epoll.register(self)
+
+    def shutdown(self):
+        if self._started:
+            epoll.unregister(self)
+
+class HTTPServer(TCPServer):
+
+    allow_reuse_address = 1
+
+    def server_bind(self):
+        """Override server_bind to store the server name."""
+        TCPServer.server_bind(self)
+        host, port = self.socket.getsockname()[:2]
+        self.server_name = socket.getfqdn(host)
+        self.server_port = port
+
+class WSGIServer(HTTPServer):
+
+    application = None
+
+    def server_bind(self):
+        HTTPServer.server_bind(self)
+        self.setup_environ()
+
+    def setup_environ(self):
+        # Set up base environment
+        env = self.base_environ = {}
+        env['SERVER_NAME'] = self.server_name
+        env['GATEWAY_INTERFACE'] = 'CGI/1.1'
+        env['SERVER_PORT'] = str(self.server_port)
+        env['REMOTE_HOST']=''
+        env['CONTENT_LENGTH']=''
+        env['SCRIPT_NAME'] = ''
+
+    def get_app(self):
+        return self.application
+
+    def set_app(self,application):
+        self.application = application
+
+class Litefs(object):
+
+    def __init__(self, **kwargs):
+        self.config = config = make_config(**kwargs)
+        level = logging.DEBUG if config.debug else logging.INFO
+        self.logger = make_logger(__name__, log=config.log, level=level)
+        self.host = host = config.host
+        self.port = port = config.port
+        self.server = HTTPServer((host, port), self.handler)
+        self.sessions = MemoryCache(max_size=1000000)
+        self.caches = TreeCache()
+        self.files  = TreeCache()
+        now = datetime.now().strftime('%B %d, %Y - %X')
+        sys.stdout.write((
+            "Litefs %s - %s\n"
+            "Starting server at http://%s:%d/\n"
+            "Quit the server with CONTROL-C.\n"
+        ) % (__version__, now, host, port))
+
+    def handler(self, request, environ, server):
+        raw = SocketIO(server, request)
+        rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
+        request_handler = RequestHandler(self, rw, environ)
+        result = request_handler.handler()
+        return request_handler.finish(result)
+
+    def run(self, poll_interval=.2):
         observer = Observer()
         event_handler = FileEventHandler(self)
         observer.schedule(event_handler, self.config.webroot, True)
         observer.start()
         try:
-            self.poll(timeout=timeout)
+            self.server.start()
+            mainloop(poll_interval=poll_interval)
         except KeyboardInterrupt:
             pass
         except:
@@ -1287,12 +1435,11 @@ class Litefs(object):
         finally:
             observer.stop()
             observer.join()
-            self.epoll.unregister(self.fileno)
-            self.epoll.close()
-            self.socket.close()
+            self.server.server_close()
 
 def _cmd_args(args):
-    parser = argparse.ArgumentParser(args[0], description=__doc__)
+    title = args[0] if args else 'litefs'
+    parser = argparse.ArgumentParser(title, description=__doc__)
     parser.add_argument('--host', dest='host',
         required=False, default='localhost',
         help='bind server to HOST')
@@ -1323,9 +1470,23 @@ def _cmd_args(args):
     args = parser.parse_args(args and args[1:])
     return args
 
+def mainloop(poll_interval=.1):
+    try:
+        epoll.poll(poll_interval=poll_interval)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        epoll.close()
+
+server_forever = mainloop
+
 def test_server():
-    litefs = Litefs()
-    litefs.run(timeout=2.)
+    args = _cmd_args(sys.argv)
+    kwargs = vars(args)
+    litefs = Litefs(**kwargs)
+    litefs.run(poll_interval=.1)
+
+epoll = Epoll()
 
 if '__main__' == __name__:
     test_server()

@@ -6,7 +6,7 @@ def handler(self):
         yield '{}: {}'.format(k, v)
         yield '<br>'
     yield '<h1>Form</h1>'
-    yield self.form
+    yield str(self.form)
     yield '<br>'
 
     yield '<h1>Files</h1>'
