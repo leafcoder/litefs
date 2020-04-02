@@ -44,7 +44,7 @@ setup(
     ext_modules=cythonize(
         'litefs.py',
         compiler_directives={
-            'language_level' : language_level
+            'language_level': language_level
         }
     ),
     license=get_str('__license__'),
