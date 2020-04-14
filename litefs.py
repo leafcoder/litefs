@@ -2,7 +2,9 @@
 # coding: utf-8
 
 import argparse
+import cgi
 import itertools
+import json
 import logging
 import re
 import sqlite3
@@ -96,6 +98,7 @@ default_sid = "litefs.sid"
 default_content_type = "text/plain; charset=utf-8"
 
 EOFS = ("", "\n", "\r\n")
+POSTS_HEADER_NAME = "litefs.posts"
 FILES_HEADER_NAME = "litefs.files"
 date_format = "%Y/%m/%d %H:%M:%S"
 should_retry_error = (EWOULDBLOCK, EAGAIN)
@@ -214,10 +217,11 @@ def make_server(host, port, request_size=-1):
 
 
 def make_headers(rw):
-    """Read HTTP headers"""
+    """Read and parse HTTP headers from RWPair object"""
     headers = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE)
-    if PY3: s = s.decode("utf-8")
+    if PY3:
+        s = s.decode("utf-8")
     while True:
         if s in EOFS:
             break
@@ -225,12 +229,13 @@ def make_headers(rw):
         k, v = k.lower().strip(), v.strip()
         headers[k] = v
         s = rw.readline(DEFAULT_BUFFER_SIZE)
-        if PY3: s = s.decode("utf-8")
+        if PY3:
+            s = s.decode("utf-8")
     return headers
 
 
 def make_environ(server, rw, client_address):
-    environ = {}
+    environ = dict()
     environ["SERVER_NAME"] = server.server_name
     environ["SERVER_SOFTWARE"] = server_software
     environ["SERVER_PORT"] = server.server_port
@@ -239,9 +244,10 @@ def make_environ(server, rw, client_address):
     environ["REMOTE_PORT"] = client_address[1]
     # Read first line
     s = rw.readline(DEFAULT_BUFFER_SIZE)
-    if PY3: s = s.decode("utf-8")
+    if PY3:
+        s = s.decode("utf-8")
     if not s:
-        # 注意：读出来为空字符串时，代表着服务器在等待读
+        # It means server is waiting for reading when getting empty string.
         raise HttpError("invalid http headers")
     request_method, path_info, protocol = s.strip().split()
     if "?" in path_info:
@@ -265,41 +271,46 @@ def make_environ(server, rw, client_address):
     if content_type:
         environ["CONTENT_TYPE"] = content_type
     else:
-        environ["CONTENT_TYPE"] = default_content_type
+        environ["CONTENT_TYPE"] = content_type = default_content_type
+    _, params = cgi.parse_header(content_type)
+    charset = params.get('charset')
+    environ['CHARSET'] = charset
     for k, v in headers.items():
         k = k.replace("-", "_").upper()
-        # skip content_length, content_type, etc.
+        # Skip content_length, content_type, etc.
         if k in environ:
             continue
         k = "HTTP_%s" % k
         if k in environ:
-            environ[k] += ",%s" % v # comma-separate multiple headers
+            environ[k] += ",%s" % v  # Comma-separate multiple headers
         else:
             environ[k] = v
     if not length:
         return environ
     content_type = environ.get("CONTENT_TYPE", "")
     if content_type.startswith("multipart/form-data"):
-        environ[FILES_HEADER_NAME] \
-            = parse_multipart(rw, content_type, length)
+        posts, files = parse_multipart(rw, content_type)
+        environ[POSTS_HEADER_NAME] = posts
+        environ[FILES_HEADER_NAME] = files
     else:
         environ["POST_CONTENT"] = post_content = rw.read(int(length))
         if PY3:
             environ["POST_CONTENT"] \
                 = unquote_plus(post_content.decode("utf-8"))
-        environ["CONTENT_LENGTH"] = len(environ["POST_CONTENT"])
-    for k in ("CONTENT_LENGTH", "HTTP_USER_AGENT", "HTTP_COOKIE",
-              "HTTP_REFERER"):
+    # Body will be empty when CONTENT_LENGTH equals to -1
+    environ.setdefault('CONTENT_LENGTH', -1)
+    for k in ("HTTP_USER_AGENT", "HTTP_COOKIE", "HTTP_REFERER"):
         environ.setdefault(k, "")
     return environ
 
 
-def parse_multipart(rw, content_type, length):
+def parse_multipart(rw, content_type):
     boundary = content_type.split("=")[1].strip()
     if PY3:
         boundary = boundary.encode("utf-8")
     begin_boundary = (b"--%s" % boundary)
     end_boundary = (b"--%s--" % boundary)
+    posts = {}
     files = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
     while True:
@@ -309,36 +320,40 @@ def parse_multipart(rw, content_type, length):
         headers = {}
         s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
         while s:
-            if PY3: s = s.decode("utf-8")
+            if PY3:
+                s = s.decode("utf-8")
             k, v = s.split(":", 1)
             headers[k.strip().upper()] = v.strip()
             s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
         disposition = headers["CONTENT-DISPOSITION"]
-        h, m, t = disposition.split(";")
-        name = m.split("=")[1].strip()
-        if length <= 5242880:  # <= 5M file save in memory
-            fp = StringIO()
-        else:
+        disposition, params = cgi.parse_header(disposition)
+        name = params["name"]
+        filename = params.get("filename")
+        if filename:
             fp = TemporaryFile(mode="w+b")
-        s = rw.readline(DEFAULT_BUFFER_SIZE)
-        while s.strip() != begin_boundary \
-                and s.strip() != end_boundary:
-            fp.write(s)
             s = rw.readline(DEFAULT_BUFFER_SIZE)
-        fp.seek(0)
-        files[name[1:-1]] = fp
-    return files
+            while s.strip() != begin_boundary \
+                    and s.strip() != end_boundary:
+                fp.write(s)
+                s = rw.readline(DEFAULT_BUFFER_SIZE)
+            fp.seek(0)
+            files[name] = fp
+        else:
+            fp = StringIO()
+            s = rw.readline(DEFAULT_BUFFER_SIZE)
+            while s.strip() != begin_boundary \
+                    and s.strip() != end_boundary:
+                fp.write(s)
+                s = rw.readline(DEFAULT_BUFFER_SIZE)
+            fp.seek(0)
+            posts[name] = fp.getvalue().strip().decode('utf-8')
+    return posts, files
 
 
-class Request(object):
-
-    def __init__(self, environ):
-        self.environ = environ
-
-
-def parse_form(form, qstr):
-    qstr = unquote_plus(qstr)
-    for s in qstr.split("&"):
+def parse_form(query_string):
+    form = {}
+    query_string = unquote_plus(query_string)
+    for s in query_string.split("&"):
         if not s:
             continue
         kv = s.split("=", 1)
@@ -352,7 +367,7 @@ def parse_form(form, qstr):
             if k in form:
                 result = form[k]
                 if isinstance(result, dict):
-                    raise ValueError("invalid form data %s" % qstr)
+                    raise ValueError("invalid form data %s" % query_string)
                 if isinstance(result, list):
                     form[k].append(v)
                 else:
@@ -365,7 +380,7 @@ def parse_form(form, qstr):
             if k in form:
                 result = form[k]
                 if isinstance(result, dict):
-                    raise ValueError("invalid form data %s" % qstr)
+                    raise ValueError("invalid form data %s" % query_string)
                 if isinstance(result, list):
                     form[k].append(v)
                 else:
@@ -377,24 +392,14 @@ def parse_form(form, qstr):
             if key in form:
                 result = form[key]
                 if not isinstance(result, dict):
-                    raise ValueError("invalid form data %s" % qstr)
+                    raise ValueError("invalid form data %s" % query_string)
                 if prefix in result:
                     result[prefix] = [result[prefix], v]
                 else:
                     result[prefix] = v
             else:
-                form[key] = { prefix: v }
-
-
-def make_form(environ):
-    query_string = environ["QUERY_STRING"]
-    form = {}
-    parse_form(form, query_string)
-    post_content = environ.get("POST_CONTENT")
-    if post_content:
-        parse_form(form, post_content)
+                form[key] = {prefix: v}
     return form
-
 
 class FileEventHandler(FileSystemEventHandler):
 
@@ -636,7 +641,7 @@ class Session(UserDict):
 class RequestHandler(object):
 
     default_headers = {
-        "Content-Type": "text/plain; charset=utf-8"
+        "Content-Type": default_content_type
     }
 
     def __init__(self, app, rw, environ):
@@ -648,18 +653,28 @@ class RequestHandler(object):
         self._response_headers = {}
         self._cookies = None
         self._status_code = 200
-        self._form = make_form(environ)
+        self._get = parse_form(environ["QUERY_STRING"])
+        content_type = environ.get("CONTENT_TYPE", "")
+        content_type, params = cgi.parse_header(content_type)
+        self._post = {}
+        self._body = ""
+        if content_type == 'application/x-www-form-urlencoded':
+            post_content = environ.get("POST_CONTENT", "")
+            self._post = parse_form(post_content)
+        elif content_type == 'multipart/form-data':
+            self._post = environ.pop(POSTS_HEADER_NAME, {})
+        else:
+            post_content = environ.get("POST_CONTENT", "")
+            self._body = post_content
         self._session_id, self._session = self._get_session(environ)
-        self._files = environ.pop(FILES_HEADER_NAME, None)
+        self._files = environ.pop(FILES_HEADER_NAME, {})
         if app.config.debug:
-            log_debug(app.logger,
-                '%s - "%s %s %s"' % (
-                    environ["REMOTE_HOST"],
-                    environ["SERVER_PROTOCOL"],
-                    environ["REQUEST_METHOD"],
-                    environ["PATH_INFO"]
-                )
-            )
+            log_debug(app.logger, "%s - \"%s %s %s\"" % (
+                environ["REMOTE_HOST"],
+                environ["SERVER_PROTOCOL"],
+                environ["REQUEST_METHOD"],
+                environ["PATH_INFO"]
+            ))
 
     def _get_session(self, environ):
         app = self._app
@@ -676,7 +691,8 @@ class RequestHandler(object):
             return session_id, session
         session = Session(session_id)
         sessions.put(session_id, session)
-        return session_id, session
+        # New session
+        return None, session
 
     def _new_session_id(self):
         app = self._app
@@ -686,8 +702,6 @@ class RequestHandler(object):
             if PY3:
                 token = token.encode("utf-8")
             session_id = sha1(token).hexdigest()
-            if PY3:
-                session_id = session_id.encode("utf-8")
             session = sessions.get(session_id)
             if session is None:
                 break
@@ -713,12 +727,32 @@ class RequestHandler(object):
         return self._files or {}
 
     @property
+    def body(self):
+        return self._body
+
+    @property
+    def json(self):
+        body = self._body
+        if not self._body:
+            return {}
+        content_type = self.content_type
+        content_type, _ = cgi.parse_header(content_type)
+        content_type = content_type.lower()
+        if content_type not in ('application/json', 'application/json-rpc'):
+            return {}
+        return json.loads(body)
+
+    @property
     def environ(self):
         return self._environ
 
     @property
-    def form(self):
-        return self._form
+    def params(self):
+        return self._get
+
+    @property
+    def data(self):
+        return self._post
 
     @property
     def session_id(self):
@@ -731,6 +765,7 @@ class RequestHandler(object):
     @property
     def request_method(self):
         return self.environ["REQUEST_METHOD"]
+    method = request_method
 
     @property
     def server_protocol(self):
@@ -739,6 +774,15 @@ class RequestHandler(object):
     @property
     def content_type(self):
         return self.environ.get("CONTENT_TYPE")
+
+    @property
+    def charset(self, default="UTF-8"):
+        _, params = cgi.parse_header(self.content_type)
+        return params.get("charset", default)
+
+    @property
+    def content_length(self):
+        return int(self.environ.get("CONTENT_LENGTH") or -1)
 
     @property
     def path_info(self):
@@ -785,6 +829,7 @@ class RequestHandler(object):
                 else:
                     k, v = header
                 response_headers[k] = v
+        print('???', self.session_id, self.session.id)
         if self.session_id is None:
             self.set_cookie(default_sid, self.session.id, path="/")
         self._headers_responsed = True
@@ -854,6 +899,12 @@ class RequestHandler(object):
             if PY3:
                 line = line.encode("utf-8")
             rw.write(line)
+        if self._cookies:
+            for c in self._cookies.values():
+                line = "%s: %s\r\n" % ('Set-Cookie', c.OutputString())
+                if PY3:
+                    line = line.encode("utf-8")
+                rw.write(line)
         rw.write("\r\n".encode("utf-8"))
         for _ in self._cast(content):
             rw.write(_)
@@ -1246,7 +1297,7 @@ class TCPServer(object):
     """Classic Python TCPServer"""
 
     allow_reuse_address = True
-    request_queue_size  = 4194304
+    request_queue_size = 4194304
     address_family, socket_type = socket.AF_INET, socket.SOCK_STREAM
 
     def __init__(self, server_address, RequestHandlerClass,
@@ -1412,18 +1463,19 @@ class WSGIServer(HTTPServer):
 
     def setup_environ(self):
         # Set up base environment
-        env = self.base_environ = {}
+        env = {}
         env["SERVER_NAME"] = self.server_name
         env["GATEWAY_INTERFACE"] = "CGI/1.1"
         env["SERVER_PORT"] = str(self.server_port)
         env["REMOTE_HOST"] = ""
-        env["CONTENT_LENGTH"] = ""
+        env["CONTENT_LENGTH"] = -1
         env["SCRIPT_NAME"] = ""
+        self.base_environ = env
 
     def get_app(self):
         return self.application
 
-    def set_app(self,application):
+    def set_app(self, application):
         self.application = application
 
 
@@ -1474,10 +1526,10 @@ class Litefs(object):
 def _cmd_args(args):
     title = args[0] if args else "litefs"
     parser = argparse.ArgumentParser(title, description=__doc__)
-    parser.add_argument("--host", dest="host",
+    parser.add_argument("-H", "--host", dest="host",
         required=False, default="localhost",
         help="bind server to HOST")
-    parser.add_argument("--port", action="store", dest="port", type=int,
+    parser.add_argument("-P", "--port", action="store", dest="port", type=int,
         required=False, default=9090,
         help="bind server to PORT")
     parser.add_argument("--webroot", dest="webroot",
