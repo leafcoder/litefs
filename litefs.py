@@ -461,7 +461,8 @@ class FileEventHandler(FileSystemEventHandler):
 
 class LiteFile(object):
 
-    def __init__(self, path, base, name, text):
+    def __init__(self, path, base, name, text, status_code=200):
+        self.status_code = int(status_code)
         self.path = path
         self.text = text
         self.etag = etag = sha1(text).hexdigest()
@@ -509,7 +510,8 @@ class LiteFile(object):
             headers.append(("Etag", self.etag))
             text = self.text
         headers.append(("Content-Length", "%d" % len(text)))
-        return request._response(200, headers=headers, content=text)
+        return request._response(
+            self.status_code, headers=headers, content=text)
 
 
 class TreeCache(object):
@@ -829,7 +831,6 @@ class RequestHandler(object):
                 else:
                     k, v = header
                 response_headers[k] = v
-        print('???', self.session_id, self.session.id)
         if self.session_id is None:
             self.set_cookie(default_sid, self.session.id, path="/")
         self._headers_responsed = True
@@ -876,7 +877,7 @@ class RequestHandler(object):
         if is_bytes(first):
             new_iter_s = itertools.chain([first], iter_s)
         elif is_unicode(first):
-            encoder = lambda item: item.encode("utf-8")
+            encoder = lambda item: str(item).encode("utf-8")
             new_iter_s = itertools.chain([first], iter_s)
             new_iter_s = imap(encoder, new_iter_s)
         else:
@@ -1001,6 +1002,7 @@ class RequestHandler(object):
             litefile = None
         if litefile is not None:
             app.files.put(path, litefile)
+            litefile.status_code = 404
             try:
                 return litefile.handler(self)
             except:
