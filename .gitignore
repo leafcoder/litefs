@@ -8,3 +8,11 @@ dist/
 *.egg-info/
 .eggs/
 build/
+*.so
+.tox/
+__pycache__/
+*.pyc
+*.log
+.idea/
+docs/_book/
+docs/node_modules/

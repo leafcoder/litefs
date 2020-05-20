@@ -1,7 +1,8 @@
 argh==0.26.2
+Cython==0.29.14
 greenlet==0.4.13
 Mako==1.0.6
-MarkupSafe==1.0
+MarkupSafe==1.1.1
 pathtools==0.1.2
 PyYAML==5.1
 watchdog==0.8.3

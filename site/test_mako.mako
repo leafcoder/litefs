@@ -1,4 +1,3 @@
-
 <pre>
 PATH_INFO   : ${http.path_info}
 QUERY_STRING: ${http.query_string}
