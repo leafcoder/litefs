@@ -1,3 +1,0 @@
-# Summary
-
-* [Tutorial](tutorial.md)

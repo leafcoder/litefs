@@ -1,3 +1,30 @@
+<div align="center">
+
+# Litefs {docsify-ignore}
+
+<p>
+    <!-- Place this tag where you want the button to render. -->
+    <a class="github-button" href="https://github.com/leafcoder/litefs/subscription" data-color-scheme="no-preference: light; light: light; dark: dark;" data-show-count="true" aria-label="Watch leafcoder/litefs on GitHub">
+        <img alt="GitHub forks" src="https://img.shields.io/github/watchers/leafcoder/litefs?style=social">
+    </a>
+    <a class="github-button" href="https://github.com/leafcoder/litefs" data-color-scheme="no-preference: light; light: light; dark: dark;" data-show-count="true" aria-label="Star leafcoder/litefs on GitHub">
+        <img alt="GitHub forks" src="https://img.shields.io/github/stars/leafcoder/litefs?style=social">
+    </a>
+    <a class="github-button" href="https://github.com/leafcoder/litefs/fork" data-color-scheme="no-preference: light; light: light; dark: dark;" data-show-count="true" aria-label="Fork leafcoder/litefs on GitHub">
+        <img alt="GitHub forks" src="https://img.shields.io/github/forks/leafcoder/litefs?style=social">
+    </a>
+</p>
+
+<p>
+    <img src="https://img.shields.io/github/v/release/leafcoder/litefs" data-origin="https://img.shields.io/github/v/release/leafcoder/litefs" alt="GitHub release (latest by date)">
+    <img src="https://img.shields.io/github/languages/top/leafcoder/litefs" data-origin="https://img.shields.io/github/languages/top/leafcoder/litefs" alt="GitHub top language">
+    <img src="https://img.shields.io/github/languages/code-size/leafcoder/litefs" data-origin="https://img.shields.io/github/languages/code-size/leafcoder/litefs" alt="GitHub code size in bytes">
+    <img src="https://img.shields.io/github/commit-activity/w/leafcoder/litefs" data-origin="https://img.shields.io/github/commit-activity/w/leafcoder/litefs" alt="GitHub commit activity">
+    <img src="https://img.shields.io/github/downloads/leafcoder/litefs/total" data-origin="https://img.shields.io/github/downloads/leafcoder/litefs/total" alt="GitHub All Releases">
+</p>
+
+</div>
+
 # Introduction 
 
 Litefs is a lite python web framework.
@@ -134,7 +161,7 @@ List attributes of "self".
 Attributes                                           | Description
 ---------------------------------------------------- | -----------
 self.environ                                         | 环境变量（只读）
-self.environ`[`_*envname*_`]`                        | 获取某环境变量
+self.environ[*envname*]                            | 获取某环境变量
 self.session                                         | session 对象，可临时保存或获取内存数据
 self.session_id                                      | session 对象 ID，将通过 SET_COOKIE 环境变量返回给客户端浏览器
 self.form                                            | form 为字典对象，保存您提交到服务器的数据
@@ -149,6 +176,8 @@ self.request_uri                                     | REQUEST_URI
 self.referer                                         | REFERER 
 self.request_method                                  | REQUEST_METHOD 
 self.server_protocol                                 | SERVER_PROTOCOL 
+
+
 ## Environ
 
 环境变量             | 描述                  | 例子
