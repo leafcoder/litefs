@@ -4,6 +4,10 @@
 import sys
 sys.dont_write_bytecode = True
 
+import os
+import re
+import posixpath
+
 try:
     from setuptools import setup
 except ImportError:
@@ -11,51 +15,66 @@ except ImportError:
 try:
     from Cython.Build import cythonize
 except ImportError:
-    import os
     os.system('pip install cython')
     from Cython.Build import cythonize
 
-long_description = '''\
-使用 Python 从零开始构建一个 Web 服务器框架。 开发 Litefs 的是为了实现一个能快速、安\
-全、灵活的构建 Web 项目的服务器框架。 Litefs 是一个高性能的 HTTP 服务器。Litefs 具有高\
-稳定性、丰富的功能、系统消耗低的特点。
+language_level = 2
+if sys.version_info[0] > 2:
+    language_level = 3
 
-Name: leafcoder
-Email: leafcoder@gmail.com
+def get_str(var_name):
+    src_py = open('litefs.py').read()
+    return re.search(
+        r"%s\s*=\s*['\"]([^'\"]+)['\"]" % var_name, src_py).group(1)
 
-Copyright (c) 2017, Leafcoder.
-License: MIT (see LICENSE for details)
-'''
-
-__version__ = '0.2.4'
-__author__  = 'Leafcoder'
-__license__ = 'MIT'
+def get_long_str(var_name):
+    src_py = open('litefs.py').read()
+    return re.search(
+        r"%s\s*=\s*['\"]{3}([^'\"]+)['\"]{3}" % var_name, src_py).group(1)
 
 setup(
     name='litefs',
-    version=__version__,
-    description='使用 Python 从零开始构建一个 Web 服务器框架。',
-    long_description=__doc__,
-    author=__author__,
+    version=get_str('__version__'),
+    description='Build a web server framework using Python.',
+    long_description=get_long_str('__doc__'),
+    author=get_str('__author__'),
     author_email='leafcoder@gmail.com',
     url='https://github.com/leafcoder/litefs',
     py_modules=['litefs'],
-    ext_modules=cythonize('litefs.py'),
-    license=__license__,
+    ext_modules=cythonize(
+        'litefs.py',
+        compiler_directives={
+            'language_level': language_level
+        }
+    ),
+    license=get_str('__license__'),
     platforms='any',
     package_data={
-        '': ["*.txt", 'LICENSE'],
-        'demo': ['site/*', '*.py']
+        '': ['*.txt', '*.md', 'LICENSE', 'example.py', 'MANIFEST.in'],
+        'site': ['site/*', '*.py'],
+        'test': ['test/*', '*.py']
     },
-    install_requires=[
-        'Mako==1.0.6',
-        'MarkupSafe==1.0',
-        'greenlet==0.4.13',
-        'PyYAML==3.12',
-        'argh==0.26.2',
-        'argparse==1.2.1',
-        'pathtools==0.1.2',
-        'watchdog==0.8.3',
-        'wsgiref==0.1.2'
+    install_requires=open('requirements.txt').read().split('\n'),
+    setup_requires=['cython', 'tox'],
+    entry_points={
+        'console_scripts': [
+           'litefs=litefs.entry:test_server',
+        ]
+    },
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        "Operating System :: OS Independent",
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Topic :: Internet :: WWW/HTTP :: Dynamic Content :: CGI Tools/Libraries',
+        'Topic :: Internet :: WWW/HTTP :: HTTP Servers',
+        'Topic :: Software Development :: Libraries :: Application Frameworks',
+        'Programming Language :: Python :: 2.6',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ]
 )
