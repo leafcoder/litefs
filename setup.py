@@ -9,18 +9,9 @@ import re
 import posixpath
 
 try:
-    from setuptools import setup
+    from setuptools import setup, Extension
 except ImportError:
-    from distutils.core import setup
-try:
-    from Cython.Build import cythonize
-except ImportError:
-    os.system('pip install cython')
-    from Cython.Build import cythonize
-
-language_level = 2
-if sys.version_info[0] > 2:
-    language_level = 3
+    from distutils.core import setup, Extension
 
 def get_str(var_name):
     src_py = open('litefs.py').read()
@@ -41,24 +32,17 @@ setup(
     author_email='leafcoder@gmail.com',
     url='https://github.com/leafcoder/litefs',
     py_modules=['litefs'],
-    ext_modules=cythonize(
-        'litefs.py',
-        compiler_directives={
-            'language_level': language_level
-        }
-    ),
     license=get_str('__license__'),
     platforms='any',
     package_data={
-        '': ['*.txt', '*.md', 'LICENSE', 'example.py', 'MANIFEST.in'],
-        'site': ['site/*', '*.py'],
+        '': ['*.txt', '*.md', 'LICENSE', 'MANIFEST.in'],
+        'demo': ['demo/*', '*.py'],
         'test': ['test/*', '*.py']
     },
     install_requires=open('requirements.txt').read().split('\n'),
-    setup_requires=['cython', 'tox'],
     entry_points={
         'console_scripts': [
-           'litefs=litefs.entry:test_server',
+           'litefs=litefs:test_server',
         ]
     },
     classifiers=[

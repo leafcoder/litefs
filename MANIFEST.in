@@ -1,3 +1,3 @@
-include LICENSE requirements.txt example.py README.md
-recursive-include site *.*
+include LICENSE requirements.txt README.md
+recursive-include demo *
 recursive-include test *.*
