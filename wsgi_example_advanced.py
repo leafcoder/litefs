@@ -31,4 +31,3 @@ print("  Gunicorn: gunicorn -w 4 -b :8000 wsgi_example:application")
 print("  uWSGI:    uwsgi --http :8000 --wsgi-file wsgi_example.py")
 print("  Waitress: waitress-serve --port=8000 wsgi_example:application")
 print("=" * 60)
-

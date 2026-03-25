@@ -1,7 +1,20 @@
-argh==0.26.2
-greenlet==0.4.13
-Mako==1.0.6
-MarkupSafe==1.1.1
-pathtools==0.1.2
-PyYAML==5.1
-watchdog==0.8.3
+argh>=0.26.2
+greenlet>=0.4.13,<4.0
+Mako>=1.0.6
+MarkupSafe>=1.1.1
+pathtools>=0.1.2
+PyYAML>=5.1
+watchdog>=0.8.3
+
+# WSGI 服务器支持 (可选)
+# gunicorn>=20.1.0
+# uwsgi>=2.0.20
+# waitress>=2.1.0
+
+# Python 版本兼容性说明
+# - Python 2.6-2.7: 完全支持
+# - Python 3.4-3.12: 完全支持（推荐用于生产环境）
+# - Python 3.13+: greenlet 可能存在兼容性问题
+# - Python 3.14+: greenlet 尚未完全支持，建议使用 Python 3.9-3.12
+
+
