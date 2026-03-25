@@ -1,0 +1,36 @@
+# doc-generator 配置（禁止乱生成文档，只生成有用的）
+enabled: true
+output_dir: docs/auto-generated  # 所有自动文档统一放这里
+exclude_patterns:
+  - "**/draft*"
+  - "**/tmp*"
+  - "**/backup*"
+  - "**/copy*"
+  - "*.log"
+  - "README_old.md"
+
+# 只允许生成以下核心文档
+allowed_doc_types:
+  - api           # API 接口文档
+  - schema        # 数据库/数据结构
+  - readme        # 项目说明（精简版）
+  - changelog     # 变更日志
+
+# 生成策略（关键！）
+strategy:
+  mode: minimal       # minimal 精简模式 | full 全量模式
+  auto_overwrite: true
+  create_folders: false
+  max_size_kb: 2048   # 单个文档最大 2MB，禁止超长垃圾文档
+  include_source_info: true
+  include_git_commit: true
+
+# 禁止自动生成的文档类型
+blocked_doc_types:
+  - design
+  - proposal
+  - meeting
+  - analysis
+  - report
+  - summary
+  - notebook

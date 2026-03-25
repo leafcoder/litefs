@@ -2,7 +2,6 @@
 # coding: utf-8
 
 import argparse
-import cgi
 import itertools
 import json
 import logging
@@ -28,8 +27,16 @@ from posixpath import join as path_join, splitext as path_splitext, \
     split as path_split, realpath as path_realpath, \
     abspath as path_abspath, isfile as path_isfile, \
     isdir as path_isdir, exists as path_exists
-from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR, EPOLLET, \
-    epoll as select_epoll
+
+try:
+    from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR, EPOLLET, \
+        epoll as select_epoll
+    HAS_EPOLL = True
+except (ImportError, AttributeError):
+    HAS_EPOLL = False
+    EPOLLIN = EPOLLOUT = EPOLLHUP = EPOLLERR = EPOLLET = 0
+    select_epoll = None
+
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile, TemporaryFile
 from time import time, strftime, gmtime
@@ -50,6 +57,15 @@ if PY3:
     from http.cookies import SimpleCookie
     from io import BytesIO as StringIO
     from urllib.parse import splitport, unquote_plus
+    
+    try:
+        from cgi import parse_header
+    except ImportError:
+        from email.message import Message
+        def parse_header(line):
+            msg = Message()
+            msg['content-type'] = line
+            return msg.get_params()[0], dict(msg.get_params()[1:])
 
     def is_unicode(s):
         return isinstance(s, str)
@@ -67,6 +83,7 @@ else:
     from urllib import splitport, unquote_plus
     from Cookie import SimpleCookie
     from UserDict import UserDict
+    from cgi import parse_header
 
     def is_unicode(s):
         return isinstance(s, unicode)
@@ -106,12 +123,11 @@ should_retry_error = (EWOULDBLOCK, EAGAIN)
 double_slash_sub = re.compile(r"\/{2,}").sub
 startswith_dot_sub = re.compile(r"\/\.+").sub
 suffixes = (".py", ".pyc", ".pyo", ".so", ".mako")
-cgi_suffixes = (".pl", ".py", ".pyc", ".pyo", ".php")
+cgi_suffixes = (".pl", ".pyc", ".pyo", ".php")
 form_dict_match = re.compile(r"(.+)\[([^\[\]]+)\]").match
 server_info = "litefs/%s python/%s" % (__version__, sys.version.split()[0])
 cgi_runners = {
     ".pl": "/usr/bin/perl",
-    ".py": "/usr/bin/python",
     ".pyc": "/usr/bin/python",
     ".pyo": "/usr/bin/python",
     ".php": "/usr/bin/php"
@@ -273,7 +289,7 @@ def make_environ(server, rw, client_address):
         environ["CONTENT_TYPE"] = content_type
     else:
         environ["CONTENT_TYPE"] = content_type = default_content_type
-    _, params = cgi.parse_header(content_type)
+    _, params = parse_header(content_type)
     charset = params.get('charset')
     environ['CHARSET'] = charset
     for k, v in headers.items():
@@ -327,7 +343,7 @@ def parse_multipart(rw, content_type):
             headers[k.strip().upper()] = v.strip()
             s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
         disposition = headers["CONTENT-DISPOSITION"]
-        disposition, params = cgi.parse_header(disposition)
+        disposition, params = parse_header(disposition)
         name = params["name"]
         filename = params.get("filename")
         if filename:
@@ -480,7 +496,6 @@ class LiteFile(object):
         if mimetype is not None:
             headers = [("Content-Type", "%s;charset=utf-8" % mimetype)]
         headers.append(("Last-Modified", self.last_modified))
-        headers.append(("Connection", "close"))
         self.headers = headers
 
     def handler(self, request):
@@ -641,6 +656,711 @@ class Session(UserDict):
         return "<Session Id=%s>" % self.id
 
 
+class WSGIRequestHandler(object):
+    """
+    WSGI 请求处理器，用于在 gunicorn、uWSGI 等 WSGI 服务器中运行
+    
+    符合 PEP 3333 规范，处理 WSGI environ 并返回标准响应
+    """
+
+    def __init__(self, app, environ):
+        self._app = app
+        self._environ = self._normalize_environ(environ)
+        self._headers = []
+        self._status_code = 200
+        self._get = parse_form(self._environ.get("QUERY_STRING", ""))
+        self._post = {}
+        self._body = ""
+        self._files = {}
+        self._session_id = None
+        self._session = None
+        self._headers_responsed = False
+        
+        content_type = self._environ.get("CONTENT_TYPE", "")
+        if content_type:
+            content_type, params = parse_header(content_type)
+            if content_type == 'application/x-www-form-urlencoded':
+                content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
+                content_length = int(content_length_str) if content_length_str.strip() else 0
+                if content_length > 0:
+                    wsgi_input = self._environ.get("wsgi.input")
+                    if wsgi_input:
+                        post_content = wsgi_input.read(content_length)
+                        if PY3:
+                            post_content = post_content.decode("utf-8")
+                        self._post = parse_form(post_content)
+            elif content_type == 'multipart/form-data':
+                boundary = params.get("boundary")
+                if boundary:
+                    wsgi_input = self._environ.get("wsgi.input")
+                    if wsgi_input:
+                        content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
+                        content_length = int(content_length_str) if content_length_str.strip() else 0
+                        if content_length > 0:
+                            self._parse_multipart(wsgi_input, boundary, 
+                                                 content_length)
+            else:
+                content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
+                content_length = int(content_length_str) if content_length_str.strip() else 0
+                if content_length > 0:
+                    wsgi_input = self._environ.get("wsgi.input")
+                    if wsgi_input:
+                        self._body = wsgi_input.read(content_length)
+                        if PY3:
+                            self._body = self._body.decode("utf-8")
+        
+        self._session_id, self._session = self._get_session()
+        
+        if app.config.debug:
+            log_debug(app.logger, "%s - \"%s %s %s\"" % (
+                self._environ.get("REMOTE_ADDR", "-"),
+                self._environ.get("SERVER_PROTOCOL", "HTTP/1.1"),
+                self._environ.get("REQUEST_METHOD", "GET"),
+                self._environ.get("PATH_INFO", "/")
+            ))
+
+    def _normalize_environ(self, environ):
+        """
+        标准化 WSGI environ 变量，确保兼容性
+        
+        Args:
+            environ: 原始 WSGI environ
+            
+        Returns:
+            标准化后的 environ
+        """
+        normalized = dict(environ)
+        
+        if "PATH_INFO" not in normalized:
+            normalized["PATH_INFO"] = "/"
+        
+        if "REQUEST_METHOD" not in normalized:
+            normalized["REQUEST_METHOD"] = "GET"
+        
+        if "QUERY_STRING" not in normalized:
+            normalized["QUERY_STRING"] = ""
+        
+        if "CONTENT_LENGTH" not in normalized:
+            normalized["CONTENT_LENGTH"] = "0"
+        else:
+            content_length = normalized.get("CONTENT_LENGTH", "0")
+            if content_length == "" or content_length is None:
+                normalized["CONTENT_LENGTH"] = "0"
+        
+        if "CONTENT_TYPE" not in normalized:
+            normalized["CONTENT_TYPE"] = ""
+        
+        if "HTTP_HOST" not in normalized:
+            host = normalized.get("SERVER_NAME", "localhost")
+            port = normalized.get("SERVER_PORT", "80")
+            if port != "80":
+                normalized["HTTP_HOST"] = "%s:%s" % (host, port)
+            else:
+                normalized["HTTP_HOST"] = host
+        
+        return normalized
+
+    def _parse_multipart(self, wsgi_input, boundary, content_length):
+        """
+        解析 multipart/form-data 格式的请求体
+        
+        Args:
+            wsgi_input: WSGI 输入流
+            boundary: multipart 边界
+            content_length: 内容长度
+        """
+        boundary = boundary.encode("utf-8") if PY3 else boundary
+        begin_boundary = b"--" + boundary
+        end_boundary = b"--" + boundary + b"--"
+        
+        posts = {}
+        files = {}
+        
+        data = wsgi_input.read(content_length)
+        
+        parts = data.split(begin_boundary)
+        
+        for part in parts[1:]:
+            if part.strip() == end_boundary:
+                break
+            
+            header_end = part.find(b"\r\n\r\n")
+            if header_end == -1:
+                continue
+            
+            headers_part = part[:header_end]
+            content = part[header_end + 4:]
+            
+            headers = {}
+            for line in headers_part.split(b"\r\n"):
+                if b":" in line:
+                    k, v = line.split(b":", 1)
+                    k = k.strip().upper()
+                    v = v.strip()
+                    if PY3:
+                        k = k.decode("utf-8")
+                        v = v.decode("utf-8")
+                    headers[k] = v
+            
+            disposition = headers.get("CONTENT-DISPOSITION", "")
+            disposition, params = parse_header(disposition)
+            name = params.get("name", "")
+            
+            filename = params.get("filename")
+            if filename:
+                fp = TemporaryFile(mode="w+b")
+                fp.write(content)
+                fp.seek(0)
+                files[name] = fp
+            else:
+                if PY3:
+                    content = content.decode("utf-8")
+                posts[name] = content.strip()
+        
+        self._post = posts
+        self._files = files
+
+    def _get_session(self):
+        """
+        获取或创建 session
+        
+        Returns:
+            (session_id, session) 元组
+        """
+        app = self._app
+        sessions = app.sessions
+        cookie_str = self._environ.get("HTTP_COOKIE", "")
+        cookie = SimpleCookie(cookie_str)
+        morsel = cookie.get(default_sid)
+        
+        if morsel is not None:
+            session_id = morsel.value
+            session = sessions.get(session_id)
+            if session is not None:
+                return session_id, session
+        
+        session_id = self._new_session_id()
+        session = Session(session_id)
+        sessions.put(session_id, session)
+        return None, session
+
+    def _new_session_id(self):
+        """
+        生成新的 session ID
+        
+        Returns:
+            session ID 字符串
+        """
+        app = self._app
+        sessions = app.sessions
+        while True:
+            token = urandom(24)
+            if PY3:
+                token = token + str(time()).encode("utf-8")
+            else:
+                token = token + str(time())
+            session_id = sha1(token).hexdigest()
+            session = sessions.get(session_id)
+            if session is None:
+                break
+        return session_id
+
+    @property
+    def config(self):
+        return self._app.config
+
+    @property
+    def files(self):
+        return self._files or {}
+
+    @property
+    def body(self):
+        return self._body
+
+    @property
+    def json(self):
+        body = self._body
+        if not body:
+            return {}
+        content_type = self._environ.get("CONTENT_TYPE", "")
+        content_type, _ = parse_header(content_type)
+        content_type = content_type.lower()
+        if content_type not in ('application/json', 'application/json-rpc'):
+            return {}
+        return json.loads(body)
+
+    @property
+    def environ(self):
+        return self._environ
+
+    @property
+    def params(self):
+        return self._get
+
+    @property
+    def data(self):
+        return self._post
+
+    @property
+    def session_id(self):
+        return self._session_id
+
+    @property
+    def session(self):
+        return self._session
+
+    @property
+    def request_method(self):
+        return self._environ.get("REQUEST_METHOD", "GET")
+
+    method = request_method
+
+    @property
+    def server_protocol(self):
+        return self._environ.get("SERVER_PROTOCOL", "HTTP/1.1")
+
+    @property
+    def content_type(self):
+        return self._environ.get("CONTENT_TYPE")
+
+    @property
+    def charset(self, default="UTF-8"):
+        content_type = self.content_type
+        if content_type:
+            _, params = parse_header(content_type)
+            return params.get("charset", default)
+        return default
+
+    @property
+    def content_length(self):
+        return int(self._environ.get("CONTENT_LENGTH", 0) or 0)
+
+    @property
+    def path_info(self):
+        return self._environ.get("PATH_INFO", "/")
+
+    @property
+    def query_string(self):
+        return self._environ.get("QUERY_STRING", "")
+
+    @property
+    def request_uri(self):
+        path_info = self.path_info
+        query_string = self.query_string
+        if not query_string:
+            return path_info
+        return "?".join((path_info, query_string))
+
+    @property
+    def referer(self):
+        return self._environ.get("HTTP_REFERER")
+
+    @property
+    def cookie(self):
+        cookie_str = self._environ.get("HTTP_COOKIE", "")
+        cookie = SimpleCookie()
+        cookie.load(cookie_str)
+        return cookie
+
+    def set_cookie(self, name, value, **options):
+        """
+        设置 cookie
+        
+        Args:
+            name: cookie 名称
+            value: cookie 值
+            **options: cookie 选项 (path, expires, max_age, domain, 
+                        secure, httponly, samesite)
+        """
+        cookie_str = ""
+        cookie_str += "%s=%s" % (name, value)
+        
+        for key, value in options.items():
+            if not value:
+                continue
+            cookie_str += "; %s=%s" % (key, value)
+        
+        self._headers.append(('Set-Cookie', cookie_str))
+
+    def start_response(self, status_code=200, headers=None):
+        """
+        设置响应状态码和头信息
+        
+        Args:
+            status_code: HTTP 状态码
+            headers: 响应头列表
+        """
+        if self._headers_responsed:
+            raise ValueError("Http headers already responsed.")
+        self._status_code = int(status_code)
+        if headers is not None:
+            for header in headers:
+                if not isinstance(header, (list, tuple)):
+                    if PY3:
+                        header = header.encode("utf-8")
+                    k, v = header.split(":")
+                    k, v = k.strip(), v.strip()
+                else:
+                    k, v = header
+                self._headers.append((k, v))
+        self._headers_responsed = True
+
+    def _response(self, status_code, headers=None, content=None):
+        """
+        生成响应
+        
+        Args:
+            status_code: HTTP 状态码
+            headers: 响应头列表
+            content: 响应内容
+            
+        Returns:
+            (status, headers, content) 元组
+        """
+        status_code = int(status_code)
+        status_text = http_status_codes.get(status_code, "Unknown")
+        status = "%d %s" % (status_code, status_text)
+        
+        response_headers = []
+        response_headers.append(('Server', server_info))
+        response_headers.append(('Content-Type', 'text/html; charset=utf-8'))
+        
+        if headers:
+            response_headers.extend(headers)
+        
+        if self.session_id is None:
+            self.set_cookie(default_sid, self.session.id, path="/")
+        
+        response_headers.extend(self._headers)
+        
+        if content is None:
+            content = DEFAULT_STATUS_MESSAGE % {
+                "code": status_code,
+                "message": status_text,
+                "explain": status_text
+            }
+        
+        return status, response_headers, content
+
+    def handler(self):
+        """
+        处理请求并返回响应
+        
+        Returns:
+            (status, headers, content) 元组
+        """
+        app = self._app
+        environ = self._environ
+        path_info = environ.get("PATH_INFO", "/")
+        
+        path = startswith_dot_sub("/", path_info)
+        path = double_slash_sub("/", path)
+        
+        if path != path_info:
+            return self._redirect(path)
+        
+        base, name = path_split(path)
+        if not name:
+            name = default_page
+        
+        path = path_join(base, name)
+        
+        module = app.caches.get(path)
+        if module is not None:
+            try:
+                result = module.handler(self)
+                if isinstance(result, tuple) and len(result) == 3:
+                    return result
+                return self._response(200, content=result)
+            except:
+                log_error(app.logger)
+                if app.config.debug:
+                    content = render_error()
+                    return self._response(500, content=content)
+                return self._response(500)
+        
+        litefile = app.files.get(path)
+        if litefile is not None:
+            return self._handle_litefile(litefile)
+        
+        realpath = path_abspath(
+            path_join(app.config.webroot, path.lstrip("/"))
+        )
+        
+        if path_isdir(realpath):
+            return self._redirect(path + "/")
+        
+        name_without_ext, ext = path_splitext(name)
+        
+        if ext in ('.py', '.mako'):
+            return self._response(404)
+        
+        script_extensions = ['.py', '.mako']
+        for script_ext in script_extensions:
+            script_name = name + script_ext
+            script_path = path_join(base, script_name)
+            module = self._load_script(base, script_name)
+            if module is not None and hasattr(module, "handler"):
+                if script_ext == ".mako":
+                    app.caches.put(path_join(base, name), module)
+                else:
+                    app.caches.put(script_path, module)
+                try:
+                    result = module.handler(self)
+                    if isinstance(result, tuple) and len(result) == 3:
+                        return result
+                    return self._response(200, content=result)
+                except:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return self._response(500, content=content)
+                    return self._response(500)
+        
+        try:
+            litefile = self._load_static_file(base, name)
+        except IOError:
+            log_error(app.logger)
+            return self._response(404)
+        
+        if litefile is not None:
+            app.files.put(path, litefile)
+            return self._handle_litefile(litefile)
+        
+        return self._response(404)
+
+    def _handle_litefile(self, litefile):
+        """
+        处理静态文件响应
+        
+        Args:
+            litefile: LiteFile 对象
+            
+        Returns:
+            (status, headers, content) 元组
+        """
+        environ = self._environ
+        if_modified_since = environ.get("HTTP_IF_MODIFIED_SINCE")
+        if if_modified_since == litefile.last_modified:
+            return self._response(304)
+        
+        if_none_match = environ.get("HTTP_IF_NONE_MATCH")
+        accept_encodings = environ.get(
+            "HTTP_ACCEPT_ENCODING", "").split(",")
+        accept_encodings = [s.strip().lower() for s in accept_encodings]
+        
+        headers = list(litefile.headers)
+        
+        if "gzip" in accept_encodings:
+            if if_none_match == litefile.gzip_etag:
+                return self._response(304)
+            headers.append(("Etag", litefile.gzip_etag))
+            headers.append(("Content-Encoding", "gzip"))
+            text = litefile.gzip_text
+        elif "deflate" in accept_encodings:
+            if if_none_match == litefile.zlib_etag:
+                return self._response(304)
+            headers.append(("Etag", litefile.zlib_etag))
+            headers.append(("Content-Encoding", "deflate"))
+            text = litefile.zlib_text
+        else:
+            if if_none_match == litefile.etag:
+                return self._response(304)
+            headers.append(("Etag", litefile.etag))
+            text = litefile.text
+        
+        headers.append(("Content-Length", "%d" % len(text)))
+        return self._response(litefile.status_code, headers=headers, content=text)
+
+    def _redirect(self, url):
+        """
+        重定向
+        
+        Args:
+            url: 重定向 URL
+            
+        Returns:
+            (status, headers, content) 元组
+        """
+        url = '/' if url is None else url
+        headers = [
+            ("Content-Type", "text/html; charset=utf-8"),
+            ("Location", url)
+        ]
+        status_code = 302
+        status_text = http_status_codes.get(status_code, "Found")
+        content = "%d %s" % (status_code, status_text)
+        return self._response(status_code, headers=headers, content=content)
+
+    def _load_script(self, base, name):
+        """
+        加载脚本模块
+        
+        Args:
+            base: 基础路径
+            name: 文件名
+            
+        Returns:
+            模块对象或 None
+        """
+        app = self._app
+        webroot = app.config.webroot
+        script_path = path_join(webroot, base.lstrip("/"), name)
+        
+        if not path_exists(script_path):
+            return None
+        
+        ext = path_splitext(name)[1]
+        
+        if ext in cgi_suffixes:
+            return self._load_cgi_script(script_path)
+        
+        if ext == ".mako":
+            return self._load_template(base, name)
+        
+        if ext in suffixes:
+            return self._load_python_script(script_path)
+        
+        return None
+
+    def _load_python_script(self, script_path):
+        """
+        加载 Python 脚本
+        
+        Args:
+            script_path: 脚本路径
+            
+        Returns:
+            模块对象或 None
+        """
+        app = self._app
+        fp = None
+        try:
+            sys.dont_write_bytecode = True
+            module_name = path_splitext(path_split(script_path)[1])[0]
+            fp = open(script_path, "rb")
+            module = imp_new_module(module_name)
+            module.__dict__['handler'] = self
+            code = compile(fp.read(), script_path, 'exec')
+            exec(code, module.__dict__)
+            return module
+        except:
+            log_error(app.logger)
+            return None
+        finally:
+            sys.dont_write_bytecode = False
+            if fp:
+                fp.close()
+
+    def _load_cgi_script(self, script_path):
+        """
+        加载 CGI 脚本
+        
+        Args:
+            script_path: 脚本路径
+            
+        Returns:
+            模块对象或 None
+        """
+        app = self._app
+        webroot = app.config.webroot
+        ext = path_splitext(script_path)[1]
+        runner = cgi_runners.get(ext)
+        
+        if not runner:
+            return None
+        
+        tmpf = NamedTemporaryFile("w+")
+        try:
+            p = Popen(
+                [runner, script_path],
+                stdout=tmpf, stderr=PIPE, close_fds=True, cwd=webroot
+            )
+            stdout, stderr = p.communicate()
+            returncode = p.returncode
+            
+            if 0 == returncode:
+                log_debug(app.logger, "CGI script exited OK")
+            else:
+                log_error(app.logger,
+                    "CGI script exit status %#x" % returncode
+                )
+            p.stderr.close()
+            
+            tmpf.seek(0)
+            if not stderr:
+                stdout = tmpf.read()
+            
+            module = new_module()
+            module.handler = lambda self: stdout
+            return module
+        finally:
+            tmpf.close()
+
+    def _load_template(self, base, name):
+        """
+        加载 Mako 模板
+        
+        Args:
+            base: 基础路径
+            name: 文件名
+            
+        Returns:
+            模块对象或 None
+        """
+        app = self._app
+        webroot = app.config.webroot
+        script_uri = path_join(base.lstrip("/"), name)
+        path = path_join("/%s" % base.rstrip("/"), name)
+        mylookup = TemplateLookup(directories=[webroot])
+        def handler(mylookup, script_uri):
+            def _handler(self):
+                try:
+                    template = mylookup.get_template(script_uri)
+                    content = template.render(http=self)
+                    headers = getattr(template.module, "headers", None)
+                    if not headers:
+                        headers = [
+                            ("Content-Type", "text/html;charset=utf-8")
+                        ]
+                    return self._response(
+                        200, headers=headers, content=content
+                    )
+                except:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return self._response(500, content=content)
+                    return self._response(500)
+            return _handler
+        module = new_module()
+        module.handler = handler(mylookup, script_uri)
+        return module
+
+    def _load_static_file(self, base, name):
+        """
+        加载静态文件
+        
+        Args:
+            base: 基础路径
+            name: 文件名
+            
+        Returns:
+            LiteFile 对象或 None
+        """
+        app = self._app
+        webroot = app.config.webroot
+        file_path = path_join(webroot, base.lstrip("/"), name)
+        
+        if not path_isfile(file_path):
+            raise IOError("File not found: %s" % file_path)
+        
+        with open(file_path, "rb") as fp:
+            text = fp.read()
+        
+        return LiteFile(file_path, base, name, text)
+
+
 class RequestHandler(object):
 
     default_headers = {
@@ -659,7 +1379,7 @@ class RequestHandler(object):
         self._status_code = 200
         self._get = parse_form(environ["QUERY_STRING"])
         content_type = environ.get("CONTENT_TYPE", "")
-        content_type, params = cgi.parse_header(content_type)
+        content_type, params = parse_header(content_type)
         self._post = {}
         self._body = ""
         if content_type == 'application/x-www-form-urlencoded':
@@ -740,7 +1460,7 @@ class RequestHandler(object):
         if not self._body:
             return {}
         content_type = self.content_type
-        content_type, _ = cgi.parse_header(content_type)
+        content_type, _ = parse_header(content_type)
         content_type = content_type.lower()
         if content_type not in ('application/json', 'application/json-rpc'):
             return {}
@@ -781,7 +1501,7 @@ class RequestHandler(object):
 
     @property
     def charset(self, default="UTF-8"):
-        _, params = cgi.parse_header(self.content_type)
+        _, params = parse_header(self.content_type)
         return params.get("charset", default)
 
     @property
@@ -945,11 +1665,19 @@ class RequestHandler(object):
         base, name = path_split(path)
         if not name:
             name = default_page
+        
+        name_without_ext, ext = path_splitext(name)
+        if ext in ('.py', '.mako'):
+            return self._response(404)
+        
         path = path_join(base, name)
         module = app.caches.get(path)
         if module is not None:
             try:
-                return module.handler(self)
+                result = module.handler(self)
+                if isinstance(result, tuple) and len(result) == 3:
+                    return result
+                return self._response(200, content=result)
             except:
                 log_error(app.logger)
                 if app.config.debug:
@@ -972,7 +1700,10 @@ class RequestHandler(object):
             else:
                 app.caches.put(path, module)
             try:
-                return module.handler(self)
+                result = module.handler(self)
+                if isinstance(result, tuple) and len(result) == 3:
+                    return result
+                return self._response(200, content=result)
             except:
                 log_error(app.logger)
                 if app.config.debug:
@@ -1335,6 +2066,7 @@ class TCPServer(object):
             self.socket.setsockopt(socket.SOL_SOCKET,
                                    socket.SO_REUSEADDR, 1)
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        logging.info("bind %s:%s", *self.server_address)
         self.socket.bind(self.server_address)
         self.socket.setblocking(0)
 
@@ -1502,16 +2234,67 @@ class Litefs(object):
         self.logger = make_logger(__name__, log=config.log, level=level)
         self.host = host = config.host
         self.port = port = config.port
-        self.server = HTTPServer((host, port), self.handler)
+        self.server = None
         self.sessions = MemoryCache(max_size=1000000)
         self.caches = TreeCache()
         self.files = TreeCache()
         now = datetime.now().strftime("%B %d, %Y - %X")
-        sys.stdout.write((
-            "Litefs %s - %s\n"
-            "Starting server at http://%s:%d/\n"
-            "Quit the server with CONTROL-C.\n"
-        ) % (__version__, now, host, port))
+
+    def wsgi(self):
+        """
+        返回符合 PEP 3333 规范的 WSGI application callable
+        
+        用法:
+            import litefs
+            app = litefs.Litefs(webroot='./site')
+            application = app.wsgi()
+            
+        在 gunicorn 中使用:
+            gunicorn -w 4 -b :8000 wsgi_example:application
+            
+        在 uWSGI 中使用:
+            uwsgi --http :8000 --wsgi-file wsgi_example.py
+        """
+        def application(environ, start_response):
+            """
+            WSGI application callable
+            
+            Args:
+                environ: WSGI 环境变量字典
+                start_response: 开始响应的 callable
+                
+            Returns:
+                可迭代的 bytes
+            """
+            try:
+                request_handler = WSGIRequestHandler(self, environ)
+                status, headers, content = request_handler.handler()
+                start_response(status, headers)
+                
+                if isinstance(content, (list, tuple)):
+                    result = []
+                    for item in content:
+                        if isinstance(item, str):
+                            result.append(item.encode('utf-8'))
+                        elif isinstance(item, bytes):
+                            result.append(item)
+                        else:
+                            result.append(str(item).encode('utf-8'))
+                    return result
+                elif isinstance(content, str):
+                    return [content.encode('utf-8')]
+                elif isinstance(content, bytes):
+                    return [content]
+                else:
+                    return [str(content).encode('utf-8')]
+            except Exception as e:
+                log_error(self.logger, str(e))
+                status = '500 Internal Server Error'
+                headers = [('Content-Type', 'text/plain; charset=utf-8')]
+                start_response(status, headers)
+                return [b'500 Internal Server Error']
+        
+        return application
 
     def handler(self, request, environ, server):
         raw = SocketIO(server, request)
@@ -1525,6 +2308,12 @@ class Litefs(object):
         event_handler = FileEventHandler(self)
         observer.schedule(event_handler, self.config.webroot, True)
         observer.start()
+        self.server = HTTPServer((self.host, self.port), self.handler)
+        sys.stdout.write((
+            "Litefs %s - %s\n"
+            "Starting server at http://%s:%d/\n"
+            "Quit the server with CONTROL-C.\n"
+        ) % (__version__, now, host, port))
         try:
             self.server.start()
             mainloop(poll_interval=poll_interval)
@@ -1589,7 +2378,7 @@ def test_server():
     litefs = Litefs(**kwargs)
     litefs.run(poll_interval=.1)
 
-epoll = Epoll()
+epoll = Epoll() if HAS_EPOLL else None
 
 if "__main__" == __name__:
     test_server()
