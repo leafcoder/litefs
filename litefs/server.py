@@ -38,8 +38,7 @@ should_retry_error = (EWOULDBLOCK, EAGAIN)
 def make_headers(rw):
     headers = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE)
-    if sys.version_info.major > 2:
-        s = s.decode("utf-8")
+    s = s.decode("utf-8")
     while True:
         if s in ("", "\n", "\r\n"):
             break
@@ -47,8 +46,7 @@ def make_headers(rw):
         k, v = k.lower().strip(), v.strip()
         headers[k] = v
         s = rw.readline(DEFAULT_BUFFER_SIZE)
-        if sys.version_info.major > 2:
-            s = s.decode("utf-8")
+        s = s.decode("utf-8")
     return headers
 
 
@@ -63,8 +61,7 @@ def make_environ(server, rw, client_address):
     
     from urllib.parse import unquote_plus
     s = rw.readline(DEFAULT_BUFFER_SIZE)
-    if sys.version_info.major > 2:
-        s = s.decode("utf-8")
+    s = s.decode("utf-8")
     if not s:
         raise HttpError("invalid http headers")
     request_method, path_info, protocol = s.strip().split()
@@ -138,9 +135,7 @@ class SocketIO(RawIOBase):
             real_epoll.register(fileno, EPOLLIN | EPOLLET)
         else:
             real_epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
-        data = ""
-        if sys.version_info.major > 2:
-            data = b""
+        data = b""
         try:
             curr.parent.switch()
             data = self._sock.recv(len(b))

@@ -39,20 +39,9 @@ from .exceptions import HttpError
 from .session import Session
 from .utils import log_error, log_debug, render_error, gmt_date
 
-PY3 = sys.version_info.major > 2
-
-if PY3:
-    import socket
-    from http.client import responses as http_status_codes
-    from io import BytesIO as StringIO
-else:
-    import _socket as socket
-    from cStringIO import StringIO
-    from httplib import responses as http_status_codes
-    from urllib import unquote_plus
-    from Cookie import SimpleCookie
-    from UserDict import UserDict
-    from cgi import parse_header
+import socket
+from http.client import responses as http_status_codes
+from io import BytesIO as StringIO
 
 default_page = "index.html"
 default_404 = "not_found"
@@ -90,19 +79,14 @@ DEFAULT_STATUS_MESSAGE = """\
     </body>
 </html>"""
 
-if PY3:
-    def is_unicode(s):
-        return isinstance(s, str)
-    def is_bytes(s):
-        return isinstance(s, bytes)
-    def imap(func, iterable):
-        return map(func, iterable)
-else:
-    def is_unicode(s):
-        return isinstance(s, unicode)
-    def is_bytes(s):
-        return isinstance(s, str)
-    imap = itertools.imap
+def is_unicode(s):
+    return isinstance(s, str)
+
+def is_bytes(s):
+    return isinstance(s, bytes)
+
+def imap(func, iterable):
+    return map(func, iterable)
 
 from hashlib import sha1
 
@@ -189,8 +173,7 @@ class WSGIRequestHandler(object):
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         post_content = wsgi_input.read(content_length)
-                        if PY3:
-                            post_content = post_content.decode("utf-8")
+                        post_content = post_content.decode("utf-8")
                         self._post = parse_form(post_content)
             elif content_type == 'multipart/form-data':
                 boundary = params.get("boundary")
@@ -209,8 +192,7 @@ class WSGIRequestHandler(object):
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         self._body = wsgi_input.read(content_length)
-                        if PY3:
-                            self._body = self._body.decode("utf-8")
+                        self._body = self._body.decode("utf-8")
         
         self._session_id, self._session = self._get_session()
         
@@ -255,7 +237,7 @@ class WSGIRequestHandler(object):
         return normalized
 
     def _parse_multipart(self, wsgi_input, boundary, content_length):
-        boundary = boundary.encode("utf-8") if PY3 else boundary
+        boundary = boundary.encode("utf-8")
         begin_boundary = b"--" + boundary
         end_boundary = b"--" + boundary + b"--"
         
@@ -283,9 +265,8 @@ class WSGIRequestHandler(object):
                     k, v = line.split(b":", 1)
                     k = k.strip().upper()
                     v = v.strip()
-                    if PY3:
-                        k = k.decode("utf-8")
-                        v = v.decode("utf-8")
+                    k = k.decode("utf-8")
+                    v = v.decode("utf-8")
                     headers[k] = v
             
             disposition = headers.get("CONTENT-DISPOSITION", "")
@@ -299,8 +280,7 @@ class WSGIRequestHandler(object):
                 fp.seek(0)
                 files[name] = fp
             else:
-                if PY3:
-                    content = content.decode("utf-8")
+                content = content.decode("utf-8")
                 posts[name] = content.strip()
         
         self._post = posts
@@ -329,10 +309,7 @@ class WSGIRequestHandler(object):
         sessions = app.sessions
         while True:
             token = urandom(24)
-            if PY3:
-                token = token + str(time()).encode("utf-8")
-            else:
-                token = token + str(time())
+            token = token + str(time()).encode("utf-8")
             session_id = sha1(token).hexdigest()
             session = sessions.get(session_id)
             if session is None:
@@ -454,8 +431,7 @@ class WSGIRequestHandler(object):
         if headers is not None:
             for header in headers:
                 if not isinstance(header, (list, tuple)):
-                    if PY3:
-                        header = header.encode("utf-8")
+                    header = header.encode("utf-8")
                     k, v = header.split(":")
                     k, v = k.strip(), v.strip()
                 else:
@@ -749,8 +725,7 @@ def new_module(**kwargs):
 
 def parse_multipart(rw, content_type):
     boundary = content_type.split("=")[1].strip()
-    if PY3:
-        boundary = boundary.encode("utf-8")
+    boundary = boundary.encode("utf-8")
     begin_boundary = (b"--%s" % boundary)
     end_boundary = (b"--%s--" % boundary)
     posts = {}
@@ -763,8 +738,7 @@ def parse_multipart(rw, content_type):
         headers = {}
         s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
         while s:
-            if PY3:
-                s = s.decode("utf-8")
+            s = s.decode("utf-8")
             k, v = s.split(":", 1)
             headers[k.strip().upper()] = v.strip()
             s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
@@ -854,8 +828,7 @@ class RequestHandler(object):
         sessions = app.sessions
         while True:
             token = "%s%s" % (urandom(24), time())
-            if PY3:
-                token = token.encode("utf-8")
+            token = token.encode("utf-8")
             session_id = sha1(token).hexdigest()
             session = sessions.get(session_id)
             if session is None:
@@ -977,8 +950,7 @@ class RequestHandler(object):
         if headers is not None:
             for header in headers:
                 if not isinstance(header, (list, tuple)):
-                    if PY3:
-                        header = header.encode("utf-8")
+                    header = header.encode("utf-8")
                     k, v = header.split(":")
                     k, v = k.strip(), v.strip()
                 else:
@@ -1042,22 +1014,19 @@ class RequestHandler(object):
         status_code = self._status_code
         status_text = http_status_codes[status_code]
         line = "HTTP/1.1 %d %s\r\n" % (status_code, status_text)
-        if PY3:
-            line = line.encode("utf-8")
+        line = line.encode("utf-8")
         rw.write(line)
         headers = self._response_headers
         if not headers:
             headers = self.default_headers
         for header, value in headers.items():
             line = "%s: %s\r\n" % (header, value)
-            if PY3:
-                line = line.encode("utf-8")
+            line = line.encode("utf-8")
             rw.write(line)
         if self._cookies:
             for c in self._cookies.values():
                 line = "%s: %s\r\n" % ('Set-Cookie', c.OutputString())
-                if PY3:
-                    line = line.encode("utf-8")
+                line = line.encode("utf-8")
                 rw.write(line)
         rw.write("\r\n".encode("utf-8"))
         for _ in self._cast(content):
