@@ -6,6 +6,7 @@ import cgi
 import itertools
 import json
 import logging
+import os
 import re
 import sqlite3
 import sys
@@ -646,7 +647,8 @@ class RequestHandler(object):
         "Content-Type": default_content_type
     }
 
-    def __init__(self, app, rw, environ):
+    def __init__(self, app, rw, environ, request):
+        self._request = request
         self._rw = rw
         self._app = app
         self._environ = environ
@@ -1247,6 +1249,7 @@ class Epoll(object):
         self._epoll = select_epoll()
         self._servers = {}
         self._greenlets = {}
+        self._idels = []
 
     def register(self, server_socket):
         servers = self._servers
@@ -1264,6 +1267,7 @@ class Epoll(object):
         servers = self._servers
         greenlets = self._greenlets
         _poll = self._epoll.poll
+        idels = self._idels
         while True:
             events = _poll(poll_interval)
             for fileno, event in events:
@@ -1293,6 +1297,15 @@ class Epoll(object):
                         break
                     except:
                         print_exc()
+            while len(idels):
+                now_ts = time()
+                ts, gr = idels.pop(0)
+                if ts > now_ts:
+                    idels.append((ts, gr))
+                    idels.sort()
+                    break
+                else:
+                    gr.switch()
 
 
 class TCPServer(object):
@@ -1503,7 +1516,7 @@ class Litefs(object):
     def handler(self, request, environ, server):
         raw = SocketIO(server, request)
         rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
-        request_handler = RequestHandler(self, rw, environ)
+        request_handler = RequestHandler(self, rw, environ, request)
         result = request_handler.handler()
         return request_handler.finish(result)
 
