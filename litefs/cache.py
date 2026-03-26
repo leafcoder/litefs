@@ -6,7 +6,7 @@ import time
 from collections import deque
 from hashlib import sha1
 from gzip import GzipFile
-from io import StringIO
+from io import BytesIO
 from mimetypes import guess_type
 from os import stat
 from posixpath import splitext as path_splitext
@@ -86,7 +86,7 @@ class LiteFile(object):
         self.etag = etag = sha1(text).hexdigest()
         self.zlib_text = zlib_text = compress(text, 9)[2:-4]
         self.zlib_etag = sha1(zlib_text).hexdigest()
-        stream = StringIO()
+        stream = BytesIO()
         with GzipFile(fileobj=stream, mode="wb") as f:
             f.write(text)
         self.gzip_text = gzip_text = stream.getvalue()

@@ -82,6 +82,9 @@ def make_environ(server, rw, client_address):
     length = headers.get("content-length")
     if length:
         environ["CONTENT_LENGTH"] = length = int(length)
+        max_request_size = getattr(server, 'max_request_size', 10485760)
+        if length > max_request_size:
+            raise HttpError(413, f"Request body too large. Maximum size is {max_request_size} bytes")
     content_type = headers.get("content-type")
     if content_type:
         environ["CONTENT_TYPE"] = content_type
@@ -414,6 +417,7 @@ class TCPServer(object):
 class HTTPServer(TCPServer):
 
     allow_reuse_address = 1
+    max_request_size = 10485760
 
     def server_bind(self):
         TCPServer.server_bind(self)

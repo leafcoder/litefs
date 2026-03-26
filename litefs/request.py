@@ -19,7 +19,7 @@ from time import time
 from uuid import uuid4
 from weakref import proxy
 from mako.lookup import TemplateLookup
-from hashlib import sha1
+from hashlib import sha256
 from errno import EWOULDBLOCK, EAGAIN
 import importlib.util
 
@@ -166,9 +166,15 @@ class WSGIRequestHandler(object):
         content_type = self._environ.get("CONTENT_TYPE", "")
         if content_type:
             content_type, params = parse_header(content_type)
+            content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
+            content_length = int(content_length_str) if content_length_str.strip() else 0
+            
+            if content_length > 0:
+                max_request_size = getattr(app.config, 'max_request_size', 10485760)
+                if content_length > max_request_size:
+                    raise HttpError(413, f"Request body too large. Maximum size is {max_request_size} bytes")
+            
             if content_type == 'application/x-www-form-urlencoded':
-                content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
-                content_length = int(content_length_str) if content_length_str.strip() else 0
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
@@ -186,8 +192,6 @@ class WSGIRequestHandler(object):
                             self._parse_multipart(wsgi_input, boundary, 
                                                  content_length)
             else:
-                content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
-                content_length = int(content_length_str) if content_length_str.strip() else 0
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
@@ -237,6 +241,12 @@ class WSGIRequestHandler(object):
         return normalized
 
     def _parse_multipart(self, wsgi_input, boundary, content_length):
+        app = self._app
+        max_upload_size = getattr(app.config, 'max_upload_size', 52428800)
+        
+        if content_length > max_upload_size:
+            raise HttpError(413, f"Request body too large. Maximum size is {max_upload_size} bytes")
+        
         boundary = boundary.encode("utf-8")
         begin_boundary = b"--" + boundary
         end_boundary = b"--" + boundary + b"--"
@@ -308,9 +318,8 @@ class WSGIRequestHandler(object):
         app = self._app
         sessions = app.sessions
         while True:
-            token = urandom(24)
-            token = token + str(time()).encode("utf-8")
-            session_id = sha1(token).hexdigest()
+            token = urandom(32)
+            session_id = sha256(token).hexdigest()
             session = sessions.get(session_id)
             if session is None:
                 break
@@ -622,9 +631,12 @@ class WSGIRequestHandler(object):
             module_name = path_splitext(path_split(script_path)[1])[0]
             fp = open(script_path, "rb")
             module = new_module()
-            module.__dict__['handler'] = self
+            setattr(module, 'handler', self)
             code = compile(fp.read(), script_path, 'exec')
-            exec(code, module.__dict__)
+            module_globals = {}
+            exec(code, module_globals)
+            for k, v in module_globals.items():
+                setattr(module, k, v)
             return module
         except:
             log_error(app.logger)
@@ -719,7 +731,8 @@ class WSGIRequestHandler(object):
 def new_module(**kwargs):
     name = "".join(("litefs", uuid4().hex))
     module = type(name, (), {})
-    module.__dict__.update(kwargs)
+    for k, v in kwargs.items():
+        setattr(module, k, v)
     return module
 
 
@@ -827,9 +840,8 @@ class RequestHandler(object):
         app = self._app
         sessions = app.sessions
         while True:
-            token = "%s%s" % (urandom(24), time())
-            token = token.encode("utf-8")
-            session_id = sha1(token).hexdigest()
+            token = urandom(32)
+            session_id = sha256(token).hexdigest()
             session = sessions.get(session_id)
             if session is None:
                 break

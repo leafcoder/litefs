@@ -99,11 +99,20 @@ class Litefs(object):
                 else:
                     return [str(content).encode('utf-8')]
             except Exception as e:
-                log_error(self.logger, str(e))
-                status = '500 Internal Server Error'
-                headers = [('Content-Type', 'text/plain; charset=utf-8')]
-                start_response(status, headers)
-                return [b'500 Internal Server Error']
+                from .exceptions import HttpError
+                if isinstance(e, HttpError):
+                    status_code = e.args[0] if len(e.args) > 0 else 500
+                    message = e.args[1] if len(e.args) > 1 else str(e)
+                    status = f'{status_code} {message}'
+                    headers = [('Content-Type', 'text/plain; charset=utf-8')]
+                    start_response(status, headers)
+                    return [message.encode('utf-8')]
+                else:
+                    log_error(self.logger, str(e))
+                    status = '500 Internal Server Error'
+                    headers = [('Content-Type', 'text/plain; charset=utf-8')]
+                    start_response(status, headers)
+                    return [b'500 Internal Server Error']
         
         return application
 
@@ -121,6 +130,7 @@ class Litefs(object):
         observer.schedule(event_handler, self.config.webroot, True)
         observer.start()
         self.server = HTTPServer((self.host, self.port), self.handler)
+        self.server.max_request_size = self.config.max_request_size
         sys.stdout.write((
             "Litefs %s - %s\n"
             "Starting server at http://%s:%d/\n"
@@ -169,6 +179,12 @@ def _cmd_args(args):
     parser.add_argument("--listen", dest="listen", type=int,
         required=False, default=1024,
         help="server LISTEN")
+    parser.add_argument("--max-request-size", dest="max_request_size",
+        required=False, type=int, default=10485760,
+        help="maximum request body size in bytes (default: 10MB)")
+    parser.add_argument("--max-upload-size", dest="max_upload_size",
+        required=False, type=int, default=52428800,
+        help="maximum file upload size in bytes (default: 50MB)")
     args = parser.parse_args(args and args[1:])
     return args
 
