@@ -87,16 +87,14 @@ from litefs.middleware import CORSMiddleware
 
 app = Litefs(webroot='./site')
 
-cors_middleware = CORSMiddleware(
-    app,
+app.add_middleware(
+    CORSMiddleware,
     allow_origins=['http://localhost:3000', 'https://example.com'],
     allow_methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allow_headers=['Content-Type', 'Authorization'],
     allow_credentials=True,
     max_age=86400,
 )
-
-app.add_middleware(cors_middleware)
 ```
 
 ### 3. 安全中间件 (SecurityMiddleware)
@@ -109,8 +107,8 @@ from litefs.middleware import SecurityMiddleware
 
 app = Litefs(webroot='./site')
 
-security_middleware = SecurityMiddleware(
-    app,
+app.add_middleware(
+    SecurityMiddleware,
     x_frame_options='DENY',
     x_content_type_options='nosniff',
     x_xss_protection='1; mode=block',
@@ -118,8 +116,6 @@ security_middleware = SecurityMiddleware(
     content_security_policy="default-src 'self'",
     referrer_policy='strict-origin-when-cross-origin',
 )
-
-app.add_middleware(security_middleware)
 ```
 
 ### 4. 认证中间件 (AuthMiddleware)
@@ -131,7 +127,7 @@ from litefs import Litefs
 from litefs.middleware import AuthMiddleware
 
 app = Litefs(webroot='./site')
-app.add_middleware(AuthMiddleware(app, auth_header='Authorization'))
+app.add_middleware(AuthMiddleware, auth_header='Authorization')
 ```
 
 ### 5. 限流中间件 (RateLimitMiddleware)
@@ -144,14 +140,12 @@ from litefs.middleware import RateLimitMiddleware
 
 app = Litefs(webroot='./site')
 
-rate_limit_middleware = RateLimitMiddleware(
-    app,
+app.add_middleware(
+    RateLimitMiddleware,
     max_requests=100,
     window_seconds=60,
     block_duration=60,
 )
-
-app.add_middleware(rate_limit_middleware)
 ```
 
 ### 6. 节流中间件 (ThrottleMiddleware)
@@ -164,12 +158,10 @@ from litefs.middleware import ThrottleMiddleware
 
 app = Litefs(webroot='./site')
 
-throttle_middleware = ThrottleMiddleware(
-    app,
+app.add_middleware(
+    ThrottleMiddleware,
     min_interval=0.1,
 )
-
-app.add_middleware(throttle_middleware)
 ```
 
 ## 中间件管理
@@ -188,7 +180,11 @@ app = (
     Litefs(webroot='./site')
     .add_middleware(LoggingMiddleware)
     .add_middleware(SecurityMiddleware)
-    .add_middleware(CORSMiddleware)
+    .add_middleware(
+        CORSMiddleware,
+        allow_origins=['http://localhost:3000'],
+        allow_methods=['GET', 'POST'],
+    )
 )
 ```
 

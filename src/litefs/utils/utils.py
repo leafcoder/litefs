@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import logging
+from functools import lru_cache
 from time import time, strftime, gmtime
 from traceback import format_exc
 
@@ -40,25 +41,25 @@ def render_error():
     return output.getvalue()
 
 
-def gmt_date(timestamp=None):
-    if timestamp is None:
-        timestamp = time()
+@lru_cache(maxsize=1024)
+def format_gmt_date(timestamp):
     return strftime("%a, %d %b %Y %H:%M:%S GMT", gmtime(timestamp))
 
 
-def make_logger(name, log=None, level=logging.DEBUG):
+def gmt_date(timestamp=None):
+    if timestamp is None:
+        timestamp = time()
+    return format_gmt_date(int(timestamp))
+
+
+def make_logger(name, log=None, level=logging.INFO):
+    FORMAT = "%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s"
+    logging.basicConfig(level=level, format=FORMAT, datefmt=date_format)
     logger = logging.getLogger(name)
-    fmt = logging.Formatter(
-        ("%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message"
-         ")s"),
-        datefmt=date_format
-    )
     logger.setLevel(level)
     if log:
+        fmt = logging.Formatter(FORMAT, datefmt=date_format)
         handler = logging.FileHandler(log)
         handler.setFormatter(fmt)
         logger.addHandler(handler)
-    handler = logging.StreamHandler()
-    handler.setFormatter(fmt)
-    logger.addHandler(handler)
     return logger

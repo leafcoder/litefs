@@ -33,7 +33,9 @@ class TestMiddlewareManager(unittest.TestCase):
         manager.add(TestMiddleware)
         
         self.assertEqual(len(manager._middlewares), 1)
-        self.assertIn(TestMiddleware, manager._middlewares)
+        middleware_class, kwargs = manager._middlewares[0]
+        self.assertEqual(middleware_class, TestMiddleware)
+        self.assertEqual(kwargs, {})
 
     def test_remove_middleware(self):
         """测试移除中间件"""
@@ -46,7 +48,6 @@ class TestMiddlewareManager(unittest.TestCase):
         manager.remove(TestMiddleware)
         
         self.assertEqual(len(manager._middlewares), 0)
-        self.assertNotIn(TestMiddleware, manager._middlewares)
 
     def test_clear_middleware(self):
         """测试清空中间件"""
@@ -69,17 +70,37 @@ class TestMiddlewareManager(unittest.TestCase):
         manager = MiddlewareManager()
         
         class TestMiddleware(Middleware):
-            def __init__(self, app):
+            def __init__(self, app, param1=None, param2=None):
                 super().__init__(app)
                 self.app = app
+                self.param1 = param1
+                self.param2 = param2
         
-        manager.add(TestMiddleware)
+        manager.add(TestMiddleware, param1='value1', param2='value2')
         app = Mock()
         instances = manager.get_middleware_instances(app)
         
         self.assertEqual(len(instances), 1)
         self.assertIsInstance(instances[0], TestMiddleware)
         self.assertEqual(instances[0].app, app)
+        self.assertEqual(instances[0].param1, 'value1')
+        self.assertEqual(instances[0].param2, 'value2')
+
+    def test_add_middleware_with_kwargs(self):
+        """测试添加带参数的中间件"""
+        manager = MiddlewareManager()
+        
+        class TestMiddleware(Middleware):
+            def __init__(self, app, custom_param=None):
+                super().__init__(app)
+                self.custom_param = custom_param
+        
+        manager.add(TestMiddleware, custom_param='test_value')
+        
+        self.assertEqual(len(manager._middlewares), 1)
+        middleware_class, kwargs = manager._middlewares[0]
+        self.assertEqual(middleware_class, TestMiddleware)
+        self.assertEqual(kwargs, {'custom_param': 'test_value'})
 
 
 class TestLoggingMiddleware(unittest.TestCase):

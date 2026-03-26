@@ -205,17 +205,18 @@ class Litefs(object):
         
         return application
 
-    def add_middleware(self, middleware_class):
+    def add_middleware(self, middleware_class, **kwargs):
         """
         添加中间件
         
         Args:
             middleware_class: 中间件类
+            **kwargs: 传递给中间件构造函数的参数
             
         Returns:
             self: 支持链式调用
         """
-        self.middleware_manager.add(middleware_class)
+        self.middleware_manager.add(middleware_class, **kwargs)
         self._middleware_instances = None
         return self
 
@@ -316,7 +317,6 @@ def test_server():
         LoggingMiddleware,
         CORSMiddleware,
         SecurityMiddleware,
-        RateLimitMiddleware,
     )
     args = _cmd_args(sys.argv)
     kwargs = vars(args)
@@ -325,7 +325,6 @@ def test_server():
         .add_middleware(LoggingMiddleware)
         .add_middleware(SecurityMiddleware)
         .add_middleware(CORSMiddleware)
-        .add_middleware(RateLimitMiddleware)
     )
     litefs.run(poll_interval=.1)
 

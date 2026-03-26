@@ -6,7 +6,7 @@ import json
 import re
 import sys
 from collections import UserDict
-from functools import partial
+from functools import lru_cache, partial
 from http.cookies import SimpleCookie
 from io import StringIO, BytesIO, RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
 from os import urandom
@@ -24,6 +24,7 @@ import importlib.util
 
 from email.message import Message
 
+@lru_cache(maxsize=512)
 def parse_header(line):
     msg = Message()
     msg['content-type'] = line
@@ -282,14 +283,7 @@ class WSGIRequestHandler(BaseRequestHandler):
         
         self._session_id, self._session = self._get_session()
         self._middlewares = app._get_middleware_instances()
-        
-        if app.config.debug:
-            log_debug(app.logger, "%s - \"%s %s %s\"" % (
-                self._environ.get("REMOTE_ADDR", "-"),
-                self._environ.get("SERVER_PROTOCOL", "HTTP/1.1"),
-                self._environ.get("REQUEST_METHOD", "GET"),
-                self._environ.get("PATH_INFO", "/")
-            ))
+
 
     def _normalize_environ(self, environ):
         normalized = dict(environ)
@@ -792,13 +786,6 @@ class RequestHandler(BaseRequestHandler):
         self._session_id, self._session = self._get_session(environ)
         self._files = environ.pop(FILES_HEADER_NAME, {})
         self._middlewares = app._get_middleware_instances()
-        if app.config.debug:
-            log_debug(app.logger, "%s - \"%s %s %s\"" % (
-                environ["REMOTE_HOST"],
-                environ["SERVER_PROTOCOL"],
-                environ["REQUEST_METHOD"],
-                environ["PATH_INFO"]
-            ))
 
     def _get_session(self, environ):
         app = self._app

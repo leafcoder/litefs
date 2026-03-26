@@ -21,10 +21,13 @@ class LoggingMiddleware(Middleware):
         
         Args:
             app: Litefs 应用实例
-            logger: 日志记录器，如果为 None 则使用默认日志记录器
+            logger: 日志记录器，如果为 None 则使用应用的日志记录器
         """
         super(LoggingMiddleware, self).__init__(app)
-        self.logger = logger or logging.getLogger(__name__)
+        if logger is None:
+            self.logger = getattr(app, 'logger', logging.getLogger(__name__))
+        else:
+            self.logger = logger
 
     def process_request(self, request_handler):
         """
@@ -61,7 +64,6 @@ class LoggingMiddleware(Middleware):
                 status_code = status.split()[0] if isinstance(status, str) else status
             else:
                 status_code = 200
-            
             self.logger.info(
                 '%s - %s %s %s - %s - %.3fs',
                 request_handler.environ.get('REMOTE_ADDR', '-'),

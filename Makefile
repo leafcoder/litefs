@@ -126,11 +126,11 @@ dev-serve:
 
 wsgi-gunicorn:
 	@echo "使用 Gunicorn 启动 WSGI 服务器..."
-	@echo "访问地址: http://$(HOST):1$(PORT)/"
+	@echo "访问地址: http://$(HOST):$(PORT)/"
 	@echo "按 Ctrl+C 停止服务器"
 	@echo ""
 	@echo "安装 Gunicorn: pip install gunicorn"
-	PYTHONPATH=$(PYTHONPATH) gunicorn -w 4 -b $(HOST):1$(PORT) \
+	PYTHONPATH=$(PYTHONPATH) gunicorn -w 4 -b $(HOST):$(PORT) \
 		--access-logfile /dev/null --error-logfile /dev/null \
 		--log-level critical \
 		examples.wsgi.wsgi_example:application

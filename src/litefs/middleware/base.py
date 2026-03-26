@@ -71,17 +71,18 @@ class MiddlewareManager:
     def __init__(self):
         self._middlewares = []
 
-    def add(self, middleware_class):
+    def add(self, middleware_class, **kwargs):
         """
         添加中间件
         
         Args:
             middleware_class: 中间件类
+            **kwargs: 传递给中间件构造函数的参数
             
         Returns:
             self: 支持链式调用
         """
-        self._middlewares.append(middleware_class)
+        self._middlewares.append((middleware_class, kwargs))
         return self
 
     def remove(self, middleware_class):
@@ -91,8 +92,9 @@ class MiddlewareManager:
         Args:
             middleware_class: 中间件类
         """
-        if middleware_class in self._middlewares:
-            self._middlewares.remove(middleware_class)
+        self._middlewares = [
+            (cls, kwargs) for cls, kwargs in self._middlewares if cls != middleware_class
+        ]
 
     def clear(self):
         """
@@ -110,7 +112,10 @@ class MiddlewareManager:
         Returns:
             中间件实例列表
         """
-        return [middleware_class(app) for middleware_class in self._middlewares]
+        instances = []
+        for middleware_class, kwargs in self._middlewares:
+            instances.append(middleware_class(app, **kwargs))
+        return instances
 
     def process_request(self, request_handler):
         """

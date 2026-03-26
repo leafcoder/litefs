@@ -38,8 +38,8 @@ def cors_middleware_example():
     
     app = Litefs(webroot='./examples/basic/site')
     
-    cors_middleware = CORSMiddleware(
-        app,
+    app.add_middleware(
+        CORSMiddleware,
         allow_origins=['http://localhost:3000', 'https://example.com'],
         allow_methods=['GET', 'POST', 'PUT', 'DELETE'],
         allow_headers=['Content-Type', 'Authorization'],
@@ -47,7 +47,8 @@ def cors_middleware_example():
         max_age=86400,
     )
     
-    app.add_middleware(cors_middleware)
+    middleware_instances = app._get_middleware_instances()
+    cors_middleware = middleware_instances[0]
     
     print('已添加 CORS 中间件')
     print('允许的来源:', cors_middleware.allow_origins)
@@ -62,14 +63,15 @@ def rate_limit_middleware_example():
     
     app = Litefs(webroot='./examples/basic/site')
     
-    rate_limit_middleware = RateLimitMiddleware(
-        app,
+    app.add_middleware(
+        RateLimitMiddleware,
         max_requests=10,
         window_seconds=60,
         block_duration=120,
     )
     
-    app.add_middleware(rate_limit_middleware)
+    middleware_instances = app._get_middleware_instances()
+    rate_limit_middleware = middleware_instances[0]
     
     print('已添加限流中间件')
     print('最大请求数:', rate_limit_middleware.max_requests)

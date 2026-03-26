@@ -5,7 +5,7 @@ import logging
 import socket
 import sys
 from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
-from functools import partial
+from functools import lru_cache, partial
 from io import RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
 from posixpath import abspath as path_abspath, join as path_join
 from time import time
@@ -32,6 +32,7 @@ except (ImportError, AttributeError):
 
 from email.message import Message
 
+@lru_cache(maxsize=512)
 def parse_header(line):
     msg = Message()
     msg['content-type'] = line
@@ -205,7 +206,7 @@ class Epoll(object):
         self._epoll = select_epoll()
         self._servers = {}
         self._greenlets = {}
-        self._idels = []
+        self._idles = []
 
     def register(self, server_socket):
         servers = self._servers
@@ -230,7 +231,7 @@ class Epoll(object):
         servers = self._servers
         greenlets = self._greenlets
         _poll = self._epoll.poll
-        idels = self._idels
+        idles = self._idles
         while True:
             events = _poll(poll_interval)
             for fileno, event in events:
@@ -260,12 +261,12 @@ class Epoll(object):
                         break
                     except Exception:
                         print_exc()
-            while len(idels):
+            while len(idles):
                 now_ts = time()
-                ts, gr = idels.pop(0)
+                ts, gr = idles.pop(0)
                 if ts > now_ts:
-                    idels.append((ts, gr))
-                    idels.sort()
+                    idles.append((ts, gr))
+                    idles.sort()
                     break
                 else:
                     gr.switch()

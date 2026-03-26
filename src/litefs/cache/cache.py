@@ -3,7 +3,7 @@
 
 import sqlite3
 import time
-from collections import deque
+from collections import deque, OrderedDict
 from hashlib import sha1
 from gzip import GzipFile
 from io import BytesIO
@@ -216,8 +216,7 @@ class MemoryCache(object):
 
     def __init__(self, max_size=10000):
         self._max_size = int(max_size)
-        self._queue = deque()
-        self._cache = {}
+        self._cache = OrderedDict()
 
     def __str__(self):
         return str(self._cache)
@@ -226,22 +225,20 @@ class MemoryCache(object):
         return len(self._cache)
 
     def put(self, key, val):
-        if len(self._cache) >= self._max_size:
-            ignore_key = self._queue.pop()
-            del self._cache[ignore_key]
-        self._queue.appendleft(key)
+        if key in self._cache:
+            del self._cache[key]
+        elif len(self._cache) >= self._max_size:
+            self._cache.popitem(last=False)
         self._cache[key] = val
 
     def get(self, key):
         val = self._cache.get(key)
         if val is None:
             return None
-        self._queue.remove(key)
-        self._queue.appendleft(key)
+        self._cache.move_to_end(key)
         return val
 
     def delete(self, key):
         if key not in self._cache:
             return
-        self._queue.remove(key)
         del self._cache[key]

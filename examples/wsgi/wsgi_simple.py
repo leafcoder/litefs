@@ -24,7 +24,6 @@ app = (
     .add_middleware(LoggingMiddleware)
     .add_middleware(SecurityMiddleware)
     .add_middleware(CORSMiddleware)
-    .add_middleware(RateLimitMiddleware)
 )
 application = app.wsgi()
 
