@@ -6,14 +6,26 @@ import os
 
 sys.dont_write_bytecode = True
 
-import litefs
-
-app = litefs.Litefs(
-    webroot='examples/basic/site',
-    debug=False,
-    log='./wsgi_access.log'
+from litefs.middleware import (
+    LoggingMiddleware,
+    CORSMiddleware,
+    SecurityMiddleware,
+    RateLimitMiddleware,
 )
 
+import litefs
+
+app = (
+    litefs.Litefs(
+        webroot='examples/basic/site',
+        debug=False,
+        log='./wsgi_access.log'
+    )
+    .add_middleware(LoggingMiddleware)
+    .add_middleware(SecurityMiddleware)
+    .add_middleware(CORSMiddleware)
+    .add_middleware(RateLimitMiddleware)
+)
 application = app.wsgi()
 
 print("=" * 60)

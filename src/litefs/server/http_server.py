@@ -244,21 +244,21 @@ class Epoll(object):
                         if e.errno == EMFILE:
                             raise
                         print_exc()
-                    except:
+                    except Exception:
                         print_exc()
                 elif (event & EPOLLIN) or (event & EPOLLOUT):
                     try:
                         greenlets[fileno].switch()
                     except KeyboardInterrupt:
                         break
-                    except:
+                    except Exception:
                         print_exc()
                 elif event & (EPOLLHUP | EPOLLERR):
                     try:
                         greenlets[fileno].throw()
                     except KeyboardInterrupt:
                         break
-                    except:
+                    except Exception:
                         print_exc()
             while len(idels):
                 now_ts = time()
@@ -289,7 +289,7 @@ class TCPServer(object):
             try:
                 self.server_bind()
                 self.server_activate()
-            except:
+            except Exception:
                 self.server_close()
                 raise
 
@@ -329,7 +329,7 @@ class TCPServer(object):
             if self.verify_request(request, client_address):
                 try:
                     self.process_request(request, client_address)
-                except:
+                except Exception:
                     self.handle_error(request, client_address)
                     self.shutdown_request(request)
             else:
@@ -344,7 +344,7 @@ class TCPServer(object):
     def process_request(self, request, client_address):
         try:
             self.finish_request(request, client_address)
-        except:
+        except Exception:
             self.handle_error(request, client_address)
             self.shutdown_request(request)
 
@@ -382,7 +382,7 @@ class TCPServer(object):
             if not raw.closed:
                 try:
                     raw.close()
-                except:
+                except Exception:
                     pass
 
     def shutdown_request(self, request):

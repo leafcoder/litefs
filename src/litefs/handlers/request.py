@@ -281,6 +281,7 @@ class WSGIRequestHandler(BaseRequestHandler):
                         self._body = self._body.decode("utf-8")
         
         self._session_id, self._session = self._get_session()
+        self._middlewares = app._get_middleware_instances()
         
         if app.config.debug:
             log_debug(app.logger, "%s - \"%s %s %s\"" % (
@@ -521,87 +522,98 @@ class WSGIRequestHandler(BaseRequestHandler):
 
     def handler(self):
         app = self._app
-        environ = self._environ
-        path_info = environ.get("PATH_INFO", "/")
         
-        path = startswith_dot_sub("/", path_info)
-        path = double_slash_sub("/", path)
-        
-        if path != path_info:
-            return self._redirect(path)
-        
-        base, name = path_split(path)
-        if not name:
-            name = getattr(app.config, 'default_page', default_page)
-        
-        path = path_join(base, name)
-        
-        module = app.caches.get(path)
-        if module is not None:
-            try:
-                result = module.handler(self)
-                if self._headers_responsed:
-                    status_code = int(self._status_code)
-                    status_text = http_status_codes.get(status_code, "Unknown")
-                    status = "%d %s" % (status_code, status_text)
-                    
-                    response_headers = [('Server', server_info)]
-                    response_headers.extend(self._headers)
-                    
-                    return status, response_headers, result
-                return self._response(200, content=result)
-            except:
-                log_error(app.logger)
-                if app.config.debug:
-                    content = render_error()
-                    return self._response(500, content=content)
-                return self._response(500)
-        
-        litefile = app.files.get(path)
-        if litefile is not None:
-            return self._handle_litefile(litefile)
-
-        realpath = path_abspath(
-            path_join(app.config.webroot, path.lstrip("/"))
-        )
-        
-        if path_isdir(realpath):
-            return self._redirect(path + "/")
-
-        script_name = f'{name}.py'
-        module = self._load_script(base, script_name)
-        if module is not None and hasattr(module, "handler"):
-            app.caches.put(path, module)
-            try:
-                result = module.handler(self)
-                if self._headers_responsed:
-                    status_code = int(self._status_code)
-                    status_text = http_status_codes.get(status_code, "Unknown")
-                    status = "%d %s" % (status_code, status_text)
-                    
-                    response_headers = [('Server', server_info)]
-                    response_headers.extend(self._headers)
-                    
-                    return status, response_headers, result
-                return self._response(200, content=result)
-            except:
-                log_error(app.logger)
-                if app.config.debug:
-                    content = render_error()
-                    return self._response(500, content=content)
-                return self._response(500)
+        middleware_result = app.middleware_manager.process_request(self)
+        if middleware_result is not None:
+            return middleware_result
         
         try:
-            litefile = self._load_static_file(base, name)
-        except IOError:
-            log_error(app.logger)
-            return self._response(404)
-        
-        if litefile is not None:
-            app.files.put(path, litefile)
-            return self._handle_litefile(litefile)
-        
-        return self._response(404)
+            environ = self._environ
+            path_info = environ.get("PATH_INFO", "/")
+            
+            path = startswith_dot_sub("/", path_info)
+            path = double_slash_sub("/", path)
+            
+            if path != path_info:
+                return self._redirect(path)
+            
+            base, name = path_split(path)
+            if not name:
+                name = getattr(app.config, 'default_page', default_page)
+            
+            path = path_join(base, name)
+            
+            module = app.caches.get(path)
+            if module is not None:
+                try:
+                    result = module.handler(self)
+                    if self._headers_responsed:
+                        status_code = int(self._status_code)
+                        status_text = http_status_codes.get(status_code, "Unknown")
+                        status = "%d %s" % (status_code, status_text)
+                        
+                        response_headers = [('Server', server_info)]
+                        response_headers.extend(self._headers)
+                        
+                        return app.middleware_manager.process_response(self, (status, response_headers, result))
+                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+                except Exception:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                    return app.middleware_manager.process_response(self, self._response(500))
+            
+            litefile = app.files.get(path)
+            if litefile is not None:
+                return app.middleware_manager.process_response(self, self._handle_litefile(litefile))
+
+            realpath = path_abspath(
+                path_join(app.config.webroot, path.lstrip("/"))
+            )
+            
+            if path_isdir(realpath):
+                return app.middleware_manager.process_response(self, self._redirect(path + "/"))
+
+            script_name = f'{name}.py'
+            module = self._load_script(base, script_name)
+            if module is not None and hasattr(module, "handler"):
+                app.caches.put(path, module)
+                try:
+                    result = module.handler(self)
+                    if self._headers_responsed:
+                        status_code = int(self._status_code)
+                        status_text = http_status_codes.get(status_code, "Unknown")
+                        status = "%d %s" % (status_code, status_text)
+                        
+                        response_headers = [('Server', server_info)]
+                        response_headers.extend(self._headers)
+                        
+                        return app.middleware_manager.process_response(self, (status, response_headers, result))
+                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+                except Exception:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                    return app.middleware_manager.process_response(self, self._response(500))
+            
+            try:
+                litefile = self._load_static_file(base, name)
+            except IOError:
+                log_error(app.logger)
+                return app.middleware_manager.process_response(self, self._response(404))
+            
+            if litefile is not None:
+                app.files.put(path, litefile)
+                return app.middleware_manager.process_response(self, self._handle_litefile(litefile))
+            
+            return app.middleware_manager.process_response(self, self._response(404))
+        except Exception as e:
+            middleware_result = app.middleware_manager.process_exception(self, e)
+            if middleware_result is not None:
+                return middleware_result
+            raise
 
     def _handle_litefile(self, litefile):
         environ = self._environ
@@ -676,7 +688,7 @@ class WSGIRequestHandler(BaseRequestHandler):
             for k, v in module_globals.items():
                 setattr(module, k, v)
             return module
-        except:
+        except Exception:
             log_error(app.logger)
             return None
         finally:
@@ -779,6 +791,7 @@ class RequestHandler(BaseRequestHandler):
             self._body = post_content
         self._session_id, self._session = self._get_session(environ)
         self._files = environ.pop(FILES_HEADER_NAME, {})
+        self._middlewares = app._get_middleware_instances()
         if app.config.debug:
             log_debug(app.logger, "%s - \"%s %s %s\"" % (
                 environ["REMOTE_HOST"],
@@ -1056,13 +1069,13 @@ class RequestHandler(BaseRequestHandler):
                     else:
                         rw.write(b"500 Internal Server Error")
                     rw.close()
-                except:
+                except Exception:
                     pass
             else:
                 try:
                     from ..utils import log_error
                     log_error(self._app.logger)
-                except:
+                except Exception:
                     pass
             raise
 
@@ -1103,90 +1116,101 @@ class RequestHandler(BaseRequestHandler):
 
     def handler(self):
         app = self._app
-        environ = self.environ
-        path_info = environ["PATH_INFO"]
-        path = startswith_dot_sub("/", path_info)
-        path = double_slash_sub("/", path)
-        if path != path_info:
-            return self.redirect(path)
-        base, name = path_split(path)
-        if not name:
-            name = getattr(app.config, 'default_page', default_page)
         
-        path = path_join(base, name)
-        module = app.caches.get(path)
-        if module is not None:
-            try:
-                result = module.handler(self)
-                if self._headers_responsed:
-                    return result
-                return self._response(200, content=result)
-            except:
-                log_error(app.logger)
-                if app.config.debug:
-                    content = render_error()
-                    return self._response(500, content=content)
-                return self._response(500)
-        litefile = app.files.get(path)
-        if litefile is not None:
-            return litefile.handler(self)
-        realpath = path_abspath(
-            path_join(app.config.webroot, path.lstrip("/"))
-        )
-        if path_isdir(realpath):
-            return self.redirect(path + "/")
+        middleware_result = app.middleware_manager.process_request(self)
+        if middleware_result is not None:
+            return middleware_result
+        
+        try:
+            environ = self.environ
+            path_info = environ["PATH_INFO"]
+            path = startswith_dot_sub("/", path_info)
+            path = double_slash_sub("/", path)
+            if path != path_info:
+                return self.redirect(path)
+            base, name = path_split(path)
+            if not name:
+                name = getattr(app.config, 'default_page', default_page)
+            
+            path = path_join(base, name)
+            module = app.caches.get(path)
+            if module is not None:
+                try:
+                    result = module.handler(self)
+                    if self._headers_responsed:
+                        return app.middleware_manager.process_response(self, result)
+                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+                except Exception:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                    return app.middleware_manager.process_response(self, self._response(500))
+            litefile = app.files.get(path)
+            if litefile is not None:
+                return app.middleware_manager.process_response(self, litefile.handler(self))
+            realpath = path_abspath(
+                path_join(app.config.webroot, path.lstrip("/"))
+            )
+            if path_isdir(realpath):
+                return app.middleware_manager.process_response(self, self.redirect(path + "/"))
 
-        script_name = f'{name}.py'
-        module = self._load_script(base, script_name)
-        if module is not None and hasattr(module, "handler"):
-            app.caches.put(path, module)
+            script_name = f'{name}.py'
+            module = self._load_script(base, script_name)
+            if module is not None and hasattr(module, "handler"):
+                app.caches.put(path, module)
+                try:
+                    result = module.handler(self)
+                    if self._headers_responsed:
+                        return app.middleware_manager.process_response(self, result)
+                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+                except Exception:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                    return app.middleware_manager.process_response(self, self._response(500))
+            
             try:
-                result = module.handler(self)
-                if self._headers_responsed:
-                    return result
-                return self._response(200, content=result)
-            except:
+                litefile = self._load_static_file(base, name)
+            except IOError:
                 log_error(app.logger)
-                if app.config.debug:
-                    content = render_error()
-                    return self._response(500, content=content)
-                return self._response(500)
-        
-        try:
-            litefile = self._load_static_file(base, name)
-        except IOError:
-            log_error(app.logger)
-            return self._response(404)
-        if litefile is not None:
-            app.files.put(path, litefile)
+                return app.middleware_manager.process_response(self, self._response(404))
+            if litefile is not None:
+                app.files.put(path, litefile)
+                try:
+                    return app.middleware_manager.process_response(self, litefile.handler(self))
+                except Exception:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                    return app.middleware_manager.process_response(self, self._response(500))
+            path = app.config.not_found
+            base, name = path_split(path)
+            if not name:
+                name = default_404
             try:
-                return litefile.handler(self)
-            except:
-                log_error(app.logger)
-                if app.config.debug:
-                    content = render_error()
-                    return self._response(500, content=content)
-                return self._response(500)
-        path = app.config.not_found
-        base, name = path_split(path)
-        if not name:
-            name = default_404
-        try:
-            litefile = self._load_static_file(base, name)
-        except IOError:
-            litefile = None
-        if litefile is not None:
-            app.files.put(path, litefile)
-            litefile.status_code = 404
-            try:
-                return litefile.handler(self)
-            except:
-                log_error(app.logger)
-                if app.config.debug:
-                    content = render_error()
-                    return self._response(500, content=content)
-                return self._response(500)
-        return self._response(404)
+                litefile = self._load_static_file(base, name)
+            except IOError:
+                litefile = None
+            if litefile is not None:
+                app.files.put(path, litefile)
+                litefile.status_code = 404
+                try:
+                    return app.middleware_manager.process_response(self, litefile.handler(self))
+                except Exception:
+                    log_error(app.logger)
+                    if app.config.debug:
+                        content = render_error()
+                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                    return app.middleware_manager.process_response(self, self._response(500))
+            return app.middleware_manager.process_response(self, self._response(404))
+        except Exception as e:
+            middleware_result = app.middleware_manager.process_exception(self, e)
+            if middleware_result is not None:
+                return middleware_result
+            raise
 
     def _load_static_file(self, base, name):
         app = self._app
@@ -1225,7 +1249,7 @@ class RequestHandler(BaseRequestHandler):
                     return self._response(
                         200, headers=headers, content=content
                     )
-                except:
+                except Exception:
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
@@ -1255,7 +1279,7 @@ class RequestHandler(BaseRequestHandler):
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
-        except:
+        except Exception:
             log_error(app.logger)
             content = None
             if app.config.debug:

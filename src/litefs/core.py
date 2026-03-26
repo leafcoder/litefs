@@ -10,6 +10,7 @@ from watchdog.observers import Observer
 
 from .cache import TreeCache, MemoryCache, FileEventHandler
 from .handlers import RequestHandler, WSGIRequestHandler
+from .middleware import MiddlewareManager
 from .server import (
     HTTPServer,
     mainloop,
@@ -55,6 +56,8 @@ class Litefs(object):
         self.sessions = MemoryCache(max_size=1000000)
         self.caches = TreeCache()
         self.files = TreeCache()
+        self.middleware_manager = MiddlewareManager()
+        self._middleware_instances = []
 
     def wsgi(self):
         """
@@ -84,6 +87,35 @@ class Litefs(object):
             """
             try:
                 request_handler = WSGIRequestHandler(self, environ)
+                
+                middleware_result = self.middleware_manager.process_request(request_handler)
+                if middleware_result is not None:
+                    if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
+                        status, headers, content = middleware_result
+                        start_response(status, headers)
+                    else:
+                        content = middleware_result
+                        status, headers = '200 OK', [('Content-Type', 'text/plain; charset=utf-8')]
+                        start_response(status, headers)
+                    
+                    if isinstance(content, (str, bytes, dict, list, tuple, type(None))):
+                        if isinstance(content, str):
+                            return [content.encode('utf-8')]
+                        elif isinstance(content, bytes):
+                            return [content]
+                        elif isinstance(content, dict):
+                            import json
+                            content = json.dumps(content, ensure_ascii=False)
+                            return [content.encode('utf-8')]
+                        elif isinstance(content, (list, tuple)):
+                            import json
+                            content = json.dumps(content, ensure_ascii=False, default=str)
+                            return [content.encode('utf-8')]
+                        else:
+                            return [b'']
+                    else:
+                        return [str(content).encode('utf-8')]
+                
                 handler_result = request_handler.handler()
                 
                 if isinstance(handler_result, (list, tuple)) and len(handler_result) == 3 and isinstance(handler_result[0], str) and isinstance(handler_result[1], list):
@@ -139,6 +171,23 @@ class Litefs(object):
                 else:
                     return [str(content).encode('utf-8')]
             except Exception as e:
+                middleware_result = self.middleware_manager.process_exception(request_handler, e)
+                if middleware_result is not None:
+                    if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
+                        status, headers, content = middleware_result
+                        start_response(status, headers)
+                    else:
+                        content = middleware_result
+                        status, headers = '200 OK', [('Content-Type', 'text/plain; charset=utf-8')]
+                        start_response(status, headers)
+                    
+                    if isinstance(content, str):
+                        return [content.encode('utf-8')]
+                    elif isinstance(content, bytes):
+                        return [content]
+                    else:
+                        return [str(content).encode('utf-8')]
+                
                 from .exceptions import HttpError
                 if isinstance(e, HttpError):
                     status_code = e.args[0] if len(e.args) > 0 else 500
@@ -155,6 +204,48 @@ class Litefs(object):
                     return [b'500 Internal Server Error']
         
         return application
+
+    def add_middleware(self, middleware_class):
+        """
+        添加中间件
+        
+        Args:
+            middleware_class: 中间件类
+            
+        Returns:
+            self: 支持链式调用
+        """
+        self.middleware_manager.add(middleware_class)
+        self._middleware_instances = None
+        return self
+
+    def remove_middleware(self, middleware_class):
+        """
+        移除中间件
+        
+        Args:
+            middleware_class: 中间件类
+        """
+        self.middleware_manager.remove(middleware_class)
+        self._middleware_instances = None
+
+    def clear_middleware(self):
+        """
+        清空所有中间件
+        """
+        self.middleware_manager.clear()
+        self._middleware_instances = None
+
+    def _get_middleware_instances(self):
+        """
+        获取中间件实例（缓存）
+        
+        Returns:
+            中间件实例列表
+        """
+        if self._middleware_instances is None:
+            self._middleware_instances = self.middleware_manager.get_middleware_instances(self)
+        return self._middleware_instances
 
     def handler(self, request, environ, server):
         raw = SocketIO(server, request)
@@ -175,7 +266,7 @@ class Litefs(object):
             mainloop(poll_interval=poll_interval)
         except KeyboardInterrupt:
             pass
-        except:
+        except Exception:
             log_error(self.logger)
         finally:
             observer.stop()
@@ -221,9 +312,21 @@ def _cmd_args(args):
 
 
 def test_server():
+    from litefs.middleware import (
+        LoggingMiddleware,
+        CORSMiddleware,
+        SecurityMiddleware,
+        RateLimitMiddleware,
+    )
     args = _cmd_args(sys.argv)
     kwargs = vars(args)
-    litefs = Litefs(**kwargs)
+    litefs = (
+        Litefs(**kwargs)
+        .add_middleware(LoggingMiddleware)
+        .add_middleware(SecurityMiddleware)
+        .add_middleware(CORSMiddleware)
+        .add_middleware(RateLimitMiddleware)
+    )
     litefs.run(poll_interval=.1)
 
 
