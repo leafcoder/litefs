@@ -9,40 +9,53 @@ import re
 import posixpath
 
 try:
-    from setuptools import setup, Extension
+    from setuptools import setup, Extension, find_packages
 except ImportError:
     from distutils.core import setup, Extension
+    from distutils.util import find_packages
 
-def get_str(var_name):
-    src_py = open('litefs.py').read()
-    return re.search(
-        r"%s\s*=\s*['\"]([^'\"]+)['\"]" % var_name, src_py).group(1)
+def get_version():
+    with open('src/litefs/__init__.py', 'r', encoding='utf-8') as f:
+        content = f.read()
+        match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
+        return match.group(1)
 
-def get_long_str(var_name):
-    src_py = open('litefs.py').read()
-    return re.search(
-        r"%s\s*=\s*['\"]{3}([^'\"]+)['\"]{3}" % var_name, src_py).group(1)
+def get_author():
+    with open('src/litefs/__init__.py', 'r', encoding='utf-8') as f:
+        content = f.read()
+        match = re.search(r"__author__\s*=\s*['\"]([^'\"]+)['\"]", content)
+        return match.group(1)
+
+def get_license():
+    with open('src/litefs/__init__.py', 'r', encoding='utf-8') as f:
+        content = f.read()
+        match = re.search(r"__license__\s*=\s*['\"]([^'\"]+)['\"]", content)
+        return match.group(1)
+
+def get_long_description():
+    with open('README.md', 'r', encoding='utf-8') as f:
+        return f.read()
 
 setup(
     name='litefs',
-    version=get_str('__version__'),
+    version=get_version(),
     description='Build a web server framework using Python.',
-    long_description=get_long_str('__doc__'),
-    author=get_str('__author__'),
+    long_description=get_long_description(),
+    long_description_content_type='text/markdown',
+    author=get_author(),
     author_email='leafcoder@gmail.com',
     url='https://github.com/leafcoder/litefs',
-    py_modules=['litefs'],
-    license=get_str('__license__'),
+    license=get_license(),
     platforms='any',
+    package_dir={'': 'src'},
+    packages=find_packages(where='src'),
     package_data={
-        '': ['*.txt', '*.md', 'LICENSE', 'MANIFEST.in'],
-        'demo': ['demo/*', '*.py'],
-        'test': ['test/*', '*.py']
+        'litefs': ['py.typed'],
     },
-    install_requires=open('requirements.txt').read().split('\n'),
+    install_requires=open('requirements.txt', encoding='utf-8').read().split('\n'),
     entry_points={
         'console_scripts': [
-           'litefs=litefs:test_server',
+           'litefs=litefs.core:test_server',
         ]
     },
     classifiers=[
@@ -54,9 +67,11 @@ setup(
         'Topic :: Internet :: WWW/HTTP :: HTTP Servers',
         'Topic :: Software Development :: Libraries :: Application Frameworks',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-    ]
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+    ],
+    python_requires='>=3.8',
 )

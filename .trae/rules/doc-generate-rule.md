@@ -1,6 +1,6 @@
 ---
 alwaysApply: false
-description: 编写文档时生效
+globs: *.md,README*
 ---
 =======
 # 文档生成控制规则
