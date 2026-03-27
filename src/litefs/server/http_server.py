@@ -69,7 +69,7 @@ def make_environ(server, rw, client_address):
     environ["SERVER_NAME"] = server.server_name
     environ["SERVER_SOFTWARE"] = "litefs/0.3.0"
     environ["SERVER_PORT"] = server.server_port
-    environ["REMOTE_ADDR"] = client_address
+    environ["REMOTE_ADDR"] = client_address[0]
     environ["REMOTE_HOST"] = client_address[0]
     environ["REMOTE_PORT"] = client_address[1]
     
@@ -111,6 +111,7 @@ def make_environ(server, rw, client_address):
         k = k.replace("-", "_").upper()
         if k in environ:
             continue
+        k = f"HTTP_{k}"
         environ[k] = v
     
     return environ
