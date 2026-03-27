@@ -22,7 +22,7 @@ from .server import (
 )
 from .utils import log_error, make_logger
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 
 def make_config(**kwargs):

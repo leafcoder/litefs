@@ -88,7 +88,7 @@ Run "example.py", visit "http://localhost:9090/helloworld" via your browser.
 You can see "Hello World!" in your browser.
 
     $ ./example.py
-    Litefs 0.3.0 - January 15, 2020 - 10:46:39
+    Litefs 0.4.0 - January 15, 2020 - 10:46:39
     Starting server at http://localhost:9090/
     Quit the server with CONTROL-C.
 

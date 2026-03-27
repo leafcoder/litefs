@@ -59,7 +59,7 @@ double_slash_sub = re.compile(r"\/{2,}").sub
 startswith_dot_sub = re.compile(r"\/\.+").sub
 suffixes = (".py", ".pyc", ".pyo", ".so")
 form_dict_match = re.compile(r"(.+)\[([^\[\]]+)\]").match
-server_info = "litefs/%s python/%s" % ("0.3.0", sys.version.split()[0])
+server_info = "litefs/%s python/%s" % ("0.4.0", sys.version.split()[0])
 
 DEFAULT_STATUS_MESSAGE = """\
 <html>

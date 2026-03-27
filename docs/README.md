@@ -199,8 +199,8 @@ language = 'zh_CN'  # 中文
 project = 'Litefs'
 copyright = '2026, leafcoder'
 author = 'leafcoder'
-version = '0.3.0'
-release = '0.3.0'
+version = '0.4.0'
+release = '0.4.0'
 ```
 
 ## 自定义样式
