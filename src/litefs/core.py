@@ -9,8 +9,9 @@ from posixpath import abspath as path_abspath
 
 from watchdog.observers import Observer
 
-from .cache import FileEventHandler, MemoryCache, TreeCache
+from .cache import CacheBackend, CacheFactory, FileEventHandler, MemoryCache, TreeCache
 from .config import Config, load_config
+from .error_pages import ErrorPageRenderer
 from .handlers import RequestHandler, WSGIRequestHandler
 from .middleware import MiddlewareManager
 from .server import (
@@ -22,7 +23,7 @@ from .server import (
 )
 from .utils import log_error, make_logger
 
-__version__ = "0.4.0"
+from ._version import __version__
 
 
 def make_config(**kwargs):
@@ -71,10 +72,12 @@ class Litefs(object):
         self.port = config.port
         self.server = None
         self.sessions = MemoryCache(max_size=1000000)
-        self.caches = TreeCache()
+        self.caches = CacheFactory.create_from_config(config)
         self.files = TreeCache()
         self.middleware_manager = MiddlewareManager()
         self._middleware_instances = []
+        error_pages_dir = getattr(config, "error_pages_dir", None)
+        self.error_page_renderer = ErrorPageRenderer(error_pages_dir)
 
     def wsgi(self):
         """

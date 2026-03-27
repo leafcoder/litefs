@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "litefs"
-version = "0.4.0"
+dynamic = ["version"]
 description = "Build a web server framework using Python."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -66,6 +66,9 @@ Issues = "https://github.com/leafcoder/litefs/issues"
 [tool.setuptools]
 package-dir = {"" = "src"}
 package-data = {litefs = ["templates/*.j2", "templates/*.py", "templates/*/*.j2", "templates/*/*.py", "templates/*/*/*.j2", "templates/*/*/*.py"]}
+
+[tool.setuptools.dynamic]
+version = {attr = "litefs._version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

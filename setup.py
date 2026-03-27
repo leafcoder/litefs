@@ -15,19 +15,19 @@ except ImportError:
     from distutils.util import find_packages
 
 def get_version():
-    with open('src/litefs/__init__.py', 'r', encoding='utf-8') as f:
+    with open('src/litefs/_version.py', 'r', encoding='utf-8') as f:
         content = f.read()
         match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
         return match.group(1)
 
 def get_author():
-    with open('src/litefs/__init__.py', 'r', encoding='utf-8') as f:
+    with open('src/litefs/_version.py', 'r', encoding='utf-8') as f:
         content = f.read()
         match = re.search(r"__author__\s*=\s*['\"]([^'\"]+)['\"]", content)
         return match.group(1)
 
 def get_license():
-    with open('src/litefs/__init__.py', 'r', encoding='utf-8') as f:
+    with open('src/litefs/_version.py', 'r', encoding='utf-8') as f:
         content = f.read()
         match = re.search(r"__license__\s*=\s*['\"]([^'\"]+)['\"]", content)
         return match.group(1)

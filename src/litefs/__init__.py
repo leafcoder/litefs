@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-__version__ = "0.4.0"
-__license__ = "MIT"
-__author__ = "Leafcoder"
+from ._version import (
+    __version__,
+    __version_info__,
+    __license__,
+    __author__,
+    __email__,
+)
+
 __doc__ = """\
 Build a web server framework using Python. Litefs was developed to imple\
 ment a server framework that can quickly, securely, and flexibly build Web \
@@ -17,15 +22,46 @@ Copyright (c) 2020, Leafcoder.
 License: MIT (see LICENSE for details)
 """
 
-from .cache import FileEventHandler, LiteFile, MemoryCache, TreeCache
+from .cache import (
+    CacheBackend,
+    CacheFactory,
+    FileEventHandler,
+    LiteFile,
+    MemoryCache,
+    RedisCache,
+    TreeCache,
+)
 from .cli import main as cli_main
 from .config import Config, load_config, merge_configs
 from .core import Litefs, _cmd_args, make_config, make_server, test_server
+from .error_pages import ErrorPageRenderer
 from .exceptions import HttpError
 from .handlers import RequestHandler, WSGIRequestHandler, new_module, parse_form
+from .middleware import MiddlewareManager
+from .request_enhanced import EnhancedRequestHandler
 from .server import HTTPServer, TCPServer, WSGIServer, mainloop, make_environ, make_headers
 from .session import Session
 from .utils import gmt_date, log_debug, log_error, log_info, make_logger, render_error
+from .validators import (
+    ValidationError,
+    Validator,
+    RequiredValidator,
+    TypeValidator,
+    StringValidator,
+    NumberValidator,
+    EmailValidator,
+    URLValidator,
+    ChoiceValidator,
+    RegexValidator,
+    FormValidator,
+    required,
+    string_type,
+    number_type,
+    email,
+    url,
+    choice,
+    regex,
+)
 
 __all__ = [
     "Litefs",
@@ -39,6 +75,9 @@ __all__ = [
     "cli_main",
     "TreeCache",
     "MemoryCache",
+    "RedisCache",
+    "CacheBackend",
+    "CacheFactory",
     "LiteFile",
     "FileEventHandler",
     "Session",
@@ -60,6 +99,28 @@ __all__ = [
     "render_error",
     "gmt_date",
     "__version__",
+    "__version_info__",
     "__license__",
     "__author__",
+    "__email__",
+    "ErrorPageRenderer",
+    "EnhancedRequestHandler",
+    "ValidationError",
+    "Validator",
+    "RequiredValidator",
+    "TypeValidator",
+    "StringValidator",
+    "NumberValidator",
+    "EmailValidator",
+    "URLValidator",
+    "ChoiceValidator",
+    "RegexValidator",
+    "FormValidator",
+    "required",
+    "string_type",
+    "number_type",
+    "email",
+    "url",
+    "choice",
+    "regex",
 ]

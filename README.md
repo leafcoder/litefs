@@ -42,9 +42,13 @@ consumption.
 - Mako template engine support
 - CGI script execution (.pl, .py, .php)
 - Session management
-- Multi-level caching system (Memory + Tree cache)
+- Multi-level caching system (Memory + Tree cache + Redis)
 - File monitoring and hot reload
 - Python 2.6-3.14 support
+- Enhanced request handling with separated query and post parameters
+- Comprehensive form validation system
+- Beautiful error pages with customization support
+- Flexible cache backend selection (Memory, Tree, Redis)
 
 ## Quick Start
 
@@ -135,6 +139,127 @@ waitress-serve --port=8000 wsgi_example:application
 ```
 
 For detailed deployment instructions, see [WSGI_DEPLOYMENT.md](WSGI_DEPLOYMENT.md).
+
+## New Features
+
+### Version Management
+
+Litefs now uses centralized version management with version control tools. Version information is stored in `src/litefs/_version.py` and can be automatically managed through Git tags and build tools.
+
+### Enhanced Request Handling
+
+Litefs provides enhanced request handling with separated query and post parameters:
+
+```python
+import litefs
+
+app = litefs.Litefs(webroot='./site')
+
+def handler(request):
+    # Access query parameters
+    query = request.query
+    page = query.get('page', 1)
+    
+    # Access post parameters
+    post = request.post
+    username = post.get('username')
+    
+    return {"page": page, "username": username}
+```
+
+### Form Validation
+
+Litefs includes a comprehensive form validation system with multiple validators:
+
+```python
+from litefs import (
+    required, string_type, number_type, email, url, choice, regex,
+    EnhancedRequestHandler, ValidationError
+)
+
+def handler(request):
+    enhanced = EnhancedRequestHandler(request)
+    
+    # Validate query parameters
+    query_rules = {
+        "page": [number_type(min_value=1, max_value=100)],
+        "sort": [choice(["asc", "desc"])],
+    }
+    
+    # Validate post parameters
+    post_rules = {
+        "username": [required(), string_type(min_length=3, max_length=20)],
+        "email": [required(), email()],
+        "age": [number_type(min_value=0, max_value=120)],
+    }
+    
+    is_valid, errors = enhanced.validate_all(query_rules, post_rules)
+    
+    if not is_valid:
+        return {"errors": errors}
+    
+    return {"success": True}
+```
+
+### Cache Backend Selection
+
+Litefs supports multiple cache backends that can be configured:
+
+```python
+import litefs
+
+# Memory cache (default)
+app = litefs.Litefs(
+    webroot='./site',
+    cache_backend='memory',
+    cache_max_size=10000
+)
+
+# Tree cache
+app = litefs.Litefs(
+    webroot='./site',
+    cache_backend='tree',
+    cache_expiration_time=3600,
+    cache_clean_period=60
+)
+
+# Redis cache
+app = litefs.Litefs(
+    webroot='./site',
+    cache_backend='redis',
+    redis_host='localhost',
+    redis_port=6379,
+    redis_db=0,
+    redis_key_prefix='litefs:',
+    cache_expiration_time=3600
+)
+```
+
+### Custom Error Pages
+
+Litefs provides beautiful default error pages and supports custom error pages:
+
+```python
+import litefs
+
+# Use default error pages
+app = litefs.Litefs(webroot='./site')
+
+# Use custom error pages
+app = litefs.Litefs(
+    webroot='./site',
+    error_pages_dir='./error_pages'
+)
+```
+
+Create custom error pages in `./error_pages/` directory:
+- `400.html` - Bad Request
+- `403.html` - Forbidden
+- `404.html` - Not Found
+- `500.html` - Internal Server Error
+- `502.html` - Bad Gateway
+- `503.html` - Service Unavailable
+- `504.html` - Gateway Timeout
 
 ## Project Structure
 

@@ -34,6 +34,16 @@ class Config:
         'max_request_size': 10485760,
         'max_upload_size': 52428800,
         'config_file': None,
+        'cache_backend': 'tree',
+        'cache_max_size': 10000,
+        'cache_clean_period': 60,
+        'cache_expiration_time': 3600,
+        'redis_host': 'localhost',
+        'redis_port': 6379,
+        'redis_db': 0,
+        'redis_password': None,
+        'redis_key_prefix': 'litefs:',
+        'error_pages_dir': None,
     }
 
     ENV_PREFIX = 'LITEFS_'

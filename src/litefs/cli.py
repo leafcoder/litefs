@@ -176,7 +176,7 @@ def runserver(host: str = None, port: int = None, config: str = None, **kwargs):
 def version():
     """显示版本信息"""
     try:
-        from litefs import __version__
+        from litefs._version import __version__
     except ImportError:
         __version__ = "0.4.0"
     
