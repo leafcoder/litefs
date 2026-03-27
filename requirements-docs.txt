@@ -1,0 +1,19 @@
+# 文档依赖
+
+# Sphinx 核心包
+sphinx>=9.0.0
+
+# Read the Docs 主题
+sphinx-rtd-theme>=3.0.0
+
+# Markdown 支持
+myst-parser>=3.0.0
+
+# 类型提示支持
+sphinx-autodoc-typehints>=3.0.0
+
+# 可选的文档增强包
+# sphinxcontrib-apidoc>=0.3.0  # 用于更好的 API 文档
+# sphinx-autodoc>=2.0.0         # 用于自动文档生成
+# sphinx-copybutton>=0.5.0        # 用于代码复制按钮
+# sphinx-design>=0.5.0            # 用于更好的设计

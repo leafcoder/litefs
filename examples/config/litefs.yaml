@@ -1,0 +1,10 @@
+host: localhost
+port: 9090
+webroot: ./examples/basic/site
+debug: false
+not_found: not_found
+default_page: index
+log: ./default.log
+listen: 1024
+max_request_size: 10485760
+max_upload_size: 52428800
