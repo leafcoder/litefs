@@ -6,7 +6,9 @@ PORT=9090
 
 .PHONY: help install dev-install dev-uninstall clean build wheel test \
 	test-serve serve dev-serve wsgi-gunicorn wsgi-uwsgi wsgi-waitress \
-	format lint type-check check-all
+	format lint type-check check-all \
+	ex-basic ex-health-check ex-middleware \
+	ex-wsgi ex-wsgi-simple ex-wsgi-standalone
 
 help:
 	@echo "Litefs 开发命令"
@@ -26,6 +28,14 @@ help:
 	@echo "  make test              - 运行所有测试"
 	@echo "  make test-unit        - 运行单元测试"
 	@echo "  make test-cov         - 运行测试并生成覆盖率报告"
+	@echo ""
+	@echo "示例相关:"
+	@echo "  make ex-basic            - 运行基础示例"
+	@echo "  make ex-health-check     - 运行健康检查示例"
+	@echo "  make ex-middleware       - 运行中间件示例"
+	@echo "  make ex-wsgi             - 运行 WSGI 示例"
+	@echo "  make ex-wsgi-simple      - 运行 WSGI 简单示例（带中间件）"
+	@echo "  make ex-wsgi-standalone  - 运行 WSGI 独立服务器示例"
 	@echo ""
 	@echo "服务器相关:"
 	@echo "  make serve             - 启动开发服务器（默认端口 9090）"
@@ -110,6 +120,12 @@ test-serve:
 	@echo "按 Ctrl+C 停止服务器"
 	cd examples/basic && PYTHONPATH=../../$(PYTHONPATH) $(PYTHON) example.py
 
+ex-basic:
+	@echo "运行基础示例..."
+	@echo "访问地址: http://$(HOST):$(PORT)/"
+	@echo "按 Ctrl+C 停止服务器"
+	cd examples/basic && PYTHONPATH=../../$(PYTHONPATH) $(PYTHON) example.py
+
 serve:
 	@echo "启动开发服务器..."
 	@echo "访问地址: http://$(HOST):$(PORT)/"
@@ -157,3 +173,39 @@ wsgi-waitress:
 	PYTHONPATH=$(PYTHONPATH) waitress-serve --port=$(PORT) \
 		--threads=4 \
 		examples.wsgi.wsgi_example:application
+
+ex-health-check:
+	@echo "运行健康检查示例..."
+	@echo "访问地址: http://$(HOST):$(PORT)/"
+	@echo "健康检查端点: http://$(HOST):$(PORT)/health"
+	@echo "就绪检查端点: http://$(HOST):$(PORT)/health/ready"
+	@echo "按 Ctrl+C 停止服务器"
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/health_check_example.py
+
+ex-middleware:
+	@echo "运行中间件示例..."
+	@echo "此示例展示各种中间件的使用方法"
+	@echo "按 Ctrl+C 停止服务器"
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/middleware_example.py
+
+ex-wsgi:
+	@echo "运行 WSGI 示例..."
+	@echo "此示例创建 WSGI 应用，可与 Gunicorn/uWSGI/Waitress 一起使用"
+	@echo "使用 Gunicorn: gunicorn -w 4 -b :$(PORT) examples/wsgi/wsgi_example:application"
+	@echo "使用 uWSGI: uwsgi --http :$(PORT) --wsgi-file examples/wsgi/wsgi_example.py"
+	@echo "使用 Waitress: waitress-serve --port=$(PORT) examples/wsgi/wsgi_example:application"
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/wsgi/wsgi_example.py
+
+ex-wsgi-simple:
+	@echo "运行 WSGI 简单示例（带中间件）..."
+	@echo "此示例展示如何在 WSGI 模式下使用中间件"
+	@echo "访问地址: http://$(HOST):9090"
+	@echo "按 Ctrl+C 停止服务器"
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/wsgi/wsgi_simple.py
+
+ex-wsgi-standalone:
+	@echo "运行 WSGI 独立服务器示例..."
+	@echo "此示例使用 wsgiref.simple_server 运行 WSGI 应用"
+	@echo "访问地址: http://$(HOST):9090"
+	@echo "按 Ctrl+C 停止服务器"
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/wsgi/wsgi_standalone.py

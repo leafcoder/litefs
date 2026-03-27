@@ -256,6 +256,36 @@ class Litefs(object):
         self.middleware_manager.clear()
         self._middleware_instances = None
 
+    def add_health_check(self, name: str, check_func):
+        """
+        添加健康检查
+
+        Args:
+            name: 检查名称
+            check_func: 检查函数，返回 True 表示健康，False 表示不健康
+        """
+        from .middleware import HealthCheck
+        
+        for middleware in self._get_middleware_instances():
+            if isinstance(middleware, HealthCheck):
+                middleware.add_check(name, check_func)
+                break
+
+    def add_ready_check(self, name: str, check_func):
+        """
+        添加就绪检查
+
+        Args:
+            name: 检查名称
+            check_func: 检查函数，返回 True 表示就绪，False 表示未就绪
+        """
+        from .middleware import HealthCheck
+        
+        for middleware in self._get_middleware_instances():
+            if isinstance(middleware, HealthCheck):
+                middleware.add_ready_check(name, check_func)
+                break
+
     def _get_middleware_instances(self):
         """
         获取中间件实例（缓存）

@@ -6,6 +6,7 @@ from .cors import CORSMiddleware
 from .logging import LoggingMiddleware
 from .rate_limit import RateLimitMiddleware, ThrottleMiddleware
 from .security import AuthMiddleware, SecurityMiddleware
+from .health_check import HealthCheck
 
 __all__ = [
     "Middleware",
@@ -16,4 +17,5 @@ __all__ = [
     "AuthMiddleware",
     "RateLimitMiddleware",
     "ThrottleMiddleware",
+    "HealthCheck",
 ]
