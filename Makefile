@@ -8,7 +8,8 @@ PORT=9090
 	test-serve serve dev-serve wsgi-gunicorn wsgi-uwsgi wsgi-waitress \
 	format lint type-check check-all \
 	ex-basic ex-health-check ex-middleware ex-config \
-	ex-wsgi ex-wsgi-simple ex-wsgi-standalone
+	ex-wsgi ex-wsgi-simple ex-wsgi-standalone \
+	docs-build docs-clean docs-serve
 
 help:
 	@echo "Litefs 开发命令"
@@ -38,6 +39,11 @@ help:
 	@echo "  make ex-wsgi-simple      - 运行 WSGI 简单示例（带中间件）"
 	@echo "  make ex-wsgi-standalone  - 运行 WSGI 独立服务器示例"
 	@echo ""
+	@echo "文档相关:"
+	@echo "  make docs-build        - 构建 Sphinx 文档"
+	@echo "  make docs-clean        - 清理 Sphinx 文档"
+	@echo "  make docs-serve        - 启动 Sphinx 文档服务器"
+	@echo ""
 	@echo "服务器相关:"
 	@echo "  make serve             - 启动开发服务器（默认端口 9090）"
 	@echo "  make dev-serve         - 启动开发服务器（开发模式）"
@@ -53,6 +59,9 @@ help:
 	@echo "发布相关:"
 	@echo "  make upload-test       - 上传到测试 PyPI"
 	@echo "  make upload            - 上传到 PyPI"
+	@echo ""
+	@echo "依赖相关:"
+	@echo "  make install-docs-deps - 安装文档依赖"
 
 install:
 	$(PYTHON) setup.py install
@@ -216,3 +225,21 @@ ex-wsgi-standalone:
 	@echo "访问地址: http://$(HOST):9090"
 	@echo "按 Ctrl+C 停止服务器"
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/wsgi/wsgi_standalone.py
+
+docs-build:
+	@echo "构建 Sphinx 文档..."
+	cd docs && $(MAKE) html
+
+docs-clean:
+	@echo "清理 Sphinx 文档..."
+	cd docs && $(MAKE) clean
+
+docs-serve:
+	@echo "启动 Sphinx 文档服务器..."
+	@echo "访问地址: http://localhost:8000"
+	@echo "按 Ctrl+C 停止服务器"
+	cd docs/build/html && python -m http.server 8000
+
+install-docs-deps:
+	@echo "安装文档依赖..."
+	$(PYTHON) -m pip install -r requirements-docs.txt

@@ -128,8 +128,40 @@ litefs/
 
 ## Documentation
 
-- [WSGI Deployment Guide](WSGI_DEPLOYMENT.md) - Detailed deployment instructions
-- [TODO.md](TODO.md) - Planned features
+Complete documentation is available at [docs/](docs/):
+
+- [在线文档](https://leafcoder.github.io/litefs/) - Online documentation (Sphinx)
+- [API 文档](docs/build/html/api.html) - Complete API reference
+- [配置管理](docs/build/html/config-management.html) - Configuration management guide
+- [健康检查](docs/build/html/health-check.html) - Health check features
+- [中间件指南](docs/build/html/middleware-guide.html) - Middleware development guide
+- [WSGI 部署](docs/build/html/wsgi-deployment.html) - WSGI deployment guide
+- [WSGI 实现](docs/build/html/wsgi-implementation.html) - WSGI implementation details
+- [单元测试](docs/build/html/unit-tests.html) - Unit testing documentation
+- [性能和压力测试](docs/build/html/performance-stress-tests.html) - Performance and stress testing
+- [改进分析](docs/build/html/improvement-analysis.html) - Project improvement analysis
+- [测试指南](tests/README.md) - Testing guide
+- [Linux 服务器指南](docs/build/html/linux-server-guide.html) - Linux deployment guide
+- [开发指南](docs/build/html/development.html) - Development guide
+- [项目结构](docs/build/html/project-structure.html) - Project structure
+- [待办事项](docs/build/html/todo.html) - Planned features
+- [Bug 修复](docs/build/html/bug-fixes.html) - Bug fixes record
+
+### 构建文档
+
+使用 Sphinx 构建文档：
+
+```bash
+make docs-build
+```
+
+查看文档：
+
+```bash
+make docs-serve
+```
+
+访问 http://localhost:8000 查看文档。
 
 ## License
 

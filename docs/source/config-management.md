@@ -480,6 +480,7 @@ pip install tomli
 
 ## 相关文档
 
-- [单元测试文档](unit-tests.md)
-- [健康检查文档](health-check.md)
+- [API 文档](api.md)
+- [单元测试](unit-tests.md)
+- [健康检查](health-check.md)
 - [测试指南](../tests/README.md)

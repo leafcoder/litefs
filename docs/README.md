@@ -1,194 +1,252 @@
-<div align="center">
+# Litefs 文档系统
 
-# Litefs {docsify-ignore}
+Litefs 使用 Sphinx 作为文档生成引擎，支持 Markdown 和 reStructuredText 格式。
 
-<p>
-    <!-- Place this tag where you want the button to render. -->
-    <a class="github-button" href="https://github.com/leafcoder/litefs/subscription" data-color-scheme="no-preference: light; light: light; dark: dark;" data-show-count="true" aria-label="Watch leafcoder/litefs on GitHub">
-        <img alt="GitHub forks" src="https://img.shields.io/github/watchers/leafcoder/litefs?style=social">
-    </a>
-    <a class="github-button" href="https://github.com/leafcoder/litefs" data-color-scheme="no-preference: light; light: light; dark: dark;" data-show-count="true" aria-label="Star leafcoder/litefs on GitHub">
-        <img alt="GitHub forks" src="https://img.shields.io/github/stars/leafcoder/litefs?style=social">
-    </a>
-    <a class="github-button" href="https://github.com/leafcoder/litefs/fork" data-color-scheme="no-preference: light; light: light; dark: dark;" data-show-count="true" aria-label="Fork leafcoder/litefs on GitHub">
-        <img alt="GitHub forks" src="https://img.shields.io/github/forks/leafcoder/litefs?style=social">
-    </a>
-</p>
+## 文档结构
 
-<p>
-    <img src="https://img.shields.io/github/v/release/leafcoder/litefs" data-origin="https://img.shields.io/github/v/release/leafcoder/litefs" alt="GitHub release (latest by date)">
-    <img src="https://img.shields.io/github/languages/top/leafcoder/litefs" data-origin="https://img.shields.io/github/languages/top/leafcoder/litefs" alt="GitHub top language">
-    <img src="https://img.shields.io/github/languages/code-size/leafcoder/litefs" data-origin="https://img.shields.io/github/languages/code-size/leafcoder/litefs" alt="GitHub code size in bytes">
-    <img src="https://img.shields.io/github/commit-activity/w/leafcoder/litefs" data-origin="https://img.shields.io/github/commit-activity/w/leafcoder/litefs" alt="GitHub commit activity">
-    <img src="https://img.shields.io/github/downloads/leafcoder/litefs/total" data-origin="https://img.shields.io/github/downloads/leafcoder/litefs/total" alt="GitHub All Releases">
-</p>
+```
+docs/
+├── source/                 # Sphinx 源文件
+│   ├── api/             # 自动生成的 API 文档
+│   ├── _static/         # 静态文件
+│   │   └── css/
+│   │       └── custom.css
+│   ├── _templates/       # 模板文件
+│   ├── conf.py          # Sphinx 配置
+│   ├── index.rst        # 主文档
+│   └── *.md            # Markdown 文档文件
+├── build/               # 构建输出（默认忽略）
+├── Makefile            # Sphinx 构建文件
+└── .gitignore          # Git 忽略文件
+```
 
-</div>
+## 安装文档依赖
 
-# Introduction 
+### 方式一：安装所有依赖（包括文档）
 
-Litefs is a lite python web framework.
+```bash
+pip install -r requirements.txt
+```
 
-Build a web server framework using Python. Litefs was developed to implement
-a server framework that can quickly, securely, and flexibly build Web
-projects. Litefs is a high-performance HTTP server. Litefs has the
-characteristics of high stability, rich functions, and low system
-consumption.
+### 方式二：仅安装文档依赖
 
-# Installation
+```bash
+make install-docs-deps
+```
 
-It can be installed via pip:
+或手动安装：
 
-    $ pip install litefs
+```bash
+pip install -r requirements-docs.txt
+```
 
-It can be installed via source code:
+## 已安装的 Sphinx 包
 
-    $ git clone https://github.com/leafcoder/litefs.git litefs
-    $ cd litefs
-    $ python setup.py install
+### 核心包
 
-# Quickstart: "Hello world"
+- **sphinx** (>=9.0.0) - Sphinx 文档生成器
+- **sphinx-rtd-theme** (>=3.0.0) - Read the Docs 主题
+- **myst-parser** (>=3.0.0) - Markdown 解析器
+- **sphinx-autodoc-typehints** (>=3.0.0) - 类型提示支持
 
-Firstly, let's write a basci example via litefs. Save it to "example.py".
+### Sphinx 扩展
 
-    # /usr/bin/env python
+在 `docs/source/conf.py` 中配置的扩展：
 
-    import litefs
-    litefs.test_server()
+```python
+extensions = [
+    'sphinx.ext.autodoc',          # 自动从代码生成文档
+    'sphinx.ext.viewcode',         # 查看源代码
+    'sphinx.ext.napoleon',         # 支持 Google/NumPy 风格的 docstring
+    'sphinx.ext.intersphinx',       # 交叉项目引用
+    'sphinx.ext.todo',             # 待办事项支持
+    'sphinx.ext.coverage',         # 代码覆盖率
+    'sphinx.ext.githubpages',      # GitHub Pages 支持
+    'myst_parser',                # Markdown 支持
+]
+```
 
-Secondly, you should create a directory named "site" (or any other name
-which is same as __"--webroot"__).
+### 可选的文档增强包
 
-    $ mkdir ./site
+以下包可以增强文档功能，但不是必需的：
 
-Thirdly, you can copy the below code into a new file "./site/helloworld.py".
+- **sphinxcontrib-apidoc** (>=0.3.0) - 用于更好的 API 文档
+- **sphinx-autodoc** (>=2.0.0) - 用于自动文档生成
+- **sphinx-copybutton** (>=0.5.0) - 用于代码复制按钮
+- **sphinx-design** (>=0.5.0) - 用于更好的设计
 
-    def handler(self):
-        return "Hello World!"
+安装可选包：
 
-Run "example.py", visit "http://localhost:9090/helloworld" via your browser.
-You can see "Hello World!" in your browser.
+```bash
+pip install sphinxcontrib-apidoc sphinx-autodoc sphinx-copybutton sphinx-design
+```
 
-    $ ./example.py
-    Litefs 0.3.0 - January 15, 2020 - 10:46:39
-    Starting server at http://localhost:9090/
-    Quit the server with CONTROL-C.
+## 构建文档
 
-# URL ROUTES
+### 使用 Makefile
 
-The relative path of the python scripts in the "site" folder will be url routes.
+```bash
+make docs-build
+```
 
-For example, we create tow files in "site" folder like below.
+### 直接使用 Sphinx
 
-## Script route
-    # Python route 
-    # ./site/hello.py  =>  matches /hello
-    def handler(self):
-        return 'Hello world'
+```bash
+cd docs
+make html
+```
 
-## Template route
+### 其他输出格式
 
-Note: "http" means "self" in handler function.
+```bash
+cd docs
+make html       # HTML 格式
+make pdf        # PDF 格式（需要 LaTeX）
+make epub       # EPUB 格式
+make latex      # LaTeX 格式
+```
 
-    # Template route 
-    # ./site/cn/hello.mako =>  matches /cn/hello
-    <pre>
-        PATH_INFO   : ${http.path_info}
-        QUERY_STRING: ${http.query_string}
-        REQUEST_URI : ${http.request_uri}
-        REFERER     : ${http.referer}
-        COOKIE      : ${http.cookie}
+## 查看文档
 
-        hello world
-    </pre>
+### 使用 Makefile
 
-## Static file
+```bash
+make docs-serve
+```
 
-    # Other static route => matches /hello.txt
-    # ./site/hello.txt
-    Hello world
+访问 http://localhost:8000
 
-# HTTP Methods
+### 直接使用 Python
 
-Litefs handlers all methods such as GET, POST, PUT, DELETE or PATCH in
-"handler" function.
+```bash
+cd docs/build/html
+python -m http.server 8000
+```
 
-    def handler(self):
-        request_method = self.request_method
-        logger.info(request_method)
-        return 'request_method: %s' % request_method
+## 清理文档
 
-# Error Pages
+### 使用 Makefile
 
-You can set a default 404 page when you start a litefs server.
+```bash
+make docs-clean
+```
 
-    $ ./example.py --not-found=not_found.html
+### 直接使用 Sphinx
 
-# Help
+```bash
+cd docs
+make clean
+```
 
-    $ ./example.py --help
-    usage: example.py [-h] [--host HOST] [--port PORT] [--webroot WEBROOT]
-                    [--debug] [--not-found NOT_FOUND]
-                    [--default-page DEFAULT_PAGE] [--cgi-dir CGI_DIR]
-                    [--log LOG] [--listen LISTEN]
+## API 文档自动生成
 
-    Build a web server framework using Python. Litefs was developed to implement a
-    server framework that can quickly, securely, and flexibly build Web projects.
-    Litefs is a high-performance HTTP server. Litefs has the characteristics of
-    high stability, rich functions, and low system consumption. Author: leafcoder
-    Email: leafcoder@gmail.com Copyright (c) 2017, Leafcoder. License: MIT (see
-    LICENSE for details)
+API 文档使用 `sphinx-apidoc` 自动生成：
 
-    optional arguments:
-    -h, --help            show this help message and exit
-    --host HOST           bind server to HOST
-    --port PORT           bind server to PORT
-    --webroot WEBROOT     use WEBROOT as root directory
-    --debug               start server in debug mode
-    --not-found NOT_FOUND
-                            use NOT_FOUND as 404 page
-    --default-page DEFAULT_PAGE
-                            use DEFAULT_PAGE as web default page
-    --cgi-dir CGI_DIR     use CGI_DIR as cgi scripts directory
-    --log LOG             save log to LOG
-    --listen LISTEN       server LISTEN
+```bash
+cd docs/source
+python -m sphinx.ext.apidoc -o api ../../src/litefs --module-first --force
+```
 
+生成的 API 文档位于 `docs/source/api/` 目录。
 
-## Context
+## 添加新文档
 
-List attributes of "self".
+### Markdown 文档
 
-Attributes                                           | Description
----------------------------------------------------- | -----------
-self.environ                                         | 环境变量（只读）
-self.environ[*envname*]                            | 获取某环境变量
-self.session                                         | session 对象，可临时保存或获取内存数据
-self.session_id                                      | session 对象 ID，将通过 SET_COOKIE 环境变量返回给客户端浏览器
-self.form                                            | form 为字典对象，保存您提交到服务器的数据
-self.config                                          | 服务器的配置对象，可获取初始化服务器的配置信息
-self.files                                           | 字典对象，保存上传的文件，格式为：{ *filename1*: *\<StringIO object\>*, *filename2*: *\<StringIO object\>* }
-self.cookie                                          | SimpleCookie 对象，获取 Cookie 数据
-self.redirect(url=None)                              | 跳转到某一页面
-self.start_response(status_code=200, headers=None)   | HTTP 返回码和头部
-self.path_Info                                       | PATH_INFO 
-self.query_string                                    | QUERY_STRING
-self.request_uri                                     | REQUEST_URI
-self.referer                                         | REFERER 
-self.request_method                                  | REQUEST_METHOD 
-self.server_protocol                                 | SERVER_PROTOCOL 
+1. 在 `docs/source/` 目录下创建 `.md` 文件
+2. 在 `docs/source/index.rst` 中添加引用：
 
+```rst
+.. toctree::
+   :maxdepth: 2
+   :caption: 文档:
+   
+   your-new-doc
+```
 
-## Environ
+### reStructuredText 文档
 
-环境变量             | 描述                  | 例子
-------------------- | --------------------- | ----
-REQUEST_METHOD      | 请求方法              | GET、POST、PUT、HEAD等
-SERVER_PROTOCOL     | 请求协议/版本         | HTTP/1.1"
-REMOTE_ADDR         | 请求客户端的IP地址    | 192.168.1.5
-REMOTE_PORT         | 请求客户端的端口      | 9999
-REQUEST_URI         | 完整 uri              | /user_info?name=li&age=20
-PATH_INFO           | 页面地址              | /user_info
-QUERY_STRING        | 请求参数              | name=li&age=20
-CONTENT_TYPE        | POST 等报文类型       | application/x-www-form-urlencoded 或 text/html;charset=utf-8
-CONTENT_LENGTH      | POST 等报文长度       | 1024
-HTTP_*_HEADERNAME_* | 其他请求头部          | 如 HTTP_REFERER：https://www.baidu.com/
+1. 在 `docs/source/` 目录下创建 `.rst` 文件
+2. 在 `docs/source/index.rst` 中添加引用
+
+## 配置 Sphinx
+
+编辑 `docs/source/conf.py` 可以自定义 Sphinx 配置：
+
+### 主题配置
+
+```python
+html_theme = 'sphinx_rtd_theme'
+
+html_theme_options = {
+    'navigation_depth': 4,
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'includehidden': True,
+    'titles_only': False
+}
+```
+
+### 语言配置
+
+```python
+language = 'zh_CN'  # 中文
+```
+
+### 项目信息
+
+```python
+project = 'Litefs'
+copyright = '2026, leafcoder'
+author = 'leafcoder'
+version = '0.3.0'
+release = '0.3.0'
+```
+
+## 自定义样式
+
+编辑 `docs/source/_static/css/custom.css` 可以自定义文档样式。
+
+## 部署文档
+
+### GitHub Pages
+
+1. 构建文档：
+
+```bash
+make docs-build
+```
+
+2. 将 `docs/build/html/` 目录内容推送到 `gh-pages` 分支
+
+### 自定义服务器
+
+将 `docs/build/html/` 目录部署到任何静态文件服务器。
+
+## 常见问题
+
+### Q: 如何更新 API 文档？
+
+A: 运行 `cd docs/source && python -m sphinx.ext.apidoc -o api ../../src/litefs --module-first --force`
+
+### Q: 如何添加新的 Sphinx 扩展？
+
+A: 在 `docs/source/conf.py` 的 `extensions` 列表中添加扩展名称，然后安装对应的包。
+
+### Q: 文档构建失败怎么办？
+
+A: 
+1. 确保已安装所有依赖：`make install-docs-deps`
+2. 检查 `docs/source/conf.py` 配置是否正确
+3. 查看错误信息，根据提示修复
+
+### Q: 如何支持中文搜索？
+
+A: 确保在 `docs/source/conf.py` 中设置了 `language = 'zh_CN'`
+
+## 相关资源
+
+- [Sphinx 官方文档](https://www.sphinx-doc.org/)
+- [MyST Parser 文档](https://myst-parser.readthedocs.io/)
+- [Read the Docs 主题](https://sphinx-rtd-theme.readthedocs.io/)
+- [Sphinx 扩展](https://sphinxext.com/)

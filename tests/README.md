@@ -237,7 +237,7 @@ jobs:
 
 ## 文档
 
-- [单元测试文档](docs/auto-generated/unit-tests.md)
-- [性能测试和压力测试文档](docs/auto-generated/performance-stress-tests.md)
-- [健康检查文档](docs/auto-generated/health-check.md)
-- [配置管理文档](docs/auto-generated/config-management.md)
+- [单元测试文档](../docs/unit-tests.md)
+- [性能测试和压力测试文档](../docs/performance-stress-tests.md)
+- [健康检查文档](../docs/health-check.md)
+- [配置管理文档](../docs/config-management.md)

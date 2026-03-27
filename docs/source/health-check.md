@@ -540,6 +540,7 @@ if __name__ == '__main__':
 
 ## 相关文档
 
-- [单元测试文档](unit-tests.md)
-- [性能和压力测试文档](performance-stress-tests.md)
+- [API 文档](api.md)
+- [单元测试](unit-tests.md)
+- [性能和压力测试](performance-stress-tests.md)
 - [测试指南](../tests/README.md)

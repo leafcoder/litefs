@@ -49,15 +49,6 @@ import logging
 
 每行代码长度应不超过 80 个字符，超过时使用换行符进行换行。
 
-```python
-from core.private.exceptions import (
-    QcDataNotFound,
-    QcDataCreationFailed,
-    QcDataUpdateFailed,
-    QcDataDeleteFailed,
-)
-```
-
 ## 2. 代码长度规范
 
 - 每行代码长度不应超过 80 个字符
@@ -69,21 +60,6 @@ from core.private.exceptions import (
 - 在字典、参数列表、元组等结构的最后一个元素后面也要加上逗号
 - 这样做有助于版本控制时减少 diff，并提高代码可读性
 
-```python
-# 正确示例
-headers = [
-    '样品编号',
-    '耗时',
-]
-
-# 函数参数示例
-def send_email_message(
-    subject='',
-    **kwargs,
-):
-    pass
-```
-
 ## 4. 注释和文档字符串
 
 ### 4.1 注释规范
@@ -94,15 +70,6 @@ def send_email_message(
 - 使用中文注释，保持简洁明了
 - 行内注释应与代码至少间隔两个空格
 
-```python
-# 正确示例
-# 由于历史原因，这里需要兼容旧版本的数据格式
-result = process_legacy_data(data)
-
-# 错误示例
-# 处理数据
-result = process_data(data)  # 处理数据（冗余）
-```
 
 ### 4.2 文档字符串规范
 
@@ -111,45 +78,6 @@ result = process_data(data)  # 处理数据（冗余）
 - 文档字符串的第一行应该是简洁的摘要，以句号结尾
 - 如果文档字符串包含多行，第二行应为空行
 - 遵循 PEP 257 规范
-
-```python
-def calculate_total(items, discount=0.0):
-    """
-    计算商品总价。
-
-    根据商品列表和折扣率计算最终总价。
-
-    Args:
-        items: 商品列表，每个元素包含 'price' 和 'quantity'
-        discount: 折扣率，范围 0.0-1.0，默认为 0.0
-
-    Returns:
-        计算后的总价（浮点数）
-
-    Raises:
-        ValueError: 当 discount 不在有效范围内时
-    """
-    if not 0.0 <= discount <= 1.0:
-        raise ValueError('折扣率必须在 0.0 到 1.0 之间')
-    return sum(item['price'] * item['quantity'] for item in items)
-
-
-class UserProfile:
-    """
-    用户配置文件类。
-
-    管理用户的个人资料信息，包括基本信息、偏好设置等。
-    """
-
-    def __init__(self, user_id):
-        """
-        初始化用户配置文件。
-
-        Args:
-            user_id: 用户唯一标识符
-        """
-        self.user_id = user_id
-```
 
 ## 5. 命名规范
 
@@ -210,40 +138,6 @@ class MyClass:
 - 使用 `typing` 模块提供的类型注解
 - 对于简单类型，可以直接使用内置类型（Python 3.9+）
 
-```python
-from typing import List, Dict, Optional, Union, Tuple
-
-# 函数类型提示
-def process_items(items: List[str], count: int) -> Dict[str, int]:
-    """
-    处理项目列表。
-
-    Args:
-        items: 字符串列表
-        count: 处理数量
-
-    Returns:
-        处理结果字典
-    """
-    return {'processed': len(items[:count])}
-
-# 可选类型
-def find_user(user_id: Optional[int] = None) -> Optional[Dict]:
-    if user_id is None:
-        return None
-    return {'id': user_id}
-
-# 联合类型
-def parse_value(value: Union[str, int]) -> str:
-    return str(value)
-
-# 类属性类型提示
-class User:
-    name: str
-    age: int
-    email: Optional[str] = None
-```
-
 ## 7. 字符串格式化
 
 ### 7.1 推荐方式
@@ -252,44 +146,10 @@ class User:
 - 对于复杂格式化，使用 `.format()` 方法
 - 避免使用 `%` 格式化（旧式格式化）
 
-```python
-# 推荐：f-string
-name = 'John'
-age = 30
-message = f'用户 {name} 的年龄是 {age} 岁'
-
-# 复杂格式化
-user_info = (
-    f'用户信息：姓名={user.name}, '
-    f'年龄={user.age}, '
-    f'邮箱={user.email or "未设置"}'
-)
-
-# 多行 f-string
-message = (
-    f'用户 {name} 的信息：\n'
-    f'  年龄：{age}\n'
-    f'  状态：{"活跃" if is_active else "非活跃"}'
-)
-
-# 使用 .format() 处理复杂情况
-template = '用户 {name} 在 {date:%Y-%m-%d} 执行了操作'
-message = template.format(name=user.name, date=datetime.now())
-```
-
 ### 7.2 字符串连接
 
 - 避免使用 `+` 连接大量字符串，使用 `join()` 或 f-string
 - 对于少量字符串，f-string 更清晰
-
-```python
-# 推荐
-parts = ['a', 'b', 'c']
-result = ''.join(parts)
-
-# 不推荐
-result = parts[0] + parts[1] + parts[2]
-```
 
 ## 8. 比较操作和布尔值
 
@@ -299,54 +159,11 @@ result = parts[0] + parts[1] + parts[2]
 - 使用 `==` 和 `!=` 比较值
 - 对于布尔值，直接使用，不要与 `True`/`False` 比较
 
-```python
-# 正确示例
-if value is None:
-    pass
-
-if value is not None:
-    pass
-
-if items:  # 检查列表是否非空
-    pass
-
-if not items:  # 检查列表是否为空
-    pass
-
-# 错误示例
-if value == None:  # 不推荐
-    pass
-
-if items == []:  # 不推荐
-    pass
-
-if flag == True:  # 不推荐
-    pass
-```
-
 ### 8.2 布尔值检查
 
 - 利用 Python 的真值测试，避免显式比较
 - 空列表、空字典、空字符串、0、None 都是 False
 
-```python
-# 正确示例
-if user_list:  # 列表非空
-    process_users(user_list)
-
-if not error_message:  # 字符串为空
-    return success_response
-
-if count:  # 数量大于 0
-    process_items()
-
-# 错误示例
-if len(user_list) > 0:  # 不推荐
-    process_users(user_list)
-
-if error_message == '':  # 不推荐
-    return success_response
-```
 
 ## 9. 异常处理
 
@@ -357,56 +174,14 @@ if error_message == '':  # 不推荐
 - 记录异常信息，包含足够的上下文
 - 重新抛出异常时使用 `raise`，不要使用 `raise e`
 
-```python
-# 正确示例
-try:
-    result = process_data(data)
-except ValueError as e:
-    logger.error(f'数据格式错误: {e}', extra={'data': data})
-    raise
-except KeyError as e:
-    logger.error(f'缺少必需的键: {e}')
-    return default_value
-except Exception as e:
-    logger.exception(f'处理数据时发生未知错误: {e}')
-    raise
-
-# 错误示例
-try:
-    result = process_data(data)
-except:  # 不推荐：捕获所有异常包括系统退出
-    pass
-
-try:
-    result = process_data(data)
-except Exception as e:
-    raise e  # 不推荐：会丢失原始异常堆栈
-```
 
 ### 9.2 异常链
 
 - 使用 `raise ... from ...` 保留异常链
 
-```python
-try:
-    process_file(filename)
-except FileNotFoundError as e:
-    raise ProcessingError(f'无法处理文件: {filename}') from e
-```
-
 ### 9.3 自定义异常
 
 - 为模块定义自定义异常类，继承自 `Exception`
-
-```python
-class ValidationError(Exception):
-    """数据验证错误"""
-    pass
-
-class ProcessingError(Exception):
-    """数据处理错误"""
-    pass
-```
 
 ## 10. 函数和参数
 
@@ -418,24 +193,6 @@ class ProcessingError(Exception):
 - 使用有意义的参数名
 - 避免使用可变对象作为默认参数
 
-```python
-# 正确示例
-def create_user(name: str, email: str, age: int = 18) -> User:
-    """创建用户"""
-    return User(name=name, email=email, age=age)
-
-# 错误示例：可变对象作为默认参数
-def add_item(item, items=[]):  # 不推荐
-    items.append(item)
-    return items
-
-# 正确做法
-def add_item(item, items=None):
-    if items is None:
-        items = []
-    items.append(item)
-    return items
-```
 
 ### 10.2 参数顺序
 
@@ -443,16 +200,6 @@ def add_item(item, items=None):
 - `*args`
 - 关键字参数（有默认值的参数）
 - `**kwargs`
-
-```python
-def example_function(
-    required_arg: str,
-    *args: Any,
-    optional_arg: str = 'default',
-    **kwargs: Any,
-) -> None:
-    pass
-```
 
 ## 11. 列表推导式和生成器表达式
 
@@ -462,51 +209,12 @@ def example_function(
 - 对于大数据集，使用生成器表达式节省内存
 - 保持推导式简洁，复杂逻辑应使用普通循环
 
-```python
-# 列表推导式
-squares = [x**2 for x in range(10)]
-filtered_items = [item for item in items if item.is_valid()]
-
-# 字典推导式
-user_dict = {user.id: user.name for user in users}
-
-# 集合推导式
-unique_names = {user.name for user in users}
-
-# 生成器表达式（节省内存）
-large_sum = sum(x**2 for x in range(1000000))
-
-# 复杂情况使用普通循环
-results = []
-for item in items:
-    if item.is_valid():
-        processed = complex_processing(item)
-        if processed:
-            results.append(processed)
-```
 
 ## 12. 上下文管理器
 
 - 始终使用 `with` 语句处理文件操作
 - 使用上下文管理器管理资源（数据库连接、锁等）
 
-```python
-# 文件操作
-with open('file.txt', 'r', encoding='utf-8') as f:
-    content = f.read()
-
-# 自定义上下文管理器
-from contextlib import contextmanager
-
-@contextmanager
-def temporary_config(config_dict):
-    old_config = get_config()
-    set_config(config_dict)
-    try:
-        yield
-    finally:
-        set_config(old_config)
-```
 
 ## 13. 常量定义
 
@@ -514,19 +222,6 @@ def temporary_config(config_dict):
 - 使用全大写下划线分隔的命名
 - 相关常量可以组织在类中
 
-```python
-# 模块级常量
-MAX_RETRY_COUNT = 3
-DEFAULT_TIMEOUT = 30
-API_BASE_URL = 'https://api.example.com'
-
-# 使用类组织相关常量
-class Status:
-    PENDING = 'pending'
-    PROCESSING = 'processing'
-    COMPLETED = 'completed'
-    FAILED = 'failed'
-```
 
 ## 14. 日志使用
 
@@ -535,20 +230,6 @@ class Status:
 - 使用适当的日志级别：`DEBUG`、`INFO`、`WARNING`、`ERROR`、`CRITICAL`
 - 记录关键操作和错误信息
 - 使用结构化日志，包含上下文信息
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-# 正确示例
-logger.info('用户登录成功', extra={'user_id': user.id})
-logger.warning('API 响应时间较长', extra={'duration': duration})
-logger.error('处理订单失败', extra={'order_id': order.id}, exc_info=True)
-
-# 使用 f-string 格式化（Python 3.6+）
-logger.info(f'处理了 {count} 条记录')
-```
 
 ### 14.2 日志最佳实践
 
@@ -564,26 +245,6 @@ logger.info(f'处理了 {count} 条记录')
 - 测试类应以 `Test` 开头
 - 测试方法应以 `test_` 开头
 - 使用描述性的测试名称
-
-```python
-import unittest
-
-class TestUserModel(unittest.TestCase):
-    """用户模型测试"""
-
-    def setUp(self):
-        """测试前置设置"""
-        self.user = User(name='Test User')
-
-    def test_user_creation(self):
-        """测试用户创建"""
-        self.assertIsNotNone(self.user.id)
-        self.assertEqual(self.user.name, 'Test User')
-
-    def test_user_str_representation(self):
-        """测试用户字符串表示"""
-        self.assertEqual(str(self.user), 'Test User')
-```
 
 ### 15.2 测试最佳实践
 

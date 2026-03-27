@@ -178,8 +178,8 @@ chmod -R 755 examples/basic/site
 3. 使用较小的监听队列
 4. 详细的日志输出
 
-## 参考资源
+## 相关文档
 
-- [Litefs 主文档](../README.md)
-- [开发指南](../DEVELOPMENT.md)
-- [项目结构](../PROJECT_STRUCTURE.md)
+- [API 文档](api.md)
+- [开发指南](DEVELOPMENT.md)
+- [项目结构](PROJECT_STRUCTURE.md)

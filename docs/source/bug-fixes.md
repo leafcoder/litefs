@@ -199,6 +199,7 @@ litefs --host localhost --port 9090 --webroot examples/basic/site --debug
 
 ## 相关文档
 
+- [API 文档](api.md)
 - [Linux 服务器使用指南](linux-server-guide.md)
-- [开发指南](../DEVELOPMENT.md)
-- [项目结构](../PROJECT_STRUCTURE.md)
+- [开发指南](DEVELOPMENT.md)
+- [项目结构](PROJECT_STRUCTURE.md)
