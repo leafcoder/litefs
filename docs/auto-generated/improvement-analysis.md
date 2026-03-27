@@ -107,11 +107,12 @@ Git Commit ID: Latest
 ## 5. 测试覆盖问题
 
 ### 5.1 测试覆盖率（已大幅提升）✅
-- **状态**：✅ 已大幅提升测试覆盖率，新增 154 个测试用例
+- **状态**：✅ 已大幅提升测试覆盖率，新增 181 个测试用例
 - **当前测试**：
-  - **单元测试** (132 个测试)：
+  - **单元测试** (159 个测试)：
     - `test_basic.py` - 基础功能测试 (5 个测试)
     - `test_cache.py` - 缓存模块完整测试 (15 个测试)
+    - `test_config.py` - 配置管理测试 (27 个测试)
     - `test_core.py` - 核心模块测试 (12 个测试)
     - `test_environ.py` - 环境变量测试 (15 个测试)
     - `test_form.py` - 表单解析测试 (11 个测试)
@@ -135,13 +136,19 @@ Git Commit ID: Latest
 - **新增文件**：
   - `tests/performance/test_performance.py` - 性能测试
   - `tests/stress/test_stress.py` - 压力测试
+  - `tests/unit/test_config.py` - 配置管理测试
   - `tests/run_performance_stress_tests.py` - 性能和压力测试运行器
   - `tests/README.md` - 测试指南
   - `requirements-performance.txt` - 性能测试依赖
   - `docs/auto-generated/unit-tests.md` - 单元测试文档
   - `docs/auto-generated/performance-stress-tests.md` - 性能和压力测试文档
   - `docs/auto-generated/health-check.md` - 健康检查文档
+  - `docs/auto-generated/config-management.md` - 配置管理文档
   - `examples/health_check_example.py` - 健康检查使用示例
+  - `examples/config_example.py` - 配置管理使用示例
+  - `examples/config/litefs.yaml` - YAML 配置示例
+  - `examples/config/litefs.json` - JSON 配置示例
+  - `examples/config/litefs.toml` - TOML 配置示例
 - **测试覆盖**：
   - ✅ 核心功能 (core.py)
   - ✅ 缓存系统 (cache/)
@@ -248,14 +255,36 @@ Git Commit ID: Latest
 - **问题**：Ctrl+C 直接终止，不等待请求完成
 - **建议**：实现优雅关闭机制，等待正在处理的请求完成
 
-### 8.5 配置管理（部分完成）
-- **状态**：⚠️ 只支持命令行参数
-- **问题**：
-  - 不支持配置文件（YAML/JSON/TOML）
-  - 不支持环境变量
-- **建议**：
-  - 支持配置文件
-  - 使用 `python-dotenv` 支持环境变量
+### 8.5 配置管理（已完成）✅
+- **状态**：✅ 已完成
+- **实现**：
+  - 支持配置文件（YAML/JSON/TOML）
+  - 支持环境变量（LITEFS_* 前缀）
+  - 支持自定义环境变量前缀
+  - 支持多种配置来源混合使用
+  - 配置优先级：代码 > 环境变量 > 配置文件 > 默认值
+- **新增文件**：
+  - `src/litefs/config.py` - 配置管理模块
+  - `examples/config/litefs.yaml` - YAML 配置示例
+  - `examples/config/litefs.json` - JSON 配置示例
+  - `examples/config/litefs.toml` - TOML 配置示例
+  - `examples/config_example.py` - 配置使用示例
+  - `tests/unit/test_config.py` - 配置管理测试
+  - `docs/auto-generated/config-management.md` - 配置管理文档
+- **测试覆盖**：
+  - ✅ 默认配置
+  - ✅ 代码配置
+  - ✅ YAML 配置文件
+  - ✅ JSON 配置文件
+  - ✅ TOML 配置文件
+  - ✅ 环境变量配置
+  - ✅ 环境变量类型解析
+  - ✅ 混合配置
+  - ✅ 配置优先级
+  - ✅ Config 对象方法
+  - ✅ 属性访问
+  - ✅ 字典操作
+  - ✅ 配置合并
 
 ## 9. 功能缺失
 
@@ -304,8 +333,7 @@ Git Commit ID: Latest
 1. 完善类型注解，启用 mypy 严格模式
 2. 添加结构化日志
 3. 集成监控指标收集
-4. 支持配置文件和环境变量
-5. 完善 API 文档
+4. 完善 API 文档
 
 ### 低优先级（长期规划）
 1. HTTP/2 支持

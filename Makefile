@@ -7,7 +7,7 @@ PORT=9090
 .PHONY: help install dev-install dev-uninstall clean build wheel test \
 	test-serve serve dev-serve wsgi-gunicorn wsgi-uwsgi wsgi-waitress \
 	format lint type-check check-all \
-	ex-basic ex-health-check ex-middleware \
+	ex-basic ex-health-check ex-middleware ex-config \
 	ex-wsgi ex-wsgi-simple ex-wsgi-standalone
 
 help:
@@ -33,6 +33,7 @@ help:
 	@echo "  make ex-basic            - 运行基础示例"
 	@echo "  make ex-health-check     - 运行健康检查示例"
 	@echo "  make ex-middleware       - 运行中间件示例"
+	@echo "  make ex-config           - 运行配置管理示例"
 	@echo "  make ex-wsgi             - 运行 WSGI 示例"
 	@echo "  make ex-wsgi-simple      - 运行 WSGI 简单示例（带中间件）"
 	@echo "  make ex-wsgi-standalone  - 运行 WSGI 独立服务器示例"
@@ -187,6 +188,12 @@ ex-middleware:
 	@echo "此示例展示各种中间件的使用方法"
 	@echo "按 Ctrl+C 停止服务器"
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/middleware_example.py
+
+ex-config:
+	@echo "运行配置管理示例..."
+	@echo "此示例展示配置管理的各种用法"
+	@echo "按 Ctrl+C 停止服务器"
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) examples/config_example.py
 
 ex-wsgi:
 	@echo "运行 WSGI 示例..."

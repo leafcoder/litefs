@@ -18,6 +18,7 @@ License: MIT (see LICENSE for details)
 """
 
 from .cache import FileEventHandler, LiteFile, MemoryCache, TreeCache
+from .config import Config, load_config, merge_configs
 from .core import Litefs, _cmd_args, make_config, make_server, test_server
 from .exceptions import HttpError
 from .handlers import RequestHandler, WSGIRequestHandler, new_module, parse_form
@@ -27,6 +28,9 @@ from .utils import gmt_date, log_debug, log_error, log_info, make_logger, render
 
 __all__ = [
     "Litefs",
+    "Config",
+    "load_config",
+    "merge_configs",
     "make_config",
     "make_server",
     "test_server",

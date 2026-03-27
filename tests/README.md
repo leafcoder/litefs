@@ -63,7 +63,7 @@ python -m unittest tests.unit.test_core.TestMakeConfig.test_default_config
 
 ## 测试覆盖范围
 
-### 单元测试 (132 个测试)
+### 单元测试 (159 个测试)
 
 | 模块 | 测试数量 | 状态 |
 |------|----------|------|
@@ -72,6 +72,7 @@ python -m unittest tests.unit.test_core.TestMakeConfig.test_default_config
 | 会话管理 | 9 | ✅ 通过 |
 | 中间件系统 | 20 | ✅ 通过 |
 | 健康检查 | 12 | ✅ 通过 |
+| 配置管理 | 27 | ✅ 通过 |
 | 请求处理 | 15 | ✅ 通过 |
 | 表单解析 | 11 | ✅ 通过 |
 | 请求大小限制 | 9 | ✅ 通过 |
@@ -229,13 +230,14 @@ jobs:
 
 | 测试类型 | 测试数量 | 状态 |
 |---------|----------|------|
-| 单元测试 | 132 | ✅ 全部通过 |
+| 单元测试 | 159 | ✅ 全部通过 |
 | 性能测试 | 12 | ✅ 全部通过 |
 | 压力测试 | 10 | ✅ 全部通过 |
-| **总计** | **154** | **✅ 全部通过** |
+| **总计** | **181** | **✅ 全部通过** |
 
 ## 文档
 
 - [单元测试文档](docs/auto-generated/unit-tests.md)
 - [性能测试和压力测试文档](docs/auto-generated/performance-stress-tests.md)
 - [健康检查文档](docs/auto-generated/health-check.md)
+- [配置管理文档](docs/auto-generated/config-management.md)

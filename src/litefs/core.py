@@ -10,6 +10,7 @@ from posixpath import abspath as path_abspath
 from watchdog.observers import Observer
 
 from .cache import FileEventHandler, MemoryCache, TreeCache
+from .config import Config, load_config
 from .handlers import RequestHandler, WSGIRequestHandler
 from .middleware import MiddlewareManager
 from .server import (
@@ -25,9 +26,23 @@ __version__ = "0.3.0"
 
 
 def make_config(**kwargs):
-    default_config = vars(_cmd_args([]))
-    default_config.update(kwargs)
-    config = type("Config", (), default_config)
+    """
+    创建配置对象
+
+    支持多种配置来源：
+    1. 默认配置
+    2. 配置文件（通过 config_file 参数）
+    3. 环境变量（LITEFS_*）
+    4. 代码中的配置（kwargs）
+
+    Args:
+        **kwargs: 配置项
+
+    Returns:
+        Config 对象
+    """
+    config_file = kwargs.pop('config_file', None)
+    config = load_config(config_file=config_file, **kwargs)
     config.webroot = path_abspath(config.webroot)
     return config
 
@@ -390,6 +405,13 @@ def _cmd_args(args):
         type=int,
         default=52428800,
         help="maximum file upload size in bytes (default: 50MB)",
+    )
+    parser.add_argument(
+        "--config",
+        dest="config_file",
+        required=False,
+        default=None,
+        help="path to configuration file (YAML, JSON, or TOML)",
     )
     args = parser.parse_args(args and args[1:])
     return args
