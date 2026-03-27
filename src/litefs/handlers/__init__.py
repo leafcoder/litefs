@@ -1,13 +1,8 @@
-from .request import (
-    RequestHandler,
-    WSGIRequestHandler,
-    parse_form,
-    new_module
-)
+from .request import RequestHandler, WSGIRequestHandler, new_module, parse_form
 
 __all__ = [
-    'RequestHandler',
-    'WSGIRequestHandler',
-    'parse_form',
-    'new_module',
+    "RequestHandler",
+    "WSGIRequestHandler",
+    "parse_form",
+    "new_module",
 ]

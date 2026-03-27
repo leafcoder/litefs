@@ -4,16 +4,18 @@
 import logging
 import socket
 import sys
-from errno import ENOTCONN, EMFILE, EWOULDBLOCK, EAGAIN, EPIPE
+from errno import EAGAIN, EMFILE, ENOTCONN, EPIPE, EWOULDBLOCK
 from functools import lru_cache, partial
-from io import RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
-from posixpath import abspath as path_abspath, join as path_join
+from io import DEFAULT_BUFFER_SIZE, BufferedRWPair, RawIOBase
+from posixpath import abspath as path_abspath
+from posixpath import join as path_join
 from time import time
 from traceback import print_exc
 from urllib.parse import unquote_plus
 
 try:
-    from greenlet import greenlet, getcurrent, GreenletExit
+    from greenlet import GreenletExit, getcurrent, greenlet
+
     HAS_GREENLET = True
 except ImportError:
     HAS_GREENLET = False
@@ -22,8 +24,9 @@ except ImportError:
     GreenletExit = None
 
 try:
-    from select import EPOLLIN, EPOLLOUT, EPOLLHUP, EPOLLERR, EPOLLET, \
-        epoll as select_epoll
+    from select import EPOLLERR, EPOLLET, EPOLLHUP, EPOLLIN, EPOLLOUT
+    from select import epoll as select_epoll
+
     HAS_EPOLL = True
 except (ImportError, AttributeError):
     HAS_EPOLL = False
@@ -32,19 +35,20 @@ except (ImportError, AttributeError):
 
 from email.message import Message
 
+
 @lru_cache(maxsize=512)
 def parse_header(line):
     msg = Message()
-    msg['content-type'] = line
+    msg["content-type"] = line
     return msg.get_params()[0], dict(msg.get_params()[1:])
 
-from ..handlers import RequestHandler, parse_form
-from ..exceptions import HttpError
-from ..utils import log_error
 
 import array
 import traceback
 
+from ..exceptions import HttpError
+from ..handlers import RequestHandler, parse_form
+from ..utils import log_error
 
 should_retry_error = (EWOULDBLOCK, EAGAIN)
 
@@ -72,7 +76,7 @@ def make_environ(server, rw, client_address):
     environ["REMOTE_ADDR"] = client_address[0]
     environ["REMOTE_HOST"] = client_address[0]
     environ["REMOTE_PORT"] = client_address[1]
-    
+
     s = rw.readline(DEFAULT_BUFFER_SIZE)
     s = s.decode("utf-8")
     if not s:
@@ -95,25 +99,27 @@ def make_environ(server, rw, client_address):
     length = headers.get("content-length")
     if length:
         environ["CONTENT_LENGTH"] = length = int(length)
-        max_request_size = getattr(server, 'max_request_size', 10485760)
+        max_request_size = getattr(server, "max_request_size", 10485760)
         if length > max_request_size:
-            raise HttpError(413, f"Request body too large. Maximum size is {max_request_size} bytes")
+            raise HttpError(
+                413, f"Request body too large. Maximum size is {max_request_size} bytes"
+            )
     content_type = headers.get("content-type")
     if content_type:
         environ["CONTENT_TYPE"] = content_type
     else:
         environ["CONTENT_TYPE"] = content_type = "text/plain; charset=utf-8"
-   
+
     _, params = parse_header(content_type)
-    charset = params.get('charset')
-    environ['CHARSET'] = charset
+    charset = params.get("charset")
+    environ["CHARSET"] = charset
     for k, v in headers.items():
         k = k.replace("-", "_").upper()
         if k in environ:
             continue
         k = f"HTTP_{k}"
         environ[k] = v
-    
+
     return environ
 
 
@@ -228,7 +234,7 @@ class Epoll(object):
             server_socket.server_close()
         self._epoll.close()
 
-    def poll(self, poll_interval=.2):
+    def poll(self, poll_interval=0.2):
         servers = self._servers
         greenlets = self._greenlets
         _poll = self._epoll.poll
@@ -280,12 +286,10 @@ class TCPServer(object):
     request_queue_size = 4194304
     address_family, socket_type = socket.AF_INET, socket.SOCK_STREAM
 
-    def __init__(self, server_address, RequestHandlerClass,
-                       bind_and_activate=True):
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
         self.server_address = server_address
         self.RequestHandlerClass = RequestHandlerClass
-        self.socket = socket.socket(self.address_family,
-                                    self.socket_type)
+        self.socket = socket.socket(self.address_family, self.socket_type)
         self._started = False
         if bind_and_activate:
             try:
@@ -297,8 +301,7 @@ class TCPServer(object):
 
     def server_bind(self):
         if self.allow_reuse_address:
-            self.socket.setsockopt(socket.SOL_SOCKET,
-                                   socket.SO_REUSEADDR, 1)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         logging.info("bind %s:%s", *self.server_address)
         self.socket.bind(self.server_address)
@@ -400,7 +403,7 @@ class TCPServer(object):
     def handle_error(self, request, client_address):
         traceback.print_exc()
 
-    def server_forever(self, poll_interval=.1):
+    def server_forever(self, poll_interval=0.1):
         if not self._started:
             epoll.register(self)
         mainloop(poll_interval=poll_interval)
@@ -452,7 +455,7 @@ class WSGIServer(HTTPServer):
         self.application = application
 
 
-def mainloop(poll_interval=.1):
+def mainloop(poll_interval=0.1):
     try:
         epoll.poll(poll_interval=poll_interval)
     except KeyboardInterrupt:

@@ -3,16 +3,17 @@
 
 import sqlite3
 import time
-from collections import deque, OrderedDict
-from hashlib import sha1
+from collections import OrderedDict, deque
 from gzip import GzipFile
+from hashlib import sha1
 from io import BytesIO
 from mimetypes import guess_type
 from os import stat
 from posixpath import splitext as path_splitext
-from watchdog.events import FileSystemEventHandler
 from weakref import proxy
 from zlib import compress
+
+from watchdog.events import FileSystemEventHandler
 
 from ..utils import gmt_date, log_info
 
@@ -37,10 +38,9 @@ class FileEventHandler(FileSystemEventHandler):
             return
         if not dest_path.startswith(webroot + "/"):
             return
-        log_info(self._app.logger, "%s has been moved to %s" \
-            % (src_path, dest_path))
-        src_path = "/%s" % src_path[len(webroot):].strip("/")
-        dest_path = "/%s" % dest_path[len(webroot):].strip("/")
+        log_info(self._app.logger, "%s has been moved to %s" % (src_path, dest_path))
+        src_path = "/%s" % src_path[len(webroot) :].strip("/")
+        dest_path = "/%s" % dest_path[len(webroot) :].strip("/")
         caches = self._app.caches
         files = self._app.files
         caches.delete(src_path)
@@ -64,7 +64,7 @@ class FileEventHandler(FileSystemEventHandler):
         if not src_path.startswith(webroot + "/"):
             return
         log_info(self._app.logger, "%s has been modified" % src_path)
-        src_path = "/%s" % src_path[len(webroot):].strip("/")
+        src_path = "/%s" % src_path[len(webroot) :].strip("/")
         caches = self._app.caches
         files = self._app.files
         caches.delete(src_path)
@@ -105,8 +105,7 @@ class LiteFile(object):
         if if_modified_since == self.last_modified:
             return request._response(304)
         if_none_match = environ.get("HTTP_IF_NONE_MATCH")
-        accept_encodings = environ.get(
-            "HTTP_ACCEPT_ENCODING", "").split(",")
+        accept_encodings = environ.get("HTTP_ACCEPT_ENCODING", "").split(",")
         accept_encodings = [s.strip().lower() for s in accept_encodings]
         headers = list(self.headers)
         if "gzip" in accept_encodings:
@@ -127,8 +126,7 @@ class LiteFile(object):
             headers.append(("Etag", self.etag))
             text = self.text
         headers.append(("Content-Length", "%d" % len(text)))
-        return request._response(
-            self.status_code, headers=headers, content=text)
+        return request._response(self.status_code, headers=headers, content=text)
 
 
 class TreeCache(object):
@@ -158,13 +156,19 @@ class TreeCache(object):
             self.auto_clean()
         timestamp = int(time.time())
         if key not in data:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO cache (key, timestamp) VALUES (?, ?);
-            """, (key, timestamp))
+            """,
+                (key, timestamp),
+            )
         else:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE cache SET timestamp=? WHERE key=?;
-            """, (timestamp, key))
+            """,
+                (timestamp, key),
+            )
         data[key] = [val, timestamp]
 
     def get(self, key):
@@ -185,13 +189,19 @@ class TreeCache(object):
         data = self.data
         if self.clean_time + self.clean_period < time.time():
             self.auto_clean()
-        curr = conn.execute("""\
+        curr = conn.execute(
+            """\
             SELECT key FROM cache WHERE key=? OR key LIKE ?;
-        """, (key, key + "/%"))
+        """,
+            (key, key + "/%"),
+        )
         keys = curr.fetchall()
-        conn.executemany("""\
+        conn.executemany(
+            """\
             DELETE FROM cache WHERE key=?;
-        """, keys)
+        """,
+            keys,
+        )
         for item in keys:
             key = item[0]
             del data[key]
@@ -200,13 +210,19 @@ class TreeCache(object):
         conn = self.conn
         data = self.data
         last_expiration_time = int(time.time() - self.expiration_time)
-        curr = conn.execute("""
+        curr = conn.execute(
+            """
             SELECT key FROM cache WHERE timestamp < ?;
-        """, (last_expiration_time, ))
+        """,
+            (last_expiration_time,),
+        )
         keys = curr.fetchall()
-        conn.executemany("""
+        conn.executemany(
+            """
             DELETE FROM cache WHERE key=?;
-        """, keys)
+        """,
+            keys,
+        )
         for item in keys:
             key = item[0]
             del data[key]

@@ -3,7 +3,7 @@
 
 import logging
 from functools import lru_cache
-from time import time, strftime, gmtime
+from time import gmtime, strftime, time
 from traceback import format_exc
 
 date_format = "%Y/%m/%d %H:%M:%S"
@@ -30,6 +30,7 @@ def log_debug(logger, message=None):
 def render_error():
     import sys
     from io import StringIO
+
     output = StringIO()
     exc_type, exc_value, exc_traceback = sys.exc_info()
     output.write(f"<h1>Error: {exc_type.__name__}</h1>")
@@ -53,7 +54,7 @@ def gmt_date(timestamp=None):
 
 
 def make_logger(name, log=None, level=logging.INFO):
-    FORMAT = "%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s"
+    FORMAT = "[%(asctime)s] %(levelname)s %(message)s"
     logging.basicConfig(level=level, format=FORMAT, datefmt=date_format)
     logger = logging.getLogger(name)
     logger.setLevel(level)

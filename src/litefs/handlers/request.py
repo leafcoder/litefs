@@ -1,45 +1,50 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import importlib.util
 import itertools
 import json
 import re
 import sys
 from collections import UserDict
+from email.message import Message
+from errno import EAGAIN, EWOULDBLOCK
 from functools import lru_cache, partial
+from hashlib import sha256
 from http.cookies import SimpleCookie
-from io import StringIO, BytesIO, RawIOBase, BufferedRWPair, DEFAULT_BUFFER_SIZE
+from io import DEFAULT_BUFFER_SIZE, BufferedRWPair, BytesIO, RawIOBase, StringIO
 from os import urandom
-from posixpath import join as path_join, splitext as path_splitext, split as path_split, \
-    abspath as path_abspath, isdir as path_isdir, exists as path_exists, \
-    isfile as path_isfile, realpath as path_realpath
-from subprocess import Popen, PIPE
+from posixpath import abspath as path_abspath
+from posixpath import exists as path_exists
+from posixpath import isdir as path_isdir
+from posixpath import isfile as path_isfile
+from posixpath import join as path_join
+from posixpath import realpath as path_realpath
+from posixpath import split as path_split
+from posixpath import splitext as path_splitext
+from subprocess import PIPE, Popen
 from tempfile import NamedTemporaryFile, TemporaryFile
 from time import time
 from uuid import uuid4
 from weakref import proxy
-from hashlib import sha256
-from errno import EWOULDBLOCK, EAGAIN
-import importlib.util
 
-from email.message import Message
 
 @lru_cache(maxsize=512)
 def parse_header(line):
     msg = Message()
-    msg['content-type'] = line
+    msg["content-type"] = line
     return msg.get_params()[0], dict(msg.get_params()[1:])
 
+
+import socket
+from http.client import responses as http_status_codes
+from io import BytesIO as StringIO
 from urllib.parse import unquote_plus
 
 from ..cache import LiteFile
 from ..exceptions import HttpError
 from ..session import Session
-from ..utils import log_error, log_debug, render_error, gmt_date
-
-import socket
-from http.client import responses as http_status_codes
-from io import BytesIO as StringIO
+from ..utils import gmt_date, log_debug, log_error, render_error
 
 default_page = "index"
 default_404 = "not_found"
@@ -70,11 +75,14 @@ DEFAULT_STATUS_MESSAGE = """\
     </body>
 </html>"""
 
+
 def is_unicode(s):
     return isinstance(s, str)
 
+
 def is_bytes(s):
     return isinstance(s, bytes)
+
 
 def imap(func, iterable):
     return map(func, iterable)
@@ -171,35 +179,38 @@ class BaseRequestHandler(object):
         status_code = int(status_code)
         status_text = http_status_codes.get(status_code, "Unknown")
         status = "%d %s" % (status_code, status_text)
-        
+
         response_headers = []
-        response_headers.append(('Server', server_info))
-        
+        response_headers.append(("Server", server_info))
+
         if headers:
             response_headers.extend(headers)
-        
+
         if not self._headers_responsed:
             if status_code >= 400:
-                response_headers.append(('Content-Type', 'text/html; charset=utf-8'))
-            elif 'Content-Type' not in [h[0] for h in response_headers]:
+                response_headers.append(("Content-Type", "text/html; charset=utf-8"))
+            elif "Content-Type" not in [h[0] for h in response_headers]:
                 from collections.abc import Iterable
-                if not isinstance(content, (str, bytes, dict, list, tuple, type(None))) and isinstance(content, Iterable):
-                    response_headers.append(('Content-Type', 'text/plain; charset=utf-8'))
+
+                if not isinstance(
+                    content, (str, bytes, dict, list, tuple, type(None))
+                ) and isinstance(content, Iterable):
+                    response_headers.append(("Content-Type", "text/plain; charset=utf-8"))
                 else:
-                    response_headers.append(('Content-Type', default_content_type))
-            
+                    response_headers.append(("Content-Type", default_content_type))
+
             if self.session_id is None:
                 self.set_cookie(default_sid, self.session.id, path="/")
-            
+
             self._add_response_headers(response_headers)
-        
+
         if content is None:
             content = DEFAULT_STATUS_MESSAGE % {
                 "code": status_code,
                 "message": status_text,
-                "explain": status_text
+                "explain": status_text,
             }
-        
+
         return status, response_headers, content
 
     def _add_response_headers(self, headers):
@@ -236,7 +247,7 @@ class BaseRequestHandler(object):
 class WSGIRequestHandler(BaseRequestHandler):
     """
     WSGI 请求处理器，用于在 gunicorn、uWSGI 等 WSGI 服务器中运行
-    
+
     符合 PEP 3333 规范，处理 WSGI environ 并返回标准响应
     """
 
@@ -245,68 +256,70 @@ class WSGIRequestHandler(BaseRequestHandler):
         self._environ = self._normalize_environ(environ)
         self._headers = []
         self._get = parse_form(self._environ.get("QUERY_STRING", ""))
-        
+
         content_type = self._environ.get("CONTENT_TYPE", "")
         if content_type:
             content_type, params = parse_header(content_type)
             content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
             content_length = int(content_length_str) if content_length_str.strip() else 0
-            
+
             if content_length > 0:
-                max_request_size = getattr(app.config, 'max_request_size', 10485760)
+                max_request_size = getattr(app.config, "max_request_size", 10485760)
                 if content_length > max_request_size:
-                    raise HttpError(413, f"Request body too large. Maximum size is {max_request_size} bytes")
-            
-            if content_type == 'application/x-www-form-urlencoded':
+                    raise HttpError(
+                        413, f"Request body too large. Maximum size is {max_request_size} bytes"
+                    )
+
+            if content_type == "application/x-www-form-urlencoded":
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         post_content = wsgi_input.read(content_length)
                         post_content = post_content.decode("utf-8")
                         self._post = parse_form(post_content)
-            elif content_type == 'multipart/form-data':
+            elif content_type == "multipart/form-data":
                 boundary = params.get("boundary")
                 if boundary:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
-                        content_length = int(content_length_str) if content_length_str.strip() else 0
+                        content_length = (
+                            int(content_length_str) if content_length_str.strip() else 0
+                        )
                         if content_length > 0:
-                            self._parse_multipart(wsgi_input, boundary, 
-                                                 content_length)
+                            self._parse_multipart(wsgi_input, boundary, content_length)
             else:
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         self._body = wsgi_input.read(content_length)
                         self._body = self._body.decode("utf-8")
-        
+
         self._session_id, self._session = self._get_session()
         self._middlewares = app._get_middleware_instances()
 
-
     def _normalize_environ(self, environ):
         normalized = dict(environ)
-        
+
         if "PATH_INFO" not in normalized:
             normalized["PATH_INFO"] = "/"
-        
+
         if "REQUEST_METHOD" not in normalized:
             normalized["REQUEST_METHOD"] = "GET"
-        
+
         if "QUERY_STRING" not in normalized:
             normalized["QUERY_STRING"] = ""
-        
+
         if "CONTENT_LENGTH" not in normalized:
             normalized["CONTENT_LENGTH"] = "0"
         else:
             content_length = normalized.get("CONTENT_LENGTH", "0")
             if content_length == "" or content_length is None:
                 normalized["CONTENT_LENGTH"] = "0"
-        
+
         if "CONTENT_TYPE" not in normalized:
             normalized["CONTENT_TYPE"] = ""
-        
+
         if "HTTP_HOST" not in normalized:
             host = normalized.get("SERVER_NAME", "localhost")
             port = normalized.get("SERVER_PORT", "80")
@@ -314,38 +327,38 @@ class WSGIRequestHandler(BaseRequestHandler):
                 normalized["HTTP_HOST"] = "%s:%s" % (host, port)
             else:
                 normalized["HTTP_HOST"] = host
-        
+
         return normalized
 
     def _parse_multipart(self, wsgi_input, boundary, content_length):
         app = self._app
-        max_upload_size = getattr(app.config, 'max_upload_size', 52428800)
-        
+        max_upload_size = getattr(app.config, "max_upload_size", 52428800)
+
         if content_length > max_upload_size:
             raise HttpError(413, f"Request body too large. Maximum size is {max_upload_size} bytes")
-        
+
         boundary = boundary.encode("utf-8")
         begin_boundary = b"--" + boundary
         end_boundary = b"--" + boundary + b"--"
-        
+
         posts = {}
         files = {}
-        
+
         data = wsgi_input.read(content_length)
-        
+
         parts = data.split(begin_boundary)
-        
+
         for part in parts[1:]:
             if part.strip() == end_boundary:
                 break
-            
+
             header_end = part.find(b"\r\n\r\n")
             if header_end == -1:
                 continue
-            
+
             headers_part = part[:header_end]
-            content = part[header_end + 4:]
-            
+            content = part[header_end + 4 :]
+
             headers = {}
             for line in headers_part.split(b"\r\n"):
                 if b":" in line:
@@ -355,11 +368,11 @@ class WSGIRequestHandler(BaseRequestHandler):
                     k = k.decode("utf-8")
                     v = v.decode("utf-8")
                     headers[k] = v
-            
+
             disposition = headers.get("CONTENT-DISPOSITION", "")
             disposition, params = parse_header(disposition)
             name = params.get("name", "")
-            
+
             filename = params.get("filename")
             if filename:
                 fp = TemporaryFile(mode="w+b")
@@ -369,7 +382,7 @@ class WSGIRequestHandler(BaseRequestHandler):
             else:
                 content = content.decode("utf-8")
                 posts[name] = content.strip()
-        
+
         self._post = posts
         self._files = files
 
@@ -379,13 +392,13 @@ class WSGIRequestHandler(BaseRequestHandler):
         cookie_str = self._environ.get("HTTP_COOKIE", "")
         cookie = SimpleCookie(cookie_str)
         morsel = cookie.get(default_sid)
-        
+
         if morsel is not None:
             session_id = morsel.value
             session = sessions.get(session_id)
             if session is not None:
                 return session_id, session
-        
+
         session_id = self._new_session_id()
         session = Session(session_id)
         sessions.put(session_id, session)
@@ -422,7 +435,7 @@ class WSGIRequestHandler(BaseRequestHandler):
         content_type = self._environ.get("CONTENT_TYPE", "")
         content_type, _ = parse_header(content_type)
         content_type = content_type.lower()
-        if content_type not in ('application/json', 'application/json-rpc'):
+        if content_type not in ("application/json", "application/json-rpc"):
             return {}
         return json.loads(body)
 
@@ -512,31 +525,31 @@ class WSGIRequestHandler(BaseRequestHandler):
             if not v:
                 continue
             cookie[key][k] = v
-        self._headers.append(('Set-Cookie', str(cookie[key])))
+        self._headers.append(("Set-Cookie", str(cookie[key])))
 
     def handler(self):
         app = self._app
-        
+
         middleware_result = app.middleware_manager.process_request(self)
         if middleware_result is not None:
             return middleware_result
-        
+
         try:
             environ = self._environ
             path_info = environ.get("PATH_INFO", "/")
-            
+
             path = startswith_dot_sub("/", path_info)
             path = double_slash_sub("/", path)
-            
+
             if path != path_info:
                 return self._redirect(path)
-            
+
             base, name = path_split(path)
             if not name:
-                name = getattr(app.config, 'default_page', default_page)
-            
+                name = getattr(app.config, "default_page", default_page)
+
             path = path_join(base, name)
-            
+
             module = app.caches.get(path)
             if module is not None:
                 try:
@@ -545,31 +558,37 @@ class WSGIRequestHandler(BaseRequestHandler):
                         status_code = int(self._status_code)
                         status_text = http_status_codes.get(status_code, "Unknown")
                         status = "%d %s" % (status_code, status_text)
-                        
-                        response_headers = [('Server', server_info)]
+
+                        response_headers = [("Server", server_info)]
                         response_headers.extend(self._headers)
-                        
-                        return app.middleware_manager.process_response(self, (status, response_headers, result))
-                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+
+                        return app.middleware_manager.process_response(
+                            self, (status, response_headers, result)
+                        )
+                    return app.middleware_manager.process_response(
+                        self, self._response(200, content=result)
+                    )
                 except Exception:
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
-                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                        return app.middleware_manager.process_response(
+                            self, self._response(500, content=content)
+                        )
                     return app.middleware_manager.process_response(self, self._response(500))
-            
+
             litefile = app.files.get(path)
             if litefile is not None:
-                return app.middleware_manager.process_response(self, self._handle_litefile(litefile))
+                return app.middleware_manager.process_response(
+                    self, self._handle_litefile(litefile)
+                )
 
-            realpath = path_abspath(
-                path_join(app.config.webroot, path.lstrip("/"))
-            )
-            
+            realpath = path_abspath(path_join(app.config.webroot, path.lstrip("/")))
+
             if path_isdir(realpath):
                 return app.middleware_manager.process_response(self, self._redirect(path + "/"))
 
-            script_name = f'{name}.py'
+            script_name = f"{name}.py"
             module = self._load_script(base, script_name)
             if module is not None and hasattr(module, "handler"):
                 app.caches.put(path, module)
@@ -579,29 +598,37 @@ class WSGIRequestHandler(BaseRequestHandler):
                         status_code = int(self._status_code)
                         status_text = http_status_codes.get(status_code, "Unknown")
                         status = "%d %s" % (status_code, status_text)
-                        
-                        response_headers = [('Server', server_info)]
+
+                        response_headers = [("Server", server_info)]
                         response_headers.extend(self._headers)
-                        
-                        return app.middleware_manager.process_response(self, (status, response_headers, result))
-                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+
+                        return app.middleware_manager.process_response(
+                            self, (status, response_headers, result)
+                        )
+                    return app.middleware_manager.process_response(
+                        self, self._response(200, content=result)
+                    )
                 except Exception:
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
-                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                        return app.middleware_manager.process_response(
+                            self, self._response(500, content=content)
+                        )
                     return app.middleware_manager.process_response(self, self._response(500))
-            
+
             try:
                 litefile = self._load_static_file(base, name)
             except IOError:
                 log_error(app.logger)
                 return app.middleware_manager.process_response(self, self._response(404))
-            
+
             if litefile is not None:
                 app.files.put(path, litefile)
-                return app.middleware_manager.process_response(self, self._handle_litefile(litefile))
-            
+                return app.middleware_manager.process_response(
+                    self, self._handle_litefile(litefile)
+                )
+
             return app.middleware_manager.process_response(self, self._response(404))
         except Exception as e:
             middleware_result = app.middleware_manager.process_exception(self, e)
@@ -614,14 +641,13 @@ class WSGIRequestHandler(BaseRequestHandler):
         if_modified_since = environ.get("HTTP_IF_MODIFIED_SINCE")
         if if_modified_since == litefile.last_modified:
             return self._response(304)
-        
+
         if_none_match = environ.get("HTTP_IF_NONE_MATCH")
-        accept_encodings = environ.get(
-            "HTTP_ACCEPT_ENCODING", "").split(",")
+        accept_encodings = environ.get("HTTP_ACCEPT_ENCODING", "").split(",")
         accept_encodings = [s.strip().lower() for s in accept_encodings]
-        
+
         headers = list(litefile.headers)
-        
+
         if "gzip" in accept_encodings:
             if if_none_match == litefile.gzip_etag:
                 return self._response(304)
@@ -639,16 +665,13 @@ class WSGIRequestHandler(BaseRequestHandler):
                 return self._response(304)
             headers.append(("Etag", litefile.etag))
             text = litefile.text
-        
+
         headers.append(("Content-Length", "%d" % len(text)))
         return self._response(litefile.status_code, headers=headers, content=text)
 
     def _redirect(self, url):
-        url = '/' if url is None else url
-        headers = [
-            ("Content-Type", "text/html; charset=utf-8"),
-            ("Location", url)
-        ]
+        url = "/" if url is None else url
+        headers = [("Content-Type", "text/html; charset=utf-8"), ("Location", url)]
         status_code = 302
         status_text = http_status_codes.get(status_code, "Found")
         content = "%d %s" % (status_code, status_text)
@@ -658,15 +681,15 @@ class WSGIRequestHandler(BaseRequestHandler):
         app = self._app
         webroot = app.config.webroot
         script_path = path_join(webroot, base.lstrip("/"), name)
-        
+
         if not path_exists(script_path):
             return None
-        
+
         ext = path_splitext(name)[1]
-        
+
         if ext in suffixes:
             return self._load_python_script(script_path)
-        
+
         return None
 
     def _load_python_script(self, script_path):
@@ -676,7 +699,7 @@ class WSGIRequestHandler(BaseRequestHandler):
             sys.dont_write_bytecode = True
             fp = open(script_path, "rb")
             module = new_module()
-            code = compile(fp.read(), script_path, 'exec')
+            code = compile(fp.read(), script_path, "exec")
             module_globals = {}
             exec(code, module_globals)
             for k, v in module_globals.items():
@@ -694,14 +717,15 @@ class WSGIRequestHandler(BaseRequestHandler):
         app = self._app
         webroot = app.config.webroot
         file_path = path_join(webroot, base.lstrip("/"), name)
-        
+
         from posixpath import isfile as path_isfile
+
         if not path_isfile(file_path):
             raise IOError("File not found: %s" % file_path)
-        
+
         with open(file_path, "rb") as fp:
             text = fp.read()
-        
+
         return LiteFile(file_path, base, name, text)
 
 
@@ -716,8 +740,8 @@ def new_module(**kwargs):
 def parse_multipart(rw, content_type):
     boundary = content_type.split("=")[1].strip()
     boundary = boundary.encode("utf-8")
-    begin_boundary = (b"--%s" % boundary)
-    end_boundary = (b"--%s--" % boundary)
+    begin_boundary = b"--%s" % boundary
+    end_boundary = b"--%s--" % boundary
     posts = {}
     files = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
@@ -739,8 +763,7 @@ def parse_multipart(rw, content_type):
         if filename:
             fp = TemporaryFile(mode="w+b")
             s = rw.readline(DEFAULT_BUFFER_SIZE)
-            while s.strip() != begin_boundary \
-                    and s.strip() != end_boundary:
+            while s.strip() != begin_boundary and s.strip() != end_boundary:
                 fp.write(s)
                 s = rw.readline(DEFAULT_BUFFER_SIZE)
             fp.seek(0)
@@ -748,20 +771,17 @@ def parse_multipart(rw, content_type):
         else:
             fp = StringIO()
             s = rw.readline(DEFAULT_BUFFER_SIZE)
-            while s.strip() != begin_boundary \
-                    and s.strip() != end_boundary:
+            while s.strip() != begin_boundary and s.strip() != end_boundary:
                 fp.write(s)
                 s = rw.readline(DEFAULT_BUFFER_SIZE)
             fp.seek(0)
-            posts[name] = fp.getvalue().strip().decode('utf-8')
+            posts[name] = fp.getvalue().strip().decode("utf-8")
     return posts, files
 
 
 class RequestHandler(BaseRequestHandler):
 
-    default_headers = {
-        "Content-Type": default_content_type
-    }
+    default_headers = {"Content-Type": default_content_type}
 
     def __init__(self, app, rw, environ, request):
         super(RequestHandler, self).__init__(app, environ)
@@ -775,10 +795,10 @@ class RequestHandler(BaseRequestHandler):
         content_type, params = parse_header(content_type)
         self._post = {}
         self._body = ""
-        if content_type == 'application/x-www-form-urlencoded':
+        if content_type == "application/x-www-form-urlencoded":
             post_content = environ.get("POST_CONTENT", "")
             self._post = parse_form(post_content)
-        elif content_type == 'multipart/form-data':
+        elif content_type == "multipart/form-data":
             self._post = environ.pop(POSTS_HEADER_NAME, {})
         else:
             post_content = environ.get("POST_CONTENT", "")
@@ -835,7 +855,7 @@ class RequestHandler(BaseRequestHandler):
         content_type = self.content_type
         content_type, _ = parse_header(content_type)
         content_type = content_type.lower()
-        if content_type not in ('application/json', 'application/json-rpc'):
+        if content_type not in ("application/json", "application/json-rpc"):
             return {}
         return json.loads(body)
 
@@ -862,6 +882,7 @@ class RequestHandler(BaseRequestHandler):
     @property
     def request_method(self):
         return self.environ["REQUEST_METHOD"]
+
     method = request_method
 
     @property
@@ -929,7 +950,7 @@ class RequestHandler(BaseRequestHandler):
     def redirect(self, url=None):
         if self._headers_responsed:
             raise ValueError("Http headers already responsed.")
-        url = '/' if url is None else url
+        url = "/" if url is None else url
         response_headers = self._response_headers
         response_headers["Content-Type"] = "text/html;charset=utf-8"
         host = self._environ.get("HTTP_HOST")
@@ -940,7 +961,11 @@ class RequestHandler(BaseRequestHandler):
                 host = "%s:%s" % (server_name, server_port)
             else:
                 host = server_name
-        scheme = "https" if self._environ.get("HTTPS") == "on" or self._environ.get("SERVER_PORT") == "443" else "http"
+        scheme = (
+            "https"
+            if self._environ.get("HTTPS") == "on" or self._environ.get("SERVER_PORT") == "443"
+            else "http"
+        )
         response_headers["Location"] = "%s://%s%s" % (scheme, host, url)
         status_code = 302
         status_text = http_status_codes[status_code]
@@ -955,15 +980,16 @@ class RequestHandler(BaseRequestHandler):
             if "Content-Length" not in response_headers:
                 response_headers["Content-Length"] = 0
             return []
-        
+
         content_type = response_headers.get("Content-Type", "")
         is_json_response = "application/json" in content_type
-        
+
         if isinstance(s, (tuple, list)):
             if is_json_response:
                 import json
+
                 s = [json.dumps(item, ensure_ascii=False) for item in s]
-                s = '[' + ','.join(s) + ']'
+                s = "[" + ",".join(s) + "]"
             else:
                 if len(s) > 0 and (is_unicode(s[0]) or is_bytes(s[0])):
                     first_type = type(s[0])
@@ -972,22 +998,23 @@ class RequestHandler(BaseRequestHandler):
                         join_chr = s[0][:0]
                         s = join_chr.join(s)
                     else:
-                        s = [item if is_bytes(item) else str(item).encode('utf-8') for item in s]
+                        s = [item if is_bytes(item) else str(item).encode("utf-8") for item in s]
                         join_chr = s[0][:0]
                         s = join_chr.join(s)
                 else:
                     s = [str(item) for item in s]
-                    s = ''.join(s)
+                    s = "".join(s)
         elif not (is_unicode(s) or is_bytes(s) or isinstance(s, (tuple, list))):
             if is_json_response:
                 import json
+
                 try:
                     s = json.dumps(s, ensure_ascii=False)
                 except (TypeError, ValueError) as e:
                     raise TypeError("Response data cannot be JSON serialized: %s" % e)
             else:
                 s = str(s)
-        
+
         if is_unicode(s):
             s = s.encode("utf-8")
         if is_bytes(s):
@@ -1028,7 +1055,7 @@ class RequestHandler(BaseRequestHandler):
                 rw.write(line)
             if self._cookies:
                 for c in self._cookies.values():
-                    line = "%s: %s\r\n" % ('Set-Cookie', c.OutputString())
+                    line = "%s: %s\r\n" % ("Set-Cookie", c.OutputString())
                     line = line.encode("utf-8")
                     rw.write(line)
             rw.write("\r\n".encode("utf-8"))
@@ -1039,6 +1066,7 @@ class RequestHandler(BaseRequestHandler):
             if not self._headers_responsed:
                 try:
                     from ..utils import log_error, render_error
+
                     log_error(self._app.logger)
                     rw = self._rw
                     status_code = 500
@@ -1061,6 +1089,7 @@ class RequestHandler(BaseRequestHandler):
             else:
                 try:
                     from ..utils import log_error
+
                     log_error(self._app.logger)
                 except Exception:
                     pass
@@ -1078,36 +1107,39 @@ class RequestHandler(BaseRequestHandler):
             raise ValueError("Http headers already responsed.")
         status_code = int(status_code)
         status_text = http_status_codes[status_code]
-        
+
         if headers is None:
             headers = []
-        
+
         if status_code >= 400:
-            html_headers = [('Content-Type', 'text/html; charset=utf-8')]
+            html_headers = [("Content-Type", "text/html; charset=utf-8")]
             headers = html_headers + list(headers)
-        elif 'Content-Type' not in [h[0] for h in headers]:
+        elif "Content-Type" not in [h[0] for h in headers]:
             from collections.abc import Iterable
-            if not isinstance(content, (str, bytes, dict, list, tuple, type(None))) and isinstance(content, Iterable):
-                headers = [('Content-Type', 'text/plain; charset=utf-8')] + list(headers)
+
+            if not isinstance(content, (str, bytes, dict, list, tuple, type(None))) and isinstance(
+                content, Iterable
+            ):
+                headers = [("Content-Type", "text/plain; charset=utf-8")] + list(headers)
             else:
-                headers = [('Content-Type', default_content_type)] + list(headers)
-        
+                headers = [("Content-Type", default_content_type)] + list(headers)
+
         self.start_response(status_code, headers=headers)
         if content is None:
             content = DEFAULT_STATUS_MESSAGE % {
                 "code": status_code,
                 "message": status_text,
-                "explain": status_text
+                "explain": status_text,
             }
         return content
 
     def handler(self):
         app = self._app
-        
+
         middleware_result = app.middleware_manager.process_request(self)
         if middleware_result is not None:
             return middleware_result
-        
+
         try:
             environ = self.environ
             path_info = environ["PATH_INFO"]
@@ -1117,8 +1149,8 @@ class RequestHandler(BaseRequestHandler):
                 return self.redirect(path)
             base, name = path_split(path)
             if not name:
-                name = getattr(app.config, 'default_page', default_page)
-            
+                name = getattr(app.config, "default_page", default_page)
+
             path = path_join(base, name)
             module = app.caches.get(path)
             if module is not None:
@@ -1126,23 +1158,25 @@ class RequestHandler(BaseRequestHandler):
                     result = module.handler(self)
                     if self._headers_responsed:
                         return app.middleware_manager.process_response(self, result)
-                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+                    return app.middleware_manager.process_response(
+                        self, self._response(200, content=result)
+                    )
                 except Exception:
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
-                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                        return app.middleware_manager.process_response(
+                            self, self._response(500, content=content)
+                        )
                     return app.middleware_manager.process_response(self, self._response(500))
             litefile = app.files.get(path)
             if litefile is not None:
                 return app.middleware_manager.process_response(self, litefile.handler(self))
-            realpath = path_abspath(
-                path_join(app.config.webroot, path.lstrip("/"))
-            )
+            realpath = path_abspath(path_join(app.config.webroot, path.lstrip("/")))
             if path_isdir(realpath):
                 return app.middleware_manager.process_response(self, self.redirect(path + "/"))
 
-            script_name = f'{name}.py'
+            script_name = f"{name}.py"
             module = self._load_script(base, script_name)
             if module is not None and hasattr(module, "handler"):
                 app.caches.put(path, module)
@@ -1150,14 +1184,18 @@ class RequestHandler(BaseRequestHandler):
                     result = module.handler(self)
                     if self._headers_responsed:
                         return app.middleware_manager.process_response(self, result)
-                    return app.middleware_manager.process_response(self, self._response(200, content=result))
+                    return app.middleware_manager.process_response(
+                        self, self._response(200, content=result)
+                    )
                 except Exception:
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
-                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                        return app.middleware_manager.process_response(
+                            self, self._response(500, content=content)
+                        )
                     return app.middleware_manager.process_response(self, self._response(500))
-            
+
             try:
                 litefile = self._load_static_file(base, name)
             except IOError:
@@ -1171,7 +1209,9 @@ class RequestHandler(BaseRequestHandler):
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
-                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                        return app.middleware_manager.process_response(
+                            self, self._response(500, content=content)
+                        )
                     return app.middleware_manager.process_response(self, self._response(500))
             path = app.config.not_found
             base, name = path_split(path)
@@ -1190,7 +1230,9 @@ class RequestHandler(BaseRequestHandler):
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
-                        return app.middleware_manager.process_response(self, self._response(500, content=content))
+                        return app.middleware_manager.process_response(
+                            self, self._response(500, content=content)
+                        )
                     return app.middleware_manager.process_response(self, self._response(500))
             return app.middleware_manager.process_response(self, self._response(404))
         except Exception as e:
@@ -1202,9 +1244,7 @@ class RequestHandler(BaseRequestHandler):
     def _load_static_file(self, base, name):
         app = self._app
         webroot = app.config.webroot
-        realbase = path_realpath(
-            path_abspath(path_join(webroot, base.lstrip('/')))
-        )
+        realbase = path_realpath(path_abspath(path_join(webroot, base.lstrip("/"))))
         script_name, ext = path_splitext(name)
         realpath = path_join(realbase, name)
         if ext in suffixes or not path_isfile(realpath):
@@ -1219,6 +1259,7 @@ class RequestHandler(BaseRequestHandler):
         script_uri = path_join(base.lstrip("/"), name)
         path = path_join("/%s" % base.rstrip("/"), name)
         mylookup = TemplateLookup(directories=[webroot])
+
         def handler(mylookup, script_uri):
             def _handler(self):
                 try:
@@ -1226,23 +1267,19 @@ class RequestHandler(BaseRequestHandler):
                     content = template.render(http=self)
                     headers = getattr(template.module, "headers", None)
                     if headers:
-                        headers = "\r\n".join(
-                            [":".join(h) for h in headers]
-                        )
+                        headers = "\r\n".join([":".join(h) for h in headers])
                     if not headers:
-                        headers = [
-                            ("Content-Type", "text/html;charset=utf-8")
-                        ]
-                    return self._response(
-                        200, headers=headers, content=content
-                    )
+                        headers = [("Content-Type", "text/html;charset=utf-8")]
+                    return self._response(200, headers=headers, content=content)
                 except Exception:
                     log_error(app.logger)
                     if app.config.debug:
                         content = render_error()
                         return self._response(500, content=content)
                     return self._response(500)
+
             return _handler
+
         module = new_module()
         module.handler = handler(mylookup, script_uri)
         return module
@@ -1250,9 +1287,7 @@ class RequestHandler(BaseRequestHandler):
     def _load_script(self, base, name):
         app = self._app
         webroot = app.config.webroot
-        realbase = path_realpath(
-            path_abspath(path_join(webroot, base.lstrip("/")))
-        )
+        realbase = path_realpath(path_abspath(path_join(webroot, base.lstrip("/"))))
         script_uri = path_join(base.lstrip("/"), name)
         script_path = path_join(realbase, name)
         if not path_exists(script_path):
@@ -1271,10 +1306,13 @@ class RequestHandler(BaseRequestHandler):
             content = None
             if app.config.debug:
                 content = render_error()
+
             def handler(content):
                 def _handler(self):
                     return self._response(500, content=content)
+
                 return _handler
+
             module = new_module()
             module.handler = handler(content)
             return module

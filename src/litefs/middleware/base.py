@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from typing import Callable, Any, Optional
+from typing import Any, Callable, Optional
 
 
 class Middleware:
     """
     中间件基类
-    
+
     所有中间件都应该继承此类并实现 process_request 和/或 process_response 方法
     """
 
     def __init__(self, app):
         """
         初始化中间件
-        
+
         Args:
             app: Litefs 应用实例
         """
@@ -23,10 +23,10 @@ class Middleware:
     def process_request(self, request_handler):
         """
         处理请求，在请求到达业务逻辑之前执行
-        
+
         Args:
             request_handler: 请求处理器实例
-            
+
         Returns:
             None: 继续处理请求
             其他值: 直接返回该值作为响应，中断后续处理
@@ -36,11 +36,11 @@ class Middleware:
     def process_response(self, request_handler, response):
         """
         处理响应，在响应返回给客户端之前执行
-        
+
         Args:
             request_handler: 请求处理器实例
             response: 响应数据
-            
+
         Returns:
             修改后的响应数据
         """
@@ -49,11 +49,11 @@ class Middleware:
     def process_exception(self, request_handler, exception):
         """
         处理异常
-        
+
         Args:
             request_handler: 请求处理器实例
             exception: 异常对象
-            
+
         Returns:
             None: 继续抛出异常
             其他值: 返回该值作为响应，不抛出异常
@@ -64,7 +64,7 @@ class Middleware:
 class MiddlewareManager:
     """
     中间件管理器
-    
+
     负责管理所有中间件的注册、加载和执行
     """
 
@@ -74,11 +74,11 @@ class MiddlewareManager:
     def add(self, middleware_class, **kwargs):
         """
         添加中间件
-        
+
         Args:
             middleware_class: 中间件类
             **kwargs: 传递给中间件构造函数的参数
-            
+
         Returns:
             self: 支持链式调用
         """
@@ -88,7 +88,7 @@ class MiddlewareManager:
     def remove(self, middleware_class):
         """
         移除中间件
-        
+
         Args:
             middleware_class: 中间件类
         """
@@ -105,10 +105,10 @@ class MiddlewareManager:
     def get_middleware_instances(self, app):
         """
         获取所有中间件实例
-        
+
         Args:
             app: Litefs 应用实例
-            
+
         Returns:
             中间件实例列表
         """
@@ -120,10 +120,10 @@ class MiddlewareManager:
     def process_request(self, request_handler):
         """
         按顺序执行所有中间件的 process_request 方法
-        
+
         Args:
             request_handler: 请求处理器实例
-            
+
         Returns:
             None: 继续处理请求
             其他值: 直接返回该值作为响应
@@ -137,11 +137,11 @@ class MiddlewareManager:
     def process_response(self, request_handler, response):
         """
         按逆序执行所有中间件的 process_response 方法
-        
+
         Args:
             request_handler: 请求处理器实例
             response: 响应数据
-            
+
         Returns:
             处理后的响应数据
         """
@@ -152,11 +152,11 @@ class MiddlewareManager:
     def process_exception(self, request_handler, exception):
         """
         按顺序执行所有中间件的 process_exception 方法
-        
+
         Args:
             request_handler: 请求处理器实例
             exception: 异常对象
-            
+
         Returns:
             None: 继续抛出异常
             其他值: 返回该值作为响应
