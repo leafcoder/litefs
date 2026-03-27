@@ -65,6 +65,31 @@ python setup.py install
 
 ### Basic Usage
 
+#### CLI Tools
+
+Litefs provides powerful CLI tools for quick project creation and development.
+
+**Create a new project:**
+
+```bash
+litefs startproject myapp
+cd myapp
+```
+
+**Start development server:**
+
+```bash
+litefs runserver
+```
+
+**Show version:**
+
+```bash
+litefs version
+```
+
+For detailed CLI usage, see [CLI Tools Documentation](docs/build/html/cli-tools.html).
+
 #### Standalone Server
 
 ```python
@@ -131,6 +156,7 @@ litefs/
 Complete documentation is available at [docs/](docs/):
 
 - [在线文档](https://leafcoder.github.io/litefs/) - Online documentation (Sphinx)
+- [CLI 工具](docs/build/html/cli-tools.html) - Command line tools guide
 - [API 文档](docs/build/html/api.html) - Complete API reference
 - [配置管理](docs/build/html/config-management.html) - Configuration management guide
 - [健康检查](docs/build/html/health-check.html) - Health check features

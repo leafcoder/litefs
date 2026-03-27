@@ -27,7 +27,7 @@ Litefs(**kwargs)
 | `webroot` | str | `./site` | Web 根目录 |
 | `debug` | bool | `False` | 调试模式 |
 | `not_found` | str | `not_found` | 404 页面文件名 |
-| `default_page` | str | `index` | 默认页面文件名 |
+| `default_page` | str | `index,index.html` | 默认页面文件名（支持多个，逗号分隔） |
 | `log` | str | `./default.log` | 日志文件路径 |
 | `listen` | int | `1024` | 服务器监听队列大小 |
 | `max_request_size` | int | `10485760` | 最大请求体大小（字节） |

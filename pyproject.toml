@@ -55,7 +55,7 @@ dev = [
 ]
 
 [project.scripts]
-litefs = "litefs.core:test_server"
+litefs = "litefs.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/leafcoder/litefs"
@@ -65,13 +65,14 @@ Issues = "https://github.com/leafcoder/litefs/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+package-data = {litefs = ["templates/*.j2", "templates/*.py", "templates/*/*.j2", "templates/*/*.py", "templates/*/*/*.j2", "templates/*/*/*.py"]}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+target-version = ["py38", "py39", "py310", "py311", "py312"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(

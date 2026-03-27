@@ -546,7 +546,26 @@ class WSGIRequestHandler(BaseRequestHandler):
 
             base, name = path_split(path)
             if not name:
-                name = getattr(app.config, "default_page", default_page)
+                default_pages = getattr(app.config, "default_page", default_page)
+                if isinstance(default_pages, str):
+                    default_pages = [p.strip() for p in default_pages.split(",")]
+                else:
+                    default_pages = [default_page]
+                
+                for default_name in default_pages:
+                    test_path = path_join(base, default_name)
+                    realpath = path_abspath(path_join(app.config.webroot, test_path.lstrip("/")))
+                    
+                    if path_isfile(realpath):
+                        name = default_name
+                        break
+                    
+                    script_path = path_abspath(path_join(app.config.webroot, f"{test_path}.py".lstrip("/")))
+                    if path_isfile(script_path):
+                        name = default_name
+                        break
+                else:
+                    name = default_pages[0]
 
             path = path_join(base, name)
 
@@ -1149,7 +1168,26 @@ class RequestHandler(BaseRequestHandler):
                 return self.redirect(path)
             base, name = path_split(path)
             if not name:
-                name = getattr(app.config, "default_page", default_page)
+                default_pages = getattr(app.config, "default_page", default_page)
+                if isinstance(default_pages, str):
+                    default_pages = [p.strip() for p in default_pages.split(",")]
+                else:
+                    default_pages = [default_page]
+                
+                for default_name in default_pages:
+                    test_path = path_join(base, default_name)
+                    realpath = path_abspath(path_join(app.config.webroot, test_path.lstrip("/")))
+                    
+                    if path_isfile(realpath):
+                        name = default_name
+                        break
+                    
+                    script_path = path_abspath(path_join(app.config.webroot, f"{test_path}.py".lstrip("/")))
+                    if path_isfile(script_path):
+                        name = default_name
+                        break
+                else:
+                    name = default_pages[0]
 
             path = path_join(base, name)
             module = app.caches.get(path)

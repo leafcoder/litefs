@@ -1,0 +1,242 @@
+# ${project_name}
+
+基于 Litefs 框架的 Web 应用
+
+## 快速开始
+
+### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 启动开发服务器
+
+```bash
+python app.py
+```
+
+或使用 CLI 命令：
+
+```bash
+litefs runserver
+```
+
+### 访问应用
+
+打开浏览器访问: http://localhost:9090
+
+## 项目结构
+
+```
+${project_name}/
+├── app.py              # 应用入口
+├── config.yaml         # 配置文件
+├── requirements.txt    # Python 依赖
+├── README.md          # 项目说明
+├── site/              # Web 根目录
+│   ├── static/        # 静态文件
+│   │   ├── css/
+│   │   ├── js/
+│   │   └── images/
+│   └── *.py          # 动态文件
+├── templates/         # 模板文件
+├── apps/             # 应用模块
+│   └── utils/        # 工具函数
+│       ├── __init__.py
+│       └── helpers.py
+└── config/           # 配置模块
+    └── settings.py   # 应用配置
+```
+
+### 目录说明
+
+- **site/** - Web 根目录，包含所有可通过 HTTP 访问的文件
+  - **static/** - 静态文件（CSS、JS、图片等）
+  - **\\*.py** - 动态 Python 文件（可选）
+  - **注意**: 路由基于文件系统，URL 路径对应文件路径
+
+- **templates/** - 模板文件，用于服务端渲染
+
+- **apps/** - 应用模块，包含可复用的工具函数和辅助类
+  - **utils/** - 工具函数模块
+    - `format_date()` - 日期格式化
+    - `sanitize_html()` - HTML 清理
+    - `generate_pagination()` - 分页生成
+
+- **config/** - 配置模块
+  - **settings.py** - 应用配置（数据库、缓存、API 等）
+
+## 配置
+
+编辑 `config.yaml` 文件来配置应用：
+
+- `host`: 服务器地址
+- `port`: 服务器端口
+- `debug`: 调试模式
+- `webroot`: 静态文件目录
+- `template_dir`: 模板目录
+- `log_level`: 日志级别
+- `cors`: CORS 配置
+
+## 开发
+
+### 使用工具函数
+
+在 `apps/utils/` 目录中提供了可复用的工具函数：
+
+```python
+# 在任何地方使用工具函数
+from apps.utils.helpers import format_date, sanitize_html, generate_pagination
+
+# 格式化日期
+date_str = format_date()
+
+# 清理 HTML
+clean_html = sanitize_html(user_input)
+
+# 生成分页
+pagination = generate_pagination(total=100, current=1, per_page=10)
+```
+
+### 使用配置
+
+在 `config/settings.py` 中管理应用配置：
+
+```python
+# 在任何地方使用配置
+from config import settings
+
+print(f"应用名称: {settings.APP_NAME}")
+print(f"数据库: {settings.DATABASE_URL}")
+```
+
+**从环境变量加载配置：**
+
+```bash
+# 设置环境变量
+export DATABASE_URL="postgresql://user:pass@localhost/db"
+export API_KEY="your-api-key"
+
+# 应用会自动加载环境变量
+```
+
+### 创建动态页面
+
+在 `site/` 目录中创建 Python 文件，文件名对应 URL 路径：
+
+```python
+# site/about.py
+def handler(self):
+    """关于页面处理器"""
+    self.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>关于我们</title>
+    </head>
+    <body>
+        <h1>关于我们</h1>
+    </body>
+    </html>
+    """
+    
+    return [html]
+```
+
+访问 `/about` 即可看到该页面。
+
+### 使用 apps 和 config 模块
+
+在 `site/` 目录下的 Python 文件中，可以直接导入和使用 `apps` 和 `config` 模块：
+
+```python
+# site/index.py
+def handler(self):
+    """首页处理器"""
+    self.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    
+    # 导入工具函数
+    from apps.utils.helpers import format_date, sanitize_html
+    
+    # 导入配置
+    from config import settings
+    
+    # 使用工具函数
+    date_str = format_date()
+    
+    # 使用配置
+    app_name = settings.APP_NAME
+    app_version = settings.APP_VERSION
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{app_name}</title>
+    </head>
+    <body>
+        <h1>欢迎来到 {app_name}</h1>
+        <p>版本: {app_version}</p>
+        <p>当前时间: {date_str}</p>
+    </body>
+    </html>
+    """
+    
+    return [html]
+```
+
+**注意**: `app.py` 已经自动将项目根目录添加到 Python 路径中，所以可以直接导入 `apps` 和 `config` 模块。
+
+### 使用模板
+
+```python
+# site/index.py
+def handler(self):
+    """首页处理器"""
+    self.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    
+    # 使用模板渲染
+    html = self.app.render_template("index.html", title="首页")
+    
+    return [html]
+```
+
+### 中间件
+
+Litefs 提供了多种中间件：
+
+- `LoggingMiddleware` - 请求日志
+- `SecurityMiddleware` - 安全头
+- `CORSMiddleware` - CORS 支持
+- `HealthCheck` - 健康检查
+
+## 部署
+
+### 使用 Gunicorn
+
+```bash
+gunicorn app:app -w 4 -b 0.0.0.0:9090
+```
+
+### 使用 uWSGI
+
+```bash
+uwsgi --http :9090 --wsgi-file app.py --callable app --processes 4
+```
+
+### 使用 Waitress (Windows)
+
+```bash
+waitress-serve --port=9090 app:app
+```
+
+## 文档
+
+更多文档请参考: https://github.com/leafcoder/litefs
+
+## License
+
+MIT License

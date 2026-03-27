@@ -18,6 +18,7 @@ License: MIT (see LICENSE for details)
 """
 
 from .cache import FileEventHandler, LiteFile, MemoryCache, TreeCache
+from .cli import main as cli_main
 from .config import Config, load_config, merge_configs
 from .core import Litefs, _cmd_args, make_config, make_server, test_server
 from .exceptions import HttpError
@@ -35,6 +36,7 @@ __all__ = [
     "make_server",
     "test_server",
     "_cmd_args",
+    "cli_main",
     "TreeCache",
     "MemoryCache",
     "LiteFile",

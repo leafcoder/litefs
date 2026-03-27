@@ -13,7 +13,9 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
    :caption: 文档:
    
    api
+   cli-tools
    config-management
+   default-page
    health-check
    middleware-guide
    wsgi-deployment

@@ -55,7 +55,7 @@ setup(
     install_requires=open('requirements.txt', encoding='utf-8').read().split('\n'),
     entry_points={
         'console_scripts': [
-           'litefs=litefs.core:test_server',
+           'litefs=litefs.cli:main',
         ]
     },
     classifiers=[

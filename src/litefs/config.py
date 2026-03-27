@@ -28,7 +28,7 @@ class Config:
         'webroot': './site',
         'debug': False,
         'not_found': 'not_found',
-        'default_page': 'index',
+        'default_page': 'index,index.html',
         'log': './default.log',
         'listen': 1024,
         'max_request_size': 10485760,
