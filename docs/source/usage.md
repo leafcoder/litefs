@@ -40,6 +40,80 @@ python app.py
 
 访问 `http://localhost:8080/` 查看结果。
 
+### 1.3 完整示例应用
+
+Litefs 提供了一个完整的示例应用，展示了框架的核心功能和最佳实践。
+
+#### 目录结构
+
+```
+examples/fullstack_example/
+├── app.py          # 应用主文件
+├── wsgi.py         # WSGI 应用文件
+├── site/           # Web 根目录
+│   ├── index.py    # 首页
+│   ├── about.py    # 关于页面
+│   ├── contact.py  # 联系页面
+│   ├── dashboard.py # 仪表板页面
+│   └── static/     # 静态文件
+│       └── css/
+│           └── style.css # 样式文件
+└── README.md       # 说明文档
+```
+
+#### 功能特性
+
+- **路由处理**：基本的页面路由和处理
+- **表单处理**：联系表单提交和验证
+- **会话管理**：用户会话和访问历史记录
+- **缓存使用**：内存缓存示例
+- **中间件集成**：日志、安全、CORS、限流中间件
+- **静态文件服务**：CSS 样式和静态资源
+- **健康检查**：应用健康状态和就绪检查
+- **响应式设计**：适配不同屏幕尺寸
+
+#### 运行示例
+
+```bash
+# 进入示例目录
+cd examples/fullstack_example
+
+# 运行开发服务器
+python app.py
+```
+
+应用将在 `http://localhost:8080` 启动，可访问以下端点：
+
+- **首页**：`http://localhost:8080/`
+- **关于页面**：`http://localhost:8080/about`
+- **联系页面**：`http://localhost:8080/contact`
+- **仪表板**：`http://localhost:8080/dashboard`
+- **健康检查**：`http://localhost:8080/health`
+- **就绪检查**：`http://localhost:8080/health/ready`
+
+#### 生产部署
+
+使用 Gunicorn：
+
+```bash
+pip install gunicorn gevent
+gunicorn -w 4 -k gevent -b :8000 wsgi:application
+```
+
+使用 uWSGI：
+
+```bash
+pip install uwsgi
+uwsgi --http :8000 --wsgi-file wsgi.py --processes 4 --threads 2 --master
+```
+
+使用 Waitress（Windows 推荐）：
+
+```bash
+pip install waitress
+waitress-serve --port=8000 wsgi:application
+```
+
 ## 2. 配置管理
 
 ### 2.1 配置来源
