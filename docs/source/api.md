@@ -754,10 +754,7 @@ self.start_response(status_code=200, headers=None)
 
 ## 相关文档
 
-- [配置管理文档](config-management.md)
-- [健康检查文档](health-check.md)
-- [中间件指南](MIDDLEWARE_GUIDE.md)
-- [WSGI 部署](WSGI_DEPLOYMENT.md)
-- [WSGI 实现](WSGI_IMPLEMENTATION.md)
+- [使用文档](usage.md)
+- [系统设计文档](system_design.md)
 - [单元测试文档](unit-tests.md)
 - [性能和压力测试文档](performance-stress-tests.md)
