@@ -34,6 +34,8 @@ def handler(self):
     
     import json
     cookies_dict = {}
+    
+    # 首先从 self.cookie 中读取客户端发送的 cookie
     for key, morsel in self.cookie.items():
         cookies_dict[key] = {
             'value': morsel.value,
@@ -44,6 +46,21 @@ def handler(self):
             'secure': morsel.get('secure', False),
             'httponly': morsel.get('httponly', False)
         }
+    
+    # 然后添加刚刚设置的 cookie（如果有）
+    if hasattr(self, '_cookies') and self._cookies:
+        for name, cookie in self._cookies.items():
+            for cookie_name, morsel in cookie.items():
+                if cookie_name not in cookies_dict:
+                    cookies_dict[cookie_name] = {
+                        'value': morsel.value,
+                        'expires': morsel.get('expires', ''),
+                        'max_age': morsel.get('max-age', ''),
+                        'path': morsel.get('path', ''),
+                        'domain': morsel.get('domain', ''),
+                        'secure': morsel.get('secure', False),
+                        'httponly': morsel.get('httponly', False)
+                    }
     
     html = """
     <!DOCTYPE html>

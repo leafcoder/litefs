@@ -365,10 +365,30 @@ class TCPServer(object):
             if e.errno == EPIPE:
                 raise GreenletExit
             raise
+        except HttpError as e:
+            # Send HTTP error response
+            try:
+                status_code = e.status_code
+                message = e.message
+                response = f"HTTP/1.1 {status_code} {message}\r\n"
+                response += "Content-Type: text/html; charset=utf-8\r\n"
+                response += "Content-Length: %d\r\n" % len(message)
+                response += "\r\n"
+                response += message
+                # Write the response
+                rw.write(response.encode('utf-8'))
+                # Flush the buffer to ensure the response is sent
+                if hasattr(rw, 'flush'):
+                    rw.flush()
+                # Give some time for the response to be sent
+                import time
+                time.sleep(0.1)
+            except Exception:
+                pass
+            finally:
+                self.shutdown_request(request)
         except Exception as e:
-            if not isinstance(e, HttpError):
-                raise
-            print("Request error: %s" % e)
+            raise
         finally:
             try:
                 if raw.read_gr is not None:

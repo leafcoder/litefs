@@ -183,6 +183,9 @@ class BaseRequestHandler(object):
 
         response_headers = []
         response_headers.append(("Server", server_info))
+        response_headers.append(("X-Content-Type-Options", "nosniff"))
+        response_headers.append(("X-Frame-Options", "SAMEORIGIN"))
+        response_headers.append(("X-XSS-Protection", "1; mode=block"))
 
         if headers:
             response_headers.extend(headers)
@@ -765,14 +768,12 @@ def parse_multipart(rw, boundary):
     posts = {}
     files = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-    print('???2', s)
     while True:
         if s.strip() != begin_boundary:
             assert s.strip() == end_boundary
             break
         headers = {}
         s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-        print('???4', s)
         while s:
             s = s.decode("utf-8")
             k, v = s.split(":", 1)
@@ -803,7 +804,13 @@ def parse_multipart(rw, boundary):
 
 class RequestHandler(BaseRequestHandler):
 
-    default_headers = {"Content-Type": default_content_type}
+    default_headers = {
+        "Content-Type": default_content_type,
+        "Server": "litefs/0.4.0",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-XSS-Protection": "1; mode=block"
+    }
 
     def __init__(self, app, rw, environ, request):
         super(RequestHandler, self).__init__(app, environ)
@@ -815,16 +822,14 @@ class RequestHandler(BaseRequestHandler):
         self._get = parse_form(environ["QUERY_STRING"])
         content_type = environ.get("CONTENT_TYPE", "")
         self.content_type_raw = content_type_raw = content_type
-        print('???1', content_type)
         content_type, content_type_params = parse_header(content_type)
-        print('???2', content_type, content_type_params)
         self._post = {}
         self._body = ""
         self._files = {}
         # 读取请求体并设置到 POST_CONTENT
         if content_type:
-            content_length_str = str(environ.get("CONTENT_LENGTH")) or "0"
-            content_length = int(content_length_str) if content_length_str.strip() else 0
+            content_length_value = environ.get("CONTENT_LENGTH") or 0
+            content_length = int(content_length_value) if content_length_value else 0
 
             if content_length > 0:
                 max_request_size = getattr(app.config, "max_request_size", 10485760)
@@ -833,7 +838,6 @@ class RequestHandler(BaseRequestHandler):
                         413, f"Request body too large. Maximum size is {max_request_size} bytes"
                     )
             if content_length:
-                print('content_type_raw', content_type_raw)
                 if content_type_raw == "application/x-www-form-urlencoded":
                     post_content = rw.read(int(content_length))
                     self._post = parse_form(post_content)
@@ -986,7 +990,9 @@ class RequestHandler(BaseRequestHandler):
         cookie = SimpleCookie()
         cookie[name] = value
         for key, val in options.items():
-            cookie[name][key] = val
+            # 将下划线参数转换为连字符形式（如 max_age -> max-age）
+            cookie_key = key.replace('_', '-')
+            cookie[name][cookie_key] = val
         self._cookies[name] = cookie
 
     def redirect(self, url=None):
@@ -1088,16 +1094,33 @@ class RequestHandler(BaseRequestHandler):
             line = "HTTP/1.1 %d %s\r\n" % (status_code, status_text)
             line = line.encode("utf-8")
             rw.write(line)
-            headers = self._response_headers
-            if not headers:
-                headers = self.default_headers
+            # 获取当前头部
+            headers = self._response_headers.copy()
+            
+            # 添加标准头部（如果不存在）
+            standard_headers = {
+                "Server": "litefs/0.4.0",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "SAMEORIGIN",
+                "X-XSS-Protection": "1; mode=block"
+            }
+            
+            for header, value in standard_headers.items():
+                if header not in headers:
+                    headers[header] = value
+            
+            # 如果没有 Content-Type 头部，添加默认值
+            if "Content-Type" not in headers:
+                headers["Content-Type"] = default_content_type
+            
+            # 写入头部
             for header, value in headers.items():
                 line = "%s: %s\r\n" % (header, value)
                 line = line.encode("utf-8")
                 rw.write(line)
             if self._cookies:
                 for c in self._cookies.values():
-                    line = "%s: %s\r\n" % ("Set-Cookie", c.OutputString())
+                    line = "%s: %s\r\n" % ("Set-Cookie", str(c))
                     line = line.encode("utf-8")
                     rw.write(line)
             rw.write("\r\n".encode("utf-8"))
@@ -1117,6 +1140,10 @@ class RequestHandler(BaseRequestHandler):
                     line = line.encode("utf-8")
                     rw.write(line)
                     rw.write("Content-Type: text/html; charset=utf-8\r\n".encode("utf-8"))
+                    rw.write("Server: litefs/0.4.0\r\n".encode("utf-8"))
+                    rw.write("X-Content-Type-Options: nosniff\r\n".encode("utf-8"))
+                    rw.write("X-Frame-Options: SAMEORIGIN\r\n".encode("utf-8"))
+                    rw.write("X-XSS-Protection: 1; mode=block\r\n".encode("utf-8"))
                     rw.write("\r\n".encode("utf-8"))
                     if self._app.config.debug:
                         error_content = render_error()
@@ -1152,6 +1179,20 @@ class RequestHandler(BaseRequestHandler):
 
         if headers is None:
             headers = []
+
+        # 添加标准头部
+        standard_headers = [
+            ("Server", "litefs/0.4.0"),
+            ("X-Content-Type-Options", "nosniff"),
+            ("X-Frame-Options", "SAMEORIGIN"),
+            ("X-XSS-Protection", "1; mode=block")
+        ]
+        
+        # 检查并添加标准头部，避免重复
+        existing_headers = [h[0] for h in headers]
+        for header in standard_headers:
+            if header[0] not in existing_headers:
+                headers.append(header)
 
         if status_code >= 400:
             html_headers = [("Content-Type", "text/html; charset=utf-8")]
