@@ -1,17 +1,13 @@
 #!/usr/bin/env python
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs import Litefs, Config, load_config
-from litefs.middleware import (
-    LoggingMiddleware,
-    SecurityMiddleware,
-    CORSMiddleware,
-)
 
 
 def example_default_config():
@@ -34,7 +30,7 @@ def example_code_config():
     app = Litefs(
         host='0.0.0.0',
         port=8080,
-        webroot='./examples/basic/site',
+        webroot='./examples/01-quickstart/site',
         debug=True,
         max_request_size=20971520,
     )
@@ -51,7 +47,7 @@ def example_yaml_config():
     """示例 3: 使用 YAML 配置文件"""
     print("=== 示例 3: 使用 YAML 配置文件 ===")
     
-    config_file = './examples/config/litefs.yaml'
+    config_file = './examples/common/config/litefs.yaml'
     
     if os.path.exists(config_file):
         app = Litefs(config_file=config_file)
@@ -71,7 +67,7 @@ def example_json_config():
     """示例 4: 使用 JSON 配置文件"""
     print("=== 示例 4: 使用 JSON 配置文件 ===")
     
-    config_file = './examples/config/litefs.json'
+    config_file = './examples/common/config/litefs.json'
     
     if os.path.exists(config_file):
         app = Litefs(config_file=config_file)
@@ -91,7 +87,7 @@ def example_toml_config():
     """示例 5: 使用 TOML 配置文件"""
     print("=== 示例 5: 使用 TOML 配置文件 ===")
     
-    config_file = './examples/config/litefs.toml'
+    config_file = './examples/common/config/litefs.toml'
     
     if os.path.exists(config_file):
         app = Litefs(config_file=config_file)
@@ -136,7 +132,7 @@ def example_mixed_config():
     
     os.environ['LITEFS_DEBUG'] = 'true'
     
-    config_file = './examples/config/litefs.yaml'
+    config_file = './examples/common/config/litefs.yaml'
     
     if os.path.exists(config_file):
         app = Litefs(
@@ -187,7 +183,7 @@ def example_load_config_function():
     print("=== 示例 9: 使用 load_config 函数 ===")
     
     config = load_config(
-        config_file='./examples/config/litefs.yaml',
+        config_file='./examples/common/config/litefs.yaml',
         port=8080,
         debug=True,
     )
@@ -198,33 +194,9 @@ def example_load_config_function():
     print()
 
 
-def example_config_with_middleware():
-    """示例 10: 配置 + 中间件"""
-    print("=== 示例 10: 配置 + 中间件 ===")
-    
-    config_file = './examples/config/litefs.yaml'
-    
-    if os.path.exists(config_file):
-        app = (
-            Litefs(config_file=config_file)
-            .add_middleware(LoggingMiddleware)
-            .add_middleware(SecurityMiddleware)
-            .add_middleware(CORSMiddleware)
-        )
-        
-        print(f"配置文件: {config_file}")
-        print(f"Host: {app.config.host}")
-        print(f"Port: {app.config.port}")
-        print(f"中间件数量: {len(app.middleware_manager._middlewares)}")
-        print()
-    else:
-        print(f"配置文件不存在: {config_file}")
-        print()
-
-
 def example_config_dict_operations():
-    """示例 11: 配置字典操作"""
-    print("=== 示例 11: 配置字典操作 ===")
+    """示例 10: 配置字典操作"""
+    print("=== 示例 10: 配置字典操作 ===")
     
     config = Config()
     
@@ -242,8 +214,8 @@ def example_config_dict_operations():
 
 
 def example_config_get_set():
-    """示例 12: 配置获取和设置"""
-    print("=== 示例 12: 配置获取和设置 ===")
+    """示例 11: 配置获取和设置"""
+    print("=== 示例 11: 配置获取和设置 ===")
     
     config = Config()
     
@@ -276,7 +248,6 @@ def main():
     example_mixed_config()
     example_config_object()
     example_load_config_function()
-    example_config_with_middleware()
     example_config_dict_operations()
     example_config_get_set()
     

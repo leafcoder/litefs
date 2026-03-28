@@ -91,7 +91,7 @@ def _display_form(self, error_message=None):
 def _handle_form_submission(self):
     """处理表单提交"""
     # 获取表单数据
-    form_data = self.form
+    form_data = self.post
     
     # 验证表单数据
     name = form_data.get('name', '').strip()

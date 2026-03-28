@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs import Litefs
 from litefs.middleware import (
@@ -29,7 +30,7 @@ def check_disk_space():
     """检查磁盘空间"""
     import shutil
     total, used, free = shutil.disk_usage('.')
-    return free > 1024 * 1024 * 1024  # 至少 1GB 可用空间
+    return free > 1024 * 1024 * 1024
 
 
 def check_external_api():
@@ -44,7 +45,7 @@ def check_migrations():
 
 def main():
     """启动服务器"""
-    app = Litefs(webroot='./examples/basic/site', debug=True)
+    app = Litefs(webroot='./examples/01-quickstart/site', debug=True)
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)

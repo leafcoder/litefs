@@ -40,14 +40,55 @@ python app.py
 
 访问 `http://localhost:8080/` 查看结果。
 
-### 1.3 完整示例应用
+### 1.3 示例应用
 
-Litefs 提供了一个完整的示例应用，展示了框架的核心功能和最佳实践。
+Litefs 提供了丰富的示例，帮助您快速上手和深入学习。所有示例都按照功能模块进行了重新组织，便于学习和参考。
 
-#### 目录结构
+#### 示例目录结构
 
 ```
-examples/fullstack_example/
+examples/
+├── 01-quickstart/              # 快速入门
+├── 02-basic-handlers/          # 基础处理器
+├── 03-configuration/          # 配置管理
+├── 04-middleware/             # 中间件
+├── 05-session/                # 会话管理
+├── 06-cache/                  # 缓存
+├── 07-health-check/           # 健康检查
+├── 08-wsgi-deployment/        # WSGI 部署
+├── 09-fullstack/              # 完整应用
+└── common/                    # 公共资源
+```
+
+#### 学习路径
+
+1. **快速入门** - 从 [01-quickstart](../examples/01-quickstart/) 开始，了解 Litefs 的基本用法
+2. **基础处理器** - 学习 [02-basic-handlers](../examples/02-basic-handlers/)，掌握各种响应类型
+3. **配置管理** - 了解 [03-configuration](../examples/03-configuration/)，学习配置方式
+4. **中间件** - 探索 [04-middleware](../examples/04-middleware/)，使用中间件增强功能
+5. **会话管理** - 学习 [05-session](../examples/05-session/)，管理用户会话状态
+6. **缓存** - 了解 [06-cache](../examples/06-cache/)，使用缓存提高性能
+7. **健康检查** - 学习 [07-health-check](../examples/07-health-check/)，实现健康监控
+8. **WSGI 部署** - 掌握 [08-wsgi-deployment](../examples/08-wsgi-deployment/)，部署到生产环境
+9. **完整应用** - 参考 [09-fullstack](../examples/09-fullstack/)，构建完整应用
+
+#### 运行示例
+
+每个示例都可以独立运行：
+
+```bash
+cd examples/<example-directory>
+python <example-file>.py
+```
+
+#### 完整示例应用
+
+[09-fullstack](../examples/09-fullstack/) 是一个完整的 Web 应用示例，展示了框架的核心功能和最佳实践。
+
+##### 目录结构
+
+```
+examples/09-fullstack/
 ├── app.py          # 应用主文件
 ├── wsgi.py         # WSGI 应用文件
 ├── site/           # Web 根目录
@@ -61,7 +102,7 @@ examples/fullstack_example/
 └── README.md       # 说明文档
 ```
 
-#### 功能特性
+##### 功能特性
 
 - **路由处理**：基本的页面路由和处理
 - **表单处理**：联系表单提交和验证
@@ -72,11 +113,11 @@ examples/fullstack_example/
 - **健康检查**：应用健康状态和就绪检查
 - **响应式设计**：适配不同屏幕尺寸
 
-#### 运行示例
+##### 运行示例
 
 ```bash
 # 进入示例目录
-cd examples/fullstack_example
+cd examples/09-fullstack
 
 # 运行开发服务器
 python app.py
@@ -91,7 +132,7 @@ python app.py
 - **健康检查**：`http://localhost:8080/health`
 - **就绪检查**：`http://localhost:8080/health/ready`
 
-#### 生产部署
+##### 生产部署
 
 使用 Gunicorn：
 

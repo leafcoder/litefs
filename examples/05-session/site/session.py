@@ -105,39 +105,39 @@ def handler(self):
             
             <h3>基本操作</h3>
             <div class="info">
-                <a href="/test_session?action=set&key=username&value=张三">
+                <a href="/session?action=set&key=username&value=张三">
                     <button>设置 username</button>
                 </a>
-                <a href="/test_session?action=set&key=email&value=test@example.com">
+                <a href="/session?action=set&key=email&value=test@example.com">
                     <button>设置 email</button>
                 </a>
-                <a href="/test_session?action=delete&key=username">
+                <a href="/session?action=delete&key=username">
                     <button class="danger">删除 username</button>
                 </a>
-                <a href="/test_session?action=clear">
+                <a href="/session?action=clear">
                     <button class="danger">清除所有 Session</button>
                 </a>
             </div>
             
             <h3>计数器示例</h3>
             <div class="info">
-                <a href="/test_session?action=increment&key=visit_count">
+                <a href="/session?action=increment&key=visit_count">
                     <button>访问计数 +1</button>
                 </a>
-                <a href="/test_session?action=increment&key=click_count">
+                <a href="/session?action=increment&key=click_count">
                     <button>点击计数 +1</button>
                 </a>
             </div>
             
             <h3>预设场景</h3>
             <div class="info">
-                <a href="/test_session?action=set_user">
+                <a href="/session?action=set_user">
                     <button class="success">设置用户登录信息</button>
                 </a>
-                <a href="/test_session?action=set_cart">
+                <a href="/session?action=set_cart">
                     <button class="success">设置购物车数据</button>
                 </a>
-                <a href="/test_session?action=set_pref">
+                <a href="/session?action=set_pref">
                     <button class="success">设置用户偏好</button>
                 </a>
             </div>

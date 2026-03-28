@@ -281,6 +281,7 @@ litefs/
 Complete documentation is available at [docs/](docs/):
 
 - [在线文档](https://leafcoder.github.io/litefs/) - Online documentation (Sphinx)
+- [示例](examples/) - Complete examples with organized modules
 - [CLI 工具](docs/build/html/cli-tools.html) - Command line tools guide
 - [API 文档](docs/build/html/api.html) - Complete API reference
 - [配置管理](docs/build/html/config-management.html) - Configuration management guide
@@ -297,6 +298,22 @@ Complete documentation is available at [docs/](docs/):
 - [项目结构](docs/build/html/project-structure.html) - Project structure
 - [待办事项](docs/build/html/todo.html) - Planned features
 - [Bug 修复](docs/build/html/bug-fixes.html) - Bug fixes record
+
+### 示例
+
+Litefs 提供了丰富的示例，按照功能模块组织，帮助您快速上手和深入学习：
+
+- [01-quickstart](examples/01-quickstart/) - 快速入门示例
+- [02-basic-handlers](examples/02-basic-handlers/) - 基础处理器示例
+- [03-configuration](examples/03-configuration/) - 配置管理示例
+- [04-middleware](examples/04-middleware/) - 中间件使用示例
+- [05-session](examples/05-session/) - 会话管理示例
+- [06-cache](examples/06-cache/) - 缓存使用示例
+- [07-health-check](examples/07-health-check/) - 健康检查示例
+- [08-wsgi-deployment](examples/08-wsgi-deployment/) - WSGI 部署示例
+- [09-fullstack](examples/09-fullstack/) - 完整应用示例
+
+每个示例都包含详细的 README 文档和可运行的代码，请参考 [examples/README.md](examples/README.md) 了解更多。
 
 ### 构建文档
 

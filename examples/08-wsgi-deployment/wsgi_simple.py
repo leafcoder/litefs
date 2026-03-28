@@ -5,29 +5,27 @@ import sys
 import os
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 import litefs
 
-# 配置 Litefs 应用
 app = litefs.Litefs(
-    webroot='examples/basic/site',
+    webroot='examples/01-quickstart/site',
     debug=True,
     log='./wsgi_access.log'
 )
 
-# 获取 WSGI application callable
 application = app.wsgi()
 
-# 打印启动信息
 print("=" * 60)
-print("Litefs WSGI Application")
+print("Litefs WSGI Application (Debug Mode)")
 print("=" * 60)
 print("Version:", litefs.__version__)
 print("Webroot:", app.config.webroot)
 print("Debug:", app.config.debug)
 print("=" * 60)
 print("\nUsage:")
-print("  Gunicorn: gunicorn -w 4 -b :8000 wsgi_example:application")
-print("  uWSGI:    uwsgi --http :8000 --wsgi-file wsgi_example.py")
-print("  Waitress: waitress-serve --port=8000 wsgi_example:application")
+print(f"  Gunicorn: gunicorn -w 4 -b :{app.port} wsgi_simple:application")
+print(f"  uWSGI:    uwsgi --http :{app.port} --wsgi-file wsgi_simple.py")
+print(f"  Waitress: waitress-serve --port={app.port} wsgi_simple:application")
 print("=" * 60)
