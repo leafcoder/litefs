@@ -33,7 +33,7 @@ from weakref import proxy
 def parse_header(line):
     msg = Message()
     msg["content-type"] = line
-    return msg.get_params()[0], dict(msg.get_params()[1:])
+    return msg.get_params()[0][0], dict(msg.get_params()[1:])
 
 
 import socket
@@ -45,6 +45,7 @@ from ..cache import LiteFile
 from ..exceptions import HttpError
 from ..session import Session
 from ..utils import gmt_date, log_debug, log_error, render_error
+from mako.lookup import TemplateLookup
 
 default_page = "index"
 default_404 = "not_found"
@@ -259,6 +260,7 @@ class WSGIRequestHandler(BaseRequestHandler):
 
         content_type = self._environ.get("CONTENT_TYPE", "")
         if content_type:
+            content_type_raw = content_type
             content_type, params = parse_header(content_type)
             content_length_str = self._environ.get("CONTENT_LENGTH") or "0"
             content_length = int(content_length_str) if content_length_str.strip() else 0
@@ -270,14 +272,14 @@ class WSGIRequestHandler(BaseRequestHandler):
                         413, f"Request body too large. Maximum size is {max_request_size} bytes"
                     )
 
-            if content_type == "application/x-www-form-urlencoded":
+            if content_type_raw == "application/x-www-form-urlencoded":
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         post_content = wsgi_input.read(content_length)
                         post_content = post_content.decode("utf-8")
                         self._post = parse_form(post_content)
-            elif content_type == "multipart/form-data":
+            elif content_type_raw.startswith("multipart/form-data"):
                 boundary = params.get("boundary")
                 if boundary:
                     wsgi_input = self._environ.get("wsgi.input")
@@ -756,20 +758,21 @@ def new_module(**kwargs):
     return module
 
 
-def parse_multipart(rw, content_type):
-    boundary = content_type.split("=")[1].strip()
+def parse_multipart(rw, boundary):
     boundary = boundary.encode("utf-8")
     begin_boundary = b"--%s" % boundary
     end_boundary = b"--%s--" % boundary
     posts = {}
     files = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+    print('???2', s)
     while True:
         if s.strip() != begin_boundary:
             assert s.strip() == end_boundary
             break
         headers = {}
         s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+        print('???4', s)
         while s:
             s = s.decode("utf-8")
             k, v = s.split(":", 1)
@@ -811,19 +814,39 @@ class RequestHandler(BaseRequestHandler):
         self._cookies = None
         self._get = parse_form(environ["QUERY_STRING"])
         content_type = environ.get("CONTENT_TYPE", "")
-        content_type, params = parse_header(content_type)
+        self.content_type_raw = content_type_raw = content_type
+        print('???1', content_type)
+        content_type, content_type_params = parse_header(content_type)
+        print('???2', content_type, content_type_params)
         self._post = {}
         self._body = ""
-        if content_type == "application/x-www-form-urlencoded":
-            post_content = environ.get("POST_CONTENT", "")
-            self._post = parse_form(post_content)
-        elif content_type == "multipart/form-data":
-            self._post = environ.pop(POSTS_HEADER_NAME, {})
-        else:
-            post_content = environ.get("POST_CONTENT", "")
-            self._body = post_content
+        self._files = {}
+        # 读取请求体并设置到 POST_CONTENT
+        if content_type:
+            content_length_str = str(environ.get("CONTENT_LENGTH")) or "0"
+            content_length = int(content_length_str) if content_length_str.strip() else 0
+
+            if content_length > 0:
+                max_request_size = getattr(app.config, "max_request_size", 10485760)
+                if content_length > max_request_size:
+                    raise HttpError(
+                        413, f"Request body too large. Maximum size is {max_request_size} bytes"
+                    )
+            if content_length:
+                print('content_type_raw', content_type_raw)
+                if content_type_raw == "application/x-www-form-urlencoded":
+                    post_content = rw.read(int(content_length))
+                    self._post = parse_form(post_content)
+                    self._body = post_content
+                elif content_type_raw.startswith("multipart/form-data"):
+                    boundary = content_type_params.get("boundary", None)
+                    self._post, self._files = parse_multipart(rw, boundary)
+                else:
+                    post_content = rw.read(int(content_length))
+                    environ["POST_CONTENT"] \
+                        = unquote_plus(post_content.decode("utf-8"))
+                    self._body = post_content
         self._session_id, self._session = self._get_session(environ)
-        self._files = environ.pop(FILES_HEADER_NAME, {})
         self._middlewares = app._get_middleware_instances()
 
     def _get_session(self, environ):

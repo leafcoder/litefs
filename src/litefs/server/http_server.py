@@ -97,19 +97,13 @@ def make_environ(server, rw, client_address):
     environ["PATH_INFO"] = path_info
     headers = make_headers(rw)
     length = headers.get("content-length")
-    if length:
-        environ["CONTENT_LENGTH"] = length = int(length)
-        max_request_size = getattr(server, "max_request_size", 10485760)
-        if length > max_request_size:
-            raise HttpError(
-                413, f"Request body too large. Maximum size is {max_request_size} bytes"
-            )
     content_type = headers.get("content-type")
     if content_type:
         environ["CONTENT_TYPE"] = content_type
     else:
         environ["CONTENT_TYPE"] = content_type = "text/plain; charset=utf-8"
-
+    if length:
+        environ["CONTENT_LENGTH"] = length = int(length)
     _, params = parse_header(content_type)
     charset = params.get("charset")
     environ["CHARSET"] = charset
@@ -119,7 +113,6 @@ def make_environ(server, rw, client_address):
             continue
         k = f"HTTP_{k}"
         environ[k] = v
-
     return environ
 
 
@@ -191,7 +184,7 @@ class SocketIO(RawIOBase):
             if self.read_gr is None:
                 real_epoll.unregister(fileno)
             else:
-                real_epoll.modify(fileno, EPOLIN | EPOLLET)
+                real_epoll.modify(fileno, EPOLLIN | EPOLLET)
 
     def close(self):
         if self.closed:
@@ -375,6 +368,7 @@ class TCPServer(object):
         except Exception as e:
             if not isinstance(e, HttpError):
                 raise
+            print("Request error: %s" % e)
         finally:
             try:
                 if raw.read_gr is not None:
