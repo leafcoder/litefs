@@ -1120,7 +1120,8 @@ class RequestHandler(BaseRequestHandler):
                 rw.write(line)
             if self._cookies:
                 for c in self._cookies.values():
-                    line = "%s: %s\r\n" % ("Set-Cookie", str(c))
+                    # 直接使用 cookie 的输出，它已经包含了完整的 Set-Cookie 头部
+                    line = str(c) + "\r\n"
                     line = line.encode("utf-8")
                     rw.write(line)
             rw.write("\r\n".encode("utf-8"))
