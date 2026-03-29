@@ -25,11 +25,13 @@ License: MIT (see LICENSE for details)
 from .cache import (
     CacheBackend,
     CacheFactory,
+    CacheManager,
     FileEventHandler,
     LiteFile,
     MemoryCache,
     RedisCache,
     TreeCache,
+    get_global_cache,
 )
 from .cli import main as cli_main
 from .config import Config, load_config, merge_configs
@@ -78,6 +80,8 @@ __all__ = [
     "RedisCache",
     "CacheBackend",
     "CacheFactory",
+    "CacheManager",
+    "get_global_cache",
     "LiteFile",
     "FileEventHandler",
     "Session",

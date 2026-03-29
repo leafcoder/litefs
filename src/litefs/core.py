@@ -9,7 +9,14 @@ from posixpath import abspath as path_abspath
 
 from watchdog.observers import Observer
 
-from .cache import CacheBackend, CacheFactory, FileEventHandler, MemoryCache, TreeCache
+from .cache import (
+    CacheBackend,
+    CacheFactory,
+    CacheManager,
+    FileEventHandler,
+    MemoryCache,
+    TreeCache,
+)
 from .config import Config, load_config
 from .error_pages import ErrorPageRenderer
 from .handlers import RequestHandler, WSGIRequestHandler
@@ -57,7 +64,7 @@ def make_server(host, port, request_size=-1):
     if -1 == request_size:
         request_size = 1024
     sock.listen(request_size)
-    sock.setblocking(0)
+    sock.setblocking(False)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     return sock
 
@@ -78,9 +85,24 @@ class Litefs(object):
         self.host = config.host
         self.port = config.port
         self.server = None
-        self.sessions = MemoryCache(max_size=1000000)
-        self.caches = CacheFactory.create_from_config(config)
-        self.files = TreeCache()
+
+        # 使用全局缓存管理器，确保缓存对象常驻内存
+        # 不会因为 Litefs 实例的创建和销毁而丢失数据
+        self.sessions = CacheManager.get_session_cache(
+            max_size=getattr(config, 'session_max_size', 1000000)
+        )
+        self.caches = CacheManager.get_cache(
+            backend=getattr(config, 'cache_backend', CacheBackend.TREE),
+            cache_key='app_cache',
+            max_size=getattr(config, 'cache_max_size', 10000),
+            clean_period=getattr(config, 'cache_clean_period', 60),
+            expiration_time=getattr(config, 'cache_expiration_time', 3600),
+        )
+        self.files = CacheManager.get_file_cache(
+            clean_period=getattr(config, 'file_cache_clean_period', 60),
+            expiration_time=getattr(config, 'file_cache_expiration_time', 3600),
+        )
+
         self.middleware_manager = MiddlewareManager()
         self._middleware_instances = []
         error_pages_dir = getattr(config, "error_pages_dir", None)

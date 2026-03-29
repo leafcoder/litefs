@@ -11,6 +11,8 @@ from typing import Optional, Union
 
 from .cache import MemoryCache, TreeCache
 from .redis_cache import RedisCache
+from .database_cache import DatabaseCache
+from .memcache_cache import MemcacheCache
 
 
 class CacheBackend:
@@ -19,6 +21,8 @@ class CacheBackend:
     MEMORY = "memory"
     TREE = "tree"
     REDIS = "redis"
+    DATABASE = "database"
+    MEMCACHE = "memcache"
 
 
 class CacheFactory:
@@ -32,12 +36,12 @@ class CacheFactory:
     def create_cache(
         backend: str = CacheBackend.MEMORY,
         **kwargs
-    ) -> Union[MemoryCache, TreeCache, RedisCache]:
+    ) -> Union[MemoryCache, TreeCache, RedisCache, DatabaseCache, MemcacheCache]:
         """
         创建缓存实例
         
         Args:
-            backend: 缓存后端类型（memory, tree, redis）
+            backend: 缓存后端类型（memory, tree, redis, database, memcache）
             **kwargs: 缓存配置参数
         
         Returns:
@@ -45,7 +49,7 @@ class CacheFactory:
         
         Raises:
             ValueError: 不支持的缓存后端
-            ImportError: Redis 包未安装
+            ImportError: Redis 或 Memcache 包未安装
         """
         backend = backend.lower()
 
@@ -79,14 +83,43 @@ class CacheFactory:
                    if k not in ["redis_client", "host", "port", "db", "password", "key_prefix", "expiration_time", "max_size", "clean_period"]}
             )
 
+        elif backend == CacheBackend.DATABASE:
+            db_path = kwargs.get("db_path", ":memory:")
+            table_name = kwargs.get("table_name", "cache")
+            expiration_time = kwargs.get("expiration_time", 3600)
+
+            return DatabaseCache(
+                db_path=db_path,
+                table_name=table_name,
+                expiration_time=expiration_time,
+                **{k: v for k, v in kwargs.items()
+                   if k not in ["db_path", "table_name", "expiration_time", "max_size", "clean_period"]}
+            )
+
+        elif backend == CacheBackend.MEMCACHE:
+            memcache_client = kwargs.get("memcache_client")
+            servers = kwargs.get("servers", ["localhost:11211"])
+            key_prefix = kwargs.get("key_prefix", "litefs:")
+            expiration_time = kwargs.get("expiration_time", 3600)
+
+            return MemcacheCache(
+                memcache_client=memcache_client,
+                servers=servers,
+                key_prefix=key_prefix,
+                expiration_time=expiration_time,
+                **{k: v for k, v in kwargs.items()
+                   if k not in ["memcache_client", "servers", "key_prefix", "expiration_time", "max_size", "clean_period"]}
+            )
+
         else:
             raise ValueError(
                 f"不支持的缓存后端: {backend}。支持的类型: "
-                f"{CacheBackend.MEMORY}, {CacheBackend.TREE}, {CacheBackend.REDIS}"
+                f"{CacheBackend.MEMORY}, {CacheBackend.TREE}, {CacheBackend.REDIS}, "
+                f"{CacheBackend.DATABASE}, {CacheBackend.MEMCACHE}"
             )
 
     @staticmethod
-    def create_from_config(config) -> Union[MemoryCache, TreeCache, RedisCache]:
+    def create_from_config(config) -> Union[MemoryCache, TreeCache, RedisCache, DatabaseCache, MemcacheCache]:
         """
         从配置对象创建缓存实例
         
@@ -106,6 +139,18 @@ class CacheFactory:
                 "db": getattr(config, "redis_db", 0),
                 "password": getattr(config, "redis_password", None),
                 "key_prefix": getattr(config, "redis_key_prefix", "litefs:"),
+                "expiration_time": getattr(config, "cache_expiration_time", 3600),
+            }
+        elif backend == CacheBackend.DATABASE:
+            cache_config = {
+                "db_path": getattr(config, "database_path", ":memory:"),
+                "table_name": getattr(config, "database_table", "cache"),
+                "expiration_time": getattr(config, "cache_expiration_time", 3600),
+            }
+        elif backend == CacheBackend.MEMCACHE:
+            cache_config = {
+                "servers": getattr(config, "memcache_servers", ["localhost:11211"]),
+                "key_prefix": getattr(config, "memcache_key_prefix", "litefs:"),
                 "expiration_time": getattr(config, "cache_expiration_time", 3600),
             }
         elif backend == CacheBackend.MEMORY:

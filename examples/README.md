@@ -15,6 +15,7 @@ examples/
 ├── 07-health-check/           # 健康检查
 ├── 08-wsgi-deployment/        # WSGI 部署
 ├── 09-fullstack/              # 完整应用
+├── 10-cache-backends-web/     # 缓存后端 Web 管理界面
 └── common/                    # 公共资源
     ├── config/                # 配置文件
     └── static/                # 静态资源
@@ -62,6 +63,10 @@ python quickstart.py
 ### 9. 完整应用
 
 参考 [09-fullstack](./09-fullstack/)，构建完整的 Web 应用。
+
+### 10. 缓存后端 Web 管理界面
+
+使用 [10-cache-backends-web](./10-cache-backends-web/)，通过 Web 界面管理各种缓存后端。
 
 ## 示例说明
 
@@ -153,6 +158,16 @@ WSGI 部署示例：
 - 静态文件服务
 - 健康检查
 
+### 10-cache-backends-web
+
+缓存后端 Web 管理界面示例：
+- 支持 Memory、Tree、Redis、Database、Memcache 缓存
+- 可视化缓存操作
+- 批量操作支持
+- TTL 管理
+- 性能对比
+- 缓存应用场景
+
 ## 运行示例
 
 每个示例目录都包含独立的 Python 文件，可以直接运行：
@@ -177,6 +192,7 @@ pip install gunicorn gevent  # WSGI 部署
 pip install uwsgi           # uWSGI 部署
 pip install waitress        # Waitress 部署
 pip install redis           # Redis 缓存
+pip install python-memcached  # Memcache 缓存
 ```
 
 ## 最佳实践

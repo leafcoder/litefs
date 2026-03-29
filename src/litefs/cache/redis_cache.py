@@ -8,6 +8,7 @@ Redis 缓存后端
 """
 
 import time
+import json
 from typing import Any, Optional
 
 
@@ -93,10 +94,16 @@ class RedisCache:
         redis_key = self._make_key(key)
         expiration = expiration if expiration is not None else self._expiration_time
 
+        # 序列化值
+        try:
+            val_str = json.dumps(val)
+        except Exception as e:
+            raise ValueError(f"无法序列化值: {e}")
+
         if expiration > 0:
-            self._redis.setex(redis_key, expiration, val)
+            self._redis.setex(redis_key, expiration, val_str)
         else:
-            self._redis.set(redis_key, val)
+            self._redis.set(redis_key, val_str)
 
     def get(self, key: str) -> Optional[Any]:
         """
@@ -109,7 +116,17 @@ class RedisCache:
             缓存值，如果不存在则返回 None
         """
         redis_key = self._make_key(key)
-        return self._redis.get(redis_key)
+        val_str = self._redis.get(redis_key)
+        
+        if val_str is None:
+            return None
+        
+        # 反序列化值
+        try:
+            return json.loads(val_str)
+        except Exception as e:
+            # 如果反序列化失败，返回原始字符串
+            return val_str
 
     def delete(self, key: str) -> None:
         """
@@ -214,9 +231,14 @@ class RedisCache:
 
         result = {}
         for i, key in enumerate(keys):
-            value = values[i]
-            if value is not None:
-                result[key] = value
+            val_str = values[i]
+            if val_str is not None:
+                # 反序列化值
+                try:
+                    result[key] = json.loads(val_str)
+                except Exception:
+                    # 如果反序列化失败，返回原始字符串
+                    result[key] = val_str
 
         return result
 
@@ -235,11 +257,17 @@ class RedisCache:
 
         pipe = self._redis.pipeline()
         for key, value in mapping.items():
+            # 序列化值
+            try:
+                val_str = json.dumps(value)
+            except Exception as e:
+                raise ValueError(f"无法序列化值: {e}")
+            
             redis_key = self._make_key(key)
             if expiration > 0:
-                pipe.setex(redis_key, expiration, value)
+                pipe.setex(redis_key, expiration, val_str)
             else:
-                pipe.set(redis_key, value)
+                pipe.set(redis_key, val_str)
 
         pipe.execute()
 
