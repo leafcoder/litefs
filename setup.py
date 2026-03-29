@@ -9,32 +9,64 @@ import re
 import posixpath
 
 try:
+    import tomli
+except ImportError:
+    tomli = None
+
+try:
     from setuptools import setup, Extension, find_packages
 except ImportError:
     from distutils.core import setup, Extension
-    from distutils.util import find_packages
+    
+    def find_packages(where=''):
+        import os
+        packages = []
+        for root, dirs, files in os.walk(where):
+            if '__init__.py' in files:
+                package = root.replace(where, '').replace(os.sep, '.').lstrip('.')
+                packages.append(package)
+        return packages
 
 def get_version():
     with open('src/litefs/_version.py', 'r', encoding='utf-8') as f:
         content = f.read()
         match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
-        return match.group(1)
+        return match.group(1) if match else "0.4.0"
 
 def get_author():
     with open('src/litefs/_version.py', 'r', encoding='utf-8') as f:
         content = f.read()
         match = re.search(r"__author__\s*=\s*['\"]([^'\"]+)['\"]", content)
-        return match.group(1)
+        return match.group(1) if match else "Leafcoder"
 
 def get_license():
     with open('src/litefs/_version.py', 'r', encoding='utf-8') as f:
         content = f.read()
         match = re.search(r"__license__\s*=\s*['\"]([^'\"]+)['\"]", content)
-        return match.group(1)
+        return match.group(1) if match else "MIT"
 
 def get_long_description():
     with open('README.md', 'r', encoding='utf-8') as f:
         return f.read()
+
+def get_dependencies():
+    if tomli is not None:
+        try:
+            with open('pyproject.toml', 'rb') as f:
+                config = tomli.load(f)
+                return config.get('project', {}).get('dependencies', [])
+        except Exception:
+            pass
+    
+    return [
+        "argh>=0.26.2",
+        "greenlet>=0.4.13,<4.0",
+        "Mako>=1.0.6",
+        "MarkupSafe>=1.1.1",
+        "pathtools>=0.1.2",
+        "PyYAML>=5.1",
+        "watchdog>=0.8.3",
+    ]
 
 setup(
     name='litefs',
@@ -52,7 +84,7 @@ setup(
     package_data={
         'litefs': ['py.typed'],
     },
-    install_requires=open('requirements.txt', encoding='utf-8').read().split('\n'),
+    install_requires=get_dependencies(),
     entry_points={
         'console_scripts': [
            'litefs=litefs.cli:main',

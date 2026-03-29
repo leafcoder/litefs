@@ -33,8 +33,14 @@ def render_error():
 
     output = StringIO()
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    output.write(f"<h1>Error: {exc_type.__name__}</h1>")
-    output.write(f"<p>{exc_value}</p>")
+    
+    if exc_type is None:
+        output.write("<h1>Error: Unknown Error</h1>")
+        output.write("<p>No exception information available</p>")
+    else:
+        output.write(f"<h1>Error: {exc_type.__name__}</h1>")
+        output.write(f"<p>{exc_value}</p>")
+    
     output.write("<h2>Traceback:</h2>")
     output.write("<pre>")
     output.write(format_exc())
