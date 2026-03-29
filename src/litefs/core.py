@@ -68,6 +68,13 @@ class Litefs(object):
         self.config = config = make_config(**kwargs)
         level = logging.DEBUG if config.debug else logging.INFO
         self.logger = make_logger(__name__, log=config.log, level=level)
+        
+        # 禁止 watchdog 的 DEBUG 日志输出
+        watchdog_logger = logging.getLogger('watchdog')
+        watchdog_logger.setLevel(logging.INFO)
+        watchdog_observers_logger = logging.getLogger('watchdog.observers')
+        watchdog_observers_logger.setLevel(logging.INFO)
+        
         self.host = config.host
         self.port = config.port
         self.server = None

@@ -58,6 +58,13 @@ def make_logger(name, log=None, level=logging.INFO):
     logging.basicConfig(level=level, format=FORMAT, datefmt=date_format)
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    
+    # 禁止 watchdog 的 DEBUG 日志输出
+    watchdog_logger = logging.getLogger('watchdog')
+    watchdog_logger.setLevel(logging.INFO)
+    watchdog_logger = logging.getLogger('watchdog.observers')
+    watchdog_logger.setLevel(logging.INFO)
+    
     if log:
         fmt = logging.Formatter(FORMAT, datefmt=date_format)
         handler = logging.FileHandler(log)
