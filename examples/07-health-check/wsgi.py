@@ -22,7 +22,7 @@ application = app.wsgi()
 
 # 打印启动信息
 print("=" * 60)
-print("Litefs WSGI Application (Fullstack Example)")
+print("Litefs WSGI Application (Health Check Example)")
 print("=" * 60)
 print("Version:", litefs.__version__)
 print("Webroot:", app.config.webroot)

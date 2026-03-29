@@ -9,6 +9,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 import litefs
+from litefs.middleware import LoggingMiddleware, SecurityMiddleware, CORSMiddleware
 
 # 配置 Litefs 应用
 app = litefs.Litefs(
@@ -17,12 +18,17 @@ app = litefs.Litefs(
     log='./wsgi_access.log'
 )
 
+# 添加中间件
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(SecurityMiddleware)
+app.add_middleware(CORSMiddleware)
+
 # 获取 WSGI application callable
 application = app.wsgi()
 
 # 打印启动信息
 print("=" * 60)
-print("Litefs WSGI Application (Fullstack Example)")
+print("Litefs WSGI Application (Middleware Example)")
 print("=" * 60)
 print("Version:", litefs.__version__)
 print("Webroot:", app.config.webroot)
