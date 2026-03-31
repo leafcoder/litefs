@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 import litefs
 
 app = litefs.Litefs(
-    webroot='examples/01-quickstart/site',
+    webroot='./site',
     debug=False,
     log='./wsgi_access.log'
 )

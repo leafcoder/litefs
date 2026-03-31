@@ -15,7 +15,7 @@ def main():
     app = litefs.Litefs(
         host='0.0.0.0',
         port=8080,
-        webroot='./examples/01-quickstart/site',
+        webroot='./site',
         debug=True
     )
     

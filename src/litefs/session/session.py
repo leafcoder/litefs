@@ -149,6 +149,25 @@ class MemorySessionStore:
         """
         return len(self._sessions)
 
+    def create(self) -> Session:
+        """
+        创建新的 Session 对象
+        
+        Returns:
+            Session 对象
+        """
+        session = Session(store=self)
+        return session
+
+    def save(self, session: Session) -> None:
+        """
+        保存 Session 数据
+        
+        Args:
+            session: Session 对象
+        """
+        self.put(session.id, session)
+
 
 __all__ = [
     'Session',

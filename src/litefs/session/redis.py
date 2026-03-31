@@ -2,9 +2,9 @@
 # coding: utf-8
 
 """
-Memcache Session 后端
+Redis Session 后端
 
-提供基于 Memcache 的 Session 实现
+提供基于 Redis 的 Session 实现
 """
 
 import time
@@ -14,64 +14,71 @@ from typing import Any, Optional
 from .session import Session
 
 
-class MemcacheSession:
+class RedisSession:
     """
-    Memcache Session 实现
+    Redis Session 实现
     
-    使用 Memcache 作为 Session 存储，提供高性能的分布式缓存支持
+    使用 Redis 作为 Session 存储，提供高性能的分布式缓存支持
     """
 
     def __init__(
         self,
-        memcache_client=None,
-        servers: list = ["localhost:11211"],
+        redis_client=None,
+        host: str = "localhost",
+        port: int = 6379,
+        db: int = 0,
+        password: Optional[str] = None,
         key_prefix: str = "litefs:session:",
         expiration_time: int = 3600,
         **kwargs
     ):
         """
-        初始化 Memcache Session
+        初始化 Redis Session
         
         Args:
-            memcache_client: Memcache 客户端实例（如果提供，则忽略其他连接参数）
-            servers: Memcache 服务器列表
+            redis_client: Redis 客户端实例（如果提供，则忽略其他连接参数）
+            host: Redis 服务器地址
+            port: Redis 服务器端口
+            db: Redis 数据库编号
+            password: Redis 密码
             key_prefix: 键前缀
             expiration_time: 默认过期时间（秒）
-            **kwargs: 其他 Memcache 连接参数
+            **kwargs: 其他 Redis 连接参数
         """
         self._key_prefix = key_prefix
         self._expiration_time = expiration_time
 
-        if memcache_client is not None:
-            self._mc = memcache_client
+        if redis_client is not None:
+            self._redis = redis_client
         else:
             try:
-                import pymemcache
-                from pymemcache.client.base import Client
+                import redis
             except ImportError:
-                try:
-                    import memcache
-                except ImportError:
-                    raise ImportError(
-                        "pymemcache 或 python-memcached 包未安装，"
-                        "请使用 pip install pymemcache 或 pip install python-memcached 安装"
-                    )
+                raise ImportError(
+                    "redis-py 包未安装，请使用 pip install redis 安装"
+                )
 
-            self._use_pymemcache = True
-            self._mc = Client(servers[0] if isinstance(servers, list) else servers, **kwargs)
+            connection_params = {
+                "host": host,
+                "port": port,
+                "db": db,
+                "decode_responses": True,
+                **kwargs
+            }
+
+            if password:
+                connection_params["password"] = password
+
+            self._redis = redis.Redis(**connection_params)
 
         self._test_connection()
 
     def _test_connection(self):
-        """测试 Memcache 连接"""
+        """测试 Redis 连接"""
         try:
-            if hasattr(self._mc, 'stats'):
-                self._mc.stats()
-            else:
-                self._mc.set('_litefs_test', '1')
-                self._mc.delete('_litefs_test')
+            self._redis.ping()
         except Exception as e:
-            raise ConnectionError(f"无法连接到 Memcache 服务器: {e}")
+            raise ConnectionError(f"无法连接到 Redis 服务器: {e}")
 
     def _make_key(self, session_id: str) -> str:
         """生成带前缀的键"""
@@ -85,19 +92,18 @@ class MemcacheSession:
             session_id: Session ID
             session: Session 对象
         """
-        memcache_key = self._make_key(session_id)
+        redis_key = self._make_key(session_id)
         expiration = self._expiration_time
-
         # 序列化 Session 数据
         try:
             data = json.dumps(dict(session))
         except Exception as e:
             raise ValueError(f"无法序列化 Session 数据: {e}")
 
-        if self._use_pymemcache:
-            self._mc.set(memcache_key, data, expire=expiration if expiration > 0 else 0)
+        if expiration > 0:
+            self._redis.setex(redis_key, expiration, data)
         else:
-            self._mc.set(memcache_key, data, time=expiration)
+            self._redis.set(redis_key, data)
 
     def get(self, session_id: str) -> Optional[Session]:
         """
@@ -109,8 +115,8 @@ class MemcacheSession:
         Returns:
             Session 对象，如果不存在则返回 None
         """
-        memcache_key = self._make_key(session_id)
-        data_str = self._mc.get(memcache_key)
+        redis_key = self._make_key(session_id)
+        data_str = self._redis.get(redis_key)
         
         if data_str is None:
             return None
@@ -135,22 +141,21 @@ class MemcacheSession:
         Args:
             session_id: Session ID
         """
-        memcache_key = self._make_key(session_id)
-        self._mc.delete(memcache_key)
+        redis_key = self._make_key(session_id)
+        self._redis.delete(redis_key)
 
     def delete_pattern(self, pattern: str) -> int:
         """
         删除匹配模式的 Session
         
-        注意：Memcache 不支持模式匹配，此方法仅返回 0
-        
         Args:
             pattern: 键模式
         
         Returns:
-            删除的键数量（始终为 0）
+            删除的键数量
         """
-        return 0
+        redis_pattern = self._make_key(pattern)
+        return self._redis.delete(*self._redis.keys(redis_pattern))
 
     def exists(self, session_id: str) -> bool:
         """
@@ -162,8 +167,8 @@ class MemcacheSession:
         Returns:
             Session 是否存在
         """
-        memcache_key = self._make_key(session_id)
-        return self._mc.get(memcache_key) is not None
+        redis_key = self._make_key(session_id)
+        return self._redis.exists(redis_key) > 0
 
     def expire(self, session_id: str, expiration: int) -> bool:
         """
@@ -176,58 +181,50 @@ class MemcacheSession:
         Returns:
             是否设置成功
         """
-        memcache_key = self._make_key(session_id)
-        session = self.get(session_id)
-        
-        if session is None:
-            return False
-        
-        # 重新存储 Session 以更新过期时间
-        self.put(session_id, session)
-        return True
+        redis_key = self._make_key(session_id)
+        return self._redis.expire(redis_key, expiration)
 
     def ttl(self, session_id: str) -> int:
         """
         获取 Session 剩余过期时间
         
-        注意：Memcache 不支持 TTL 查询，此方法返回 -1
-        
         Args:
             session_id: Session ID
         
         Returns:
-            剩余过期时间（秒），如果 Session 不存在则返回 -2，否则返回 -1（不支持查询）
+            剩余过期时间（秒），如果 Session 不存在则返回 -2
         """
-        if not self.exists(session_id):
-            return -2
-        return -1
+        redis_key = self._make_key(session_id)
+        return self._redis.ttl(redis_key)
 
     def clear(self) -> None:
         """
         清空所有 Session
         
-        注意：Memcache 不支持清空指定前缀的键，此方法不执行任何操作
+        注意：这会删除所有带前缀的键
         """
-        pass
+        pattern = self._make_key("*")
+        keys = self._redis.keys(pattern)
+        if keys:
+            self._redis.delete(*keys)
 
     def __len__(self) -> int:
         """
         获取 Session 数量
         
-        注意：Memcache 不支持统计键数量，此方法返回 0
-        
         Returns:
-            Session 数量（始终为 0）
+            Session 数量
         """
-        return 0
+        pattern = self._make_key("*")
+        keys = self._redis.keys(pattern)
+        return len(keys) if keys else 0
 
     def close(self) -> None:
         """
-        关闭 Memcache 连接
+        关闭 Redis 连接
         """
         try:
-            if hasattr(self._mc, 'close'):
-                self._mc.close()
+            self._redis.close()
         except Exception:
             pass
 
@@ -236,12 +233,29 @@ class MemcacheSession:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """
-        支持上下文管理器
-        """
+        """支持上下文管理器"""
         self.close()
+
+    def create(self) -> Session:
+        """
+        创建新的 Session 对象
+        
+        Returns:
+            Session 对象
+        """
+        session = Session(store=self)
+        return session
+
+    def save(self, session: Session) -> None:
+        """
+        保存 Session 数据
+        
+        Args:
+            session: Session 对象
+        """
+        self.put(session.id, session)
 
 
 __all__ = [
-    'MemcacheSession',
+    'RedisSession',
 ]

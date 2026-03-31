@@ -314,7 +314,7 @@ def example_5_web_app_session():
     app = Litefs(
         host='0.0.0.0',
         port=8085,
-        webroot='./examples/12-session-backends/site',
+        webroot='./site',
         debug=True,
         database_path='data.db',
         session_backend='database',

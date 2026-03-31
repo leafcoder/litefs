@@ -12,10 +12,10 @@ from litefs import Litefs
 
 def main():
     """缓存后端 Web 示例"""
-    app = Litefs(
+    app = litefs.Litefs(
         host='0.0.0.0',
         port=8080,
-        webroot='./examples/10-cache-backends-web/site',
+        webroot='./site',
         debug=True
     )
     

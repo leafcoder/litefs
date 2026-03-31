@@ -1,8 +1,8 @@
 from .cache import FileEventHandler, LiteFile, MemoryCache, TreeCache
 from .factory import CacheBackend, CacheFactory
-from .redis_cache import RedisCache
-from .database_cache import DatabaseCache
-from .memcache_cache import MemcacheCache
+from .redis import RedisCache
+from .db import DatabaseCache
+from .memcache import MemcacheCache
 from .manager import CacheManager, get_global_cache
 
 __all__ = [

@@ -11,9 +11,9 @@ import threading
 from typing import Optional, Union
 
 from .cache import MemoryCache, TreeCache
-from .redis_cache import RedisCache
-from .database_cache import DatabaseCache
-from .memcache_cache import MemcacheCache
+from .redis import RedisCache
+from .db import DatabaseCache
+from .memcache import MemcacheCache
 from .factory import CacheBackend, CacheFactory
 
 

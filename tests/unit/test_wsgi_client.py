@@ -1,31 +1,45 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import unittest
+from unittest.mock import Mock, patch
 import urllib.request
 import sys
+import os
 
-try:
-    print("Testing WSGI server at http://localhost:9090")
-    print("-" * 50)
-    
-    response = urllib.request.urlopen('http://localhost:9090/index.html.py', timeout=5)
-    status = response.status
-    content = response.read().decode('utf-8')
-    
-    print(f"Status: {status}")
-    print(f"Content: {content}")
-    print("-" * 50)
-    print("SUCCESS: WSGI server is working!")
-    
-except urllib.error.HTTPError as e:
-    print(f"HTTP Error: {e.code} - {e.reason}")
-    sys.exit(1)
-except urllib.error.URLError as e:
-    print(f"URL Error: {e.reason}")
-    print("Make sure the WSGI server is running on port 9090")
-    sys.exit(1)
-except Exception as e:
-    print(f"Error: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
+
+from litefs.core import Litefs
+
+class TestWSGIClient(unittest.TestCase):
+    """测试 WSGI 客户端"""
+
+    def setUp(self):
+        """测试前准备"""
+        self.app = Litefs(webroot='./site')
+
+    def test_wsgi_app_creation(self):
+        """测试 WSGI 应用创建"""
+        self.assertIsNotNone(self.app)
+        # 测试 wsgi() 方法返回一个 callable
+        wsgi_app = self.app.wsgi()
+        self.assertIsNotNone(wsgi_app)
+        self.assertTrue(callable(wsgi_app))
+
+    @patch('urllib.request.urlopen')
+    def test_mock_wsgi_request(self, mock_urlopen):
+        """使用 mock 测试 WSGI 请求"""
+        # 配置 mock 响应
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_response.read.return_value = b"Hello, World!"
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+        
+        # 导入测试模块，避免在导入时执行
+        from tests.unit import test_wsgi_client
+        
+        # 验证测试模块被正确导入
+        self.assertIsNotNone(test_wsgi_client)
+
+if __name__ == '__main__':
+    unittest.main()

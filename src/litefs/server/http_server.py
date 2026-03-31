@@ -104,6 +104,8 @@ def make_environ(server, rw, client_address):
         environ["CONTENT_TYPE"] = content_type = "text/plain; charset=utf-8"
     if length:
         environ["CONTENT_LENGTH"] = length = int(length)
+        if hasattr(server, 'max_request_size') and length > server.max_request_size:
+            raise HttpError(413, "Request Entity Too Large")
     _, params = parse_header(content_type)
     charset = params.get("charset")
     environ["CHARSET"] = charset

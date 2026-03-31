@@ -20,7 +20,7 @@ def basic_middleware_example():
     """基础中间件使用示例"""
     print('=== 基础中间件使用示例 ===')
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)
@@ -33,7 +33,7 @@ def cors_middleware_example():
     """CORS 中间件使用示例"""
     print('\n=== CORS 中间件使用示例 ===')
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(
         CORSMiddleware,
@@ -56,7 +56,7 @@ def rate_limit_middleware_example():
     """限流中间件使用示例"""
     print('\n=== 限流中间件使用示例 ===')
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(
         RateLimitMiddleware,
@@ -93,7 +93,7 @@ def custom_middleware_example():
                 print(f'请求处理耗时: {duration:.3f}秒')
             return response
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(CustomTimingMiddleware)
     
@@ -105,7 +105,7 @@ def chain_middleware_example():
     print('\n=== 链式添加中间件示例 ===')
     
     app = (
-        Litefs(webroot='./examples/01-quickstart/site')
+        Litefs(webroot='../01-quickstart/site')
         .add_middleware(LoggingMiddleware)
         .add_middleware(SecurityMiddleware)
         .add_middleware(CORSMiddleware)
@@ -120,7 +120,7 @@ def remove_middleware_example():
     """移除中间件示例"""
     print('\n=== 移除中间件示例 ===')
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)
@@ -136,7 +136,7 @@ def clear_middleware_example():
     """清空中间件示例"""
     print('\n=== 清空中间件示例 ===')
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)
@@ -153,7 +153,7 @@ def wsgi_middleware_example():
     """WSGI 模式下使用中间件示例"""
     print('\n=== WSGI 模式下使用中间件示例 ===')
     
-    app = Litefs(webroot='./examples/01-quickstart/site')
+    app = Litefs(webroot='../01-quickstart/site')
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)

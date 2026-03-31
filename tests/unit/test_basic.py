@@ -22,7 +22,7 @@ class TestBasicFunctionality(unittest.TestCase):
         """测试 make_config 函数"""
         import litefs
         
-        config = litefs.make_config(webroot='./examples/basic/site')
+        config = litefs.make_config(webroot='./site')
         
         self.assertIsNotNone(config)
         self.assertTrue(os.path.isabs(config.webroot))

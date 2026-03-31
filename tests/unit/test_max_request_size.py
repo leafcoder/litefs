@@ -65,7 +65,7 @@ class TestMaxRequestSize(unittest.TestCase):
         with self.assertRaises(HttpError) as context:
             make_environ(server, rw, ('127.0.0.1', 12345))
         
-        self.assertEqual(context.exception.args[0].split(' ')[0], 413)
+        self.assertEqual(context.exception.status_code, 413)
 
     def test_boundary_request_accepted(self):
         """测试边界请求被接受"""
@@ -88,7 +88,7 @@ class TestMaxRequestSize(unittest.TestCase):
         with self.assertRaises(HttpError) as context:
             make_environ(server, rw, ('127.0.0.1', 12345))
         
-        self.assertEqual(context.exception.args[0], 413)
+        self.assertEqual(context.exception.status_code, 413)
 
     def test_no_content_length(self):
         """测试没有 Content-Length 的请求"""

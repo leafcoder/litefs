@@ -117,7 +117,7 @@ class TestMakeEnviron(unittest.TestCase):
         with self.assertRaises(HttpError) as context:
             make_environ(self.server, rw, ('127.0.0.1', 12345))
         
-        self.assertEqual(context.exception.args[0].split(' ')[0], 413)
+        self.assertEqual(context.exception.status_code, 413)
 
     def test_script_name_generation(self):
         """测试 SCRIPT_NAME 生成"""

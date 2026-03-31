@@ -30,7 +30,7 @@ def example_code_config():
     app = Litefs(
         host='0.0.0.0',
         port=8080,
-        webroot='./examples/01-quickstart/site',
+        webroot='../01-quickstart/site',
         debug=True,
         max_request_size=20971520,
     )
@@ -47,7 +47,7 @@ def example_yaml_config():
     """示例 3: 使用 YAML 配置文件"""
     print("=== 示例 3: 使用 YAML 配置文件 ===")
     
-    config_file = './examples/common/config/litefs.yaml'
+    config_file = '../common/config/litefs.yaml'
     
     if os.path.exists(config_file):
         app = Litefs(config_file=config_file)
@@ -67,7 +67,7 @@ def example_json_config():
     """示例 4: 使用 JSON 配置文件"""
     print("=== 示例 4: 使用 JSON 配置文件 ===")
     
-    config_file = './examples/common/config/litefs.json'
+    config_file = '../common/config/litefs.json'
     
     if os.path.exists(config_file):
         app = Litefs(config_file=config_file)
@@ -87,7 +87,7 @@ def example_toml_config():
     """示例 5: 使用 TOML 配置文件"""
     print("=== 示例 5: 使用 TOML 配置文件 ===")
     
-    config_file = './examples/common/config/litefs.toml'
+    config_file = '../common/config/litefs.toml'
     
     if os.path.exists(config_file):
         app = Litefs(config_file=config_file)
@@ -132,7 +132,7 @@ def example_mixed_config():
     
     os.environ['LITEFS_DEBUG'] = 'true'
     
-    config_file = './examples/common/config/litefs.yaml'
+    config_file = '../common/config/litefs.yaml'
     
     if os.path.exists(config_file):
         app = Litefs(
@@ -182,16 +182,22 @@ def example_load_config_function():
     """示例 9: 使用 load_config 函数"""
     print("=== 示例 9: 使用 load_config 函数 ===")
     
-    config = load_config(
-        config_file='./examples/common/config/litefs.yaml',
-        port=8080,
-        debug=True,
-    )
+    config_file = '../common/config/litefs.yaml'
     
-    print(f"Host: {config.host}")
-    print(f"Port: {config.port}")
-    print(f"Debug: {config.debug}")
-    print()
+    if os.path.exists(config_file):
+        config = load_config(
+            config_file=config_file,
+            port=8080,
+            debug=True,
+        )
+        
+        print(f"Host: {config.host}")
+        print(f"Port: {config.port}")
+        print(f"Debug: {config.debug}")
+        print()
+    else:
+        print(f"配置文件不存在: {config_file}")
+        print()
 
 
 def example_config_dict_operations():

@@ -24,7 +24,7 @@ def test_scaffold_generation():
         project_path = Path(tmpdir) / "testproject"
         
         # 生成项目
-        startproject(str(project_path), "testproject")
+        startproject("testproject", str(tmpdir))
         
         # 检查目录结构
         expected_dirs = [

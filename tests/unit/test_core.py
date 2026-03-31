@@ -54,7 +54,7 @@ class TestLitefsInit(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = Litefs(webroot='./examples/basic/site')
+        self.app = Litefs(webroot='./site')
 
     def test_init_default(self):
         """测试默认初始化"""
@@ -72,7 +72,7 @@ class TestLitefsInit(unittest.TestCase):
         app = Litefs(
             host='0.0.0.0',
             port=8000,
-            webroot='./examples/basic/site',
+            webroot='./site',
             debug=True
         )
         
@@ -82,9 +82,9 @@ class TestLitefsInit(unittest.TestCase):
 
     def test_sessions_cache(self):
         """测试 sessions 缓存"""
-        from litefs.cache import MemoryCache
+        from litefs.session.session import MemorySessionStore
         
-        self.assertIsInstance(self.app.sessions, MemoryCache)
+        self.assertIsInstance(self.app.sessions, MemorySessionStore)
         self.assertEqual(len(self.app.sessions), 0)
 
     def test_caches_tree_cache(self):
@@ -105,7 +105,7 @@ class TestLitefsMiddleware(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = Litefs(webroot='./examples/basic/site')
+        self.app = Litefs(webroot='./site')
 
     def test_add_middleware(self):
         """测试添加中间件"""
@@ -140,7 +140,7 @@ class TestLitefsMiddleware(unittest.TestCase):
         from litefs.middleware import LoggingMiddleware, SecurityMiddleware, CORSMiddleware
         
         app = (
-            Litefs(webroot='./examples/basic/site')
+            Litefs(webroot='./site')
             .add_middleware(LoggingMiddleware)
             .add_middleware(SecurityMiddleware)
             .add_middleware(CORSMiddleware)
@@ -154,7 +154,7 @@ class TestLitefsWSGI(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = Litefs(webroot='./examples/basic/site')
+        self.app = Litefs(webroot='./site')
 
     def test_wsgi_returns_callable(self):
         """测试 wsgi() 返回可调用对象"""

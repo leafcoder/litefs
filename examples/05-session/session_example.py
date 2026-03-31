@@ -15,7 +15,7 @@ def main():
     app = Litefs(
         host='0.0.0.0',
         port=8080,
-        webroot='./examples/05-session/site',
+        webroot='./site',
         debug=True
     )
     

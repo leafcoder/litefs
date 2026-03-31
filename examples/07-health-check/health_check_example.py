@@ -45,7 +45,7 @@ def check_migrations():
 
 def main():
     """启动服务器"""
-    app = Litefs(webroot='./examples/01-quickstart/site', debug=True)
+    app = Litefs(webroot='../01-quickstart/site', debug=True)
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)

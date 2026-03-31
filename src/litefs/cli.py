@@ -81,6 +81,7 @@ def _create_project_structure(project_path: Path, project_name: str):
         project_path / "site" / "static" / "images",
         project_path / "templates",
         project_path / "apps",
+        project_path / "apps" / "home",
         project_path / "apps" / "utils",
         project_path / "config",
     ]
@@ -107,7 +108,10 @@ def _create_project_files(project_path: Path, project_name: str):
         "README.md": "README.md.j2",
         "config/__init__.py": "config/__init__.py.j2",
         "config/settings.py": "config/settings.py.j2",
+        "config/routes.py": "config/routes.py.j2",
         "apps/__init__.py": "apps/__init__.py.j2",
+        "apps/home/__init__.py": "apps/home/__init__.py.j2",
+        "apps/home/handlers.py": "apps/home/handlers.py.j2",
         "apps/utils/__init__.py": "apps/utils/__init__.py.j2",
         "apps/utils/helpers.py": "apps/utils/helpers.py.j2",
         "templates/index.html": "templates/index.html.j2",

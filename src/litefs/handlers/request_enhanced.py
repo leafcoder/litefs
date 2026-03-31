@@ -8,7 +8,7 @@
 """
 
 from typing import Any, Dict, List, Optional, Tuple
-from .validators import FormValidator, ValidationError
+from ..validators import FormValidator, ValidationError
 
 
 class EnhancedRequestHandler:

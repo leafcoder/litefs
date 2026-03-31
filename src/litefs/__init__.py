@@ -38,9 +38,9 @@ from .config import Config, load_config, merge_configs
 from .core import Litefs, _cmd_args, make_config, make_server, test_server
 from .error_pages import ErrorPageRenderer
 from .exceptions import HttpError
-from .handlers import RequestHandler, WSGIRequestHandler, new_module, parse_form
+from .handlers import RequestHandler, WSGIRequestHandler, EnhancedRequestHandler, new_module, parse_form
 from .middleware import MiddlewareManager
-from .request_enhanced import EnhancedRequestHandler
+
 from .server import HTTPServer, TCPServer, WSGIServer, mainloop, make_environ, make_headers
 from .session import Session
 from .utils import gmt_date, log_debug, log_error, log_info, make_logger, render_error

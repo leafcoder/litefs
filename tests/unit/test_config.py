@@ -37,7 +37,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.webroot, './site')
         self.assertEqual(config.debug, False)
         self.assertEqual(config.not_found, 'not_found')
-        self.assertEqual(config.default_page, 'index')
+        self.assertEqual(config.default_page, 'index,index.html')
         self.assertEqual(config.log, './default.log')
         self.assertEqual(config.listen, 1024)
         self.assertEqual(config.max_request_size, 10485760)

@@ -91,6 +91,9 @@ def imap(func, iterable):
 
 def parse_form(query_string):
     form = {}
+    # 处理 bytes 类型输入
+    if isinstance(query_string, bytes):
+        query_string = query_string.decode('utf-8')
     query_string = unquote_plus(query_string)
     for s in query_string.split("&"):
         if not s:
