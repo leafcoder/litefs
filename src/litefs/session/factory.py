@@ -9,7 +9,7 @@ Session 工厂
 
 from typing import Optional, Union
 
-from .session import Session
+from .session import Session, MemorySessionStore
 from .database_session import DatabaseSession
 from .redis_session import RedisSession
 from .memcache_session import MemcacheSession
@@ -18,6 +18,7 @@ from .memcache_session import MemcacheSession
 class SessionBackend:
     """Session 后端类型"""
 
+    MEMORY = "memory"
     DATABASE = "database"
     REDIS = "redis"
     MEMCACHE = "memcache"
@@ -32,14 +33,14 @@ class SessionFactory:
 
     @staticmethod
     def create_session(
-        backend: str = SessionBackend.DATABASE,
+        backend: str = SessionBackend.MEMORY,
         **kwargs
-    ) -> Union[DatabaseSession, RedisSession, MemcacheSession]:
+    ) -> Union[MemorySessionStore, DatabaseSession, RedisSession, MemcacheSession]:
         """
         创建 Session 实例
         
         Args:
-            backend: Session 后端类型（database, redis, memcache）
+            backend: Session 后端类型（memory, database, redis, memcache）
             **kwargs: Session 配置参数
         
         Returns:
@@ -51,17 +52,21 @@ class SessionFactory:
         """
         backend = backend.lower()
 
-        if backend == SessionBackend.DATABASE:
+        if backend == SessionBackend.MEMORY:
+            max_size = kwargs.get("max_size", 1000000)
+            return MemorySessionStore(max_size=max_size)
+
+        elif backend == SessionBackend.DATABASE:
             db_path = kwargs.get("db_path", ":memory:")
             table_name = kwargs.get("table_name", "sessions")
-            session_timeout = kwargs.get("session_timeout", 3600)
+            expiration_time = kwargs.get("expiration_time", 3600)
 
             return DatabaseSession(
                 db_path=db_path,
                 table_name=table_name,
-                session_timeout=session_timeout,
+                expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["db_path", "table_name", "session_timeout"]}
+                   if k not in ["db_path", "table_name", "expiration_time", "max_size"]}
             )
 
         elif backend == SessionBackend.REDIS:
@@ -70,8 +75,8 @@ class SessionFactory:
             port = kwargs.get("port", 6379)
             db = kwargs.get("db", 0)
             password = kwargs.get("password")
-            key_prefix = kwargs.get("key_prefix", "session:")
-            session_timeout = kwargs.get("session_timeout", 3600)
+            key_prefix = kwargs.get("key_prefix", "litefs:session:")
+            expiration_time = kwargs.get("expiration_time", 3600)
 
             return RedisSession(
                 redis_client=redis_client,
@@ -80,34 +85,35 @@ class SessionFactory:
                 db=db,
                 password=password,
                 key_prefix=key_prefix,
-                session_timeout=session_timeout,
+                expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["redis_client", "host", "port", "db", "password", "key_prefix", "session_timeout"]}
+                   if k not in ["redis_client", "host", "port", "db", "password", "key_prefix", "expiration_time", "max_size"]}
             )
 
         elif backend == SessionBackend.MEMCACHE:
             memcache_client = kwargs.get("memcache_client")
             servers = kwargs.get("servers", ["localhost:11211"])
-            key_prefix = kwargs.get("key_prefix", "session:")
-            session_timeout = kwargs.get("session_timeout", 3600)
+            key_prefix = kwargs.get("key_prefix", "litefs:session:")
+            expiration_time = kwargs.get("expiration_time", 3600)
 
             return MemcacheSession(
                 memcache_client=memcache_client,
                 servers=servers,
                 key_prefix=key_prefix,
-                session_timeout=session_timeout,
+                expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["memcache_client", "servers", "key_prefix", "session_timeout"]}
+                   if k not in ["memcache_client", "servers", "key_prefix", "expiration_time", "max_size"]}
             )
 
         else:
             raise ValueError(
                 f"不支持的 Session 后端: {backend}。支持的类型: "
-                f"{SessionBackend.DATABASE}, {SessionBackend.REDIS}, {SessionBackend.MEMCACHE}"
+                f"{SessionBackend.MEMORY}, {SessionBackend.DATABASE}, "
+                f"{SessionBackend.REDIS}, {SessionBackend.MEMCACHE}"
             )
 
     @staticmethod
-    def create_from_config(config) -> Union[DatabaseSession, RedisSession, MemcacheSession]:
+    def create_from_config(config) -> Union[MemorySessionStore, DatabaseSession, RedisSession, MemcacheSession]:
         """
         从配置对象创建 Session 实例
         
@@ -117,7 +123,7 @@ class SessionFactory:
         Returns:
             Session 实例
         """
-        backend = getattr(config, "session_backend", SessionBackend.DATABASE)
+        backend = getattr(config, "session_backend", SessionBackend.MEMORY)
 
         session_config = {}
         if backend == SessionBackend.REDIS:
@@ -126,26 +132,30 @@ class SessionFactory:
                 "port": getattr(config, "redis_port", 6379),
                 "db": getattr(config, "redis_db", 0),
                 "password": getattr(config, "redis_password", None),
-                "key_prefix": getattr(config, "redis_key_prefix", "session:"),
-                "session_timeout": getattr(config, "session_timeout", 3600),
-            }
-        elif backend == SessionBackend.MEMCACHE:
-            session_config = {
-                "servers": getattr(config, "memcache_servers", ["localhost:11211"]),
-                "key_prefix": getattr(config, "memcache_key_prefix", "session:"),
-                "session_timeout": getattr(config, "session_timeout", 3600),
+                "key_prefix": getattr(config, "redis_session_key_prefix", "litefs:session:"),
+                "expiration_time": getattr(config, "session_expiration_time", 3600),
             }
         elif backend == SessionBackend.DATABASE:
             session_config = {
                 "db_path": getattr(config, "database_path", ":memory:"),
-                "table_name": getattr(config, "database_table", "sessions"),
-                "session_timeout": getattr(config, "session_timeout", 3600),
+                "table_name": getattr(config, "database_session_table", "sessions"),
+                "expiration_time": getattr(config, "session_expiration_time", 3600),
+            }
+        elif backend == SessionBackend.MEMCACHE:
+            session_config = {
+                "servers": getattr(config, "memcache_servers", ["localhost:11211"]),
+                "key_prefix": getattr(config, "memcache_session_key_prefix", "litefs:session:"),
+                "expiration_time": getattr(config, "session_expiration_time", 3600),
+            }
+        elif backend == SessionBackend.MEMORY:
+            session_config = {
+                "max_size": getattr(config, "session_max_size", 1000000),
             }
 
         return SessionFactory.create_session(backend, **session_config)
 
 
 __all__ = [
-    "SessionBackend",
-    "SessionFactory",
+    'SessionBackend',
+    'SessionFactory',
 ]

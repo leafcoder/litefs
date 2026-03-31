@@ -86,10 +86,43 @@ class Litefs(object):
         self.port = config.port
         self.server = None
 
-        # 使用全局缓存管理器，确保缓存对象常驻内存
+        # 使用全局 Session 管理器，确保 Session 对象常驻内存
         # 不会因为 Litefs 实例的创建和销毁而丢失数据
-        self.sessions = CacheManager.get_session_cache(
-            max_size=getattr(config, 'session_max_size', 1000000)
+        from litefs.session.manager import SessionManager
+        from litefs.session.factory import SessionBackend
+        # 获取 session 相关配置
+        session_backend = getattr(config, 'session_backend', SessionBackend.MEMORY)
+        session_config = {}
+        if session_backend == SessionBackend.REDIS:
+            session_config = {
+                "host": getattr(config, "redis_host", "localhost"),
+                "port": getattr(config, "redis_port", 6379),
+                "db": getattr(config, "redis_db", 0),
+                "password": getattr(config, "redis_password", None),
+                "key_prefix": getattr(config, "redis_session_key_prefix", "litefs:session:"),
+                "expiration_time": getattr(config, "session_expiration_time", 3600),
+            }
+        elif session_backend == SessionBackend.DATABASE:
+            session_config = {
+                "db_path": getattr(config, "database_path", ":memory:"),
+                "table_name": getattr(config, "database_session_table", "sessions"),
+                "expiration_time": getattr(config, "session_expiration_time", 3600),
+            }
+        elif session_backend == SessionBackend.MEMCACHE:
+            session_config = {
+                "servers": getattr(config, "memcache_servers", ["localhost:11211"]),
+                "key_prefix": getattr(config, "memcache_session_key_prefix", "litefs:session:"),
+                "expiration_time": getattr(config, "session_expiration_time", 3600),
+            }
+        elif session_backend == SessionBackend.MEMORY:
+            session_config = {
+                "max_size": getattr(config, "session_max_size", 1000000),
+            }
+        # 使用 SessionManager 管理 Session 实例
+        self.sessions = SessionManager.get_session_cache(
+            backend=session_backend,
+            cache_key='default',
+            **session_config
         )
         self.caches = CacheManager.get_cache(
             backend=getattr(config, 'cache_backend', CacheBackend.TREE),

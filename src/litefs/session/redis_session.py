@@ -8,8 +8,9 @@ Redis Session 后端
 """
 
 import time
-import uuid
-from typing import Any, Optional, Dict
+import json
+from typing import Any, Optional
+
 from .session import Session
 
 
@@ -17,7 +18,7 @@ class RedisSession:
     """
     Redis Session 实现
     
-    使用 Redis 存储 Session 数据，提供高性能的分布式 Session 支持
+    使用 Redis 作为 Session 存储，提供高性能的分布式缓存支持
     """
 
     def __init__(
@@ -27,8 +28,8 @@ class RedisSession:
         port: int = 6379,
         db: int = 0,
         password: Optional[str] = None,
-        key_prefix: str = "session:",
-        session_timeout: int = 3600,
+        key_prefix: str = "litefs:session:",
+        expiration_time: int = 3600,
         **kwargs
     ):
         """
@@ -41,11 +42,11 @@ class RedisSession:
             db: Redis 数据库编号
             password: Redis 密码
             key_prefix: 键前缀
-            session_timeout: Session 默认超时时间（秒）
+            expiration_time: 默认过期时间（秒）
             **kwargs: 其他 Redis 连接参数
         """
         self._key_prefix = key_prefix
-        self._session_timeout = session_timeout
+        self._expiration_time = expiration_time
 
         if redis_client is not None:
             self._redis = redis_client
@@ -61,7 +62,7 @@ class RedisSession:
                 "host": host,
                 "port": port,
                 "db": db,
-                "decode_responses": False,
+                "decode_responses": True,
                 **kwargs
             }
 
@@ -83,28 +84,26 @@ class RedisSession:
         """生成带前缀的键"""
         return f"{self._key_prefix}{session_id}"
 
-    def create(self) -> Session:
+    def put(self, session_id: str, session: Session) -> None:
         """
-        创建新的 Session
+        存储 Session
         
-        Returns:
-            Session 对象
+        Args:
+            session_id: Session ID
+            session: Session 对象
         """
-        import pickle
-        
-        session_id = str(uuid.uuid4())
         redis_key = self._make_key(session_id)
-        
-        data = pickle.dumps({})
-        
-        if self._session_timeout > 0:
-            self._redis.setex(redis_key, self._session_timeout, data)
+        expiration = self._expiration_time
+        # 序列化 Session 数据
+        try:
+            data = json.dumps(dict(session))
+        except Exception as e:
+            raise ValueError(f"无法序列化 Session 数据: {e}")
+
+        if expiration > 0:
+            self._redis.setex(redis_key, expiration, data)
         else:
             self._redis.set(redis_key, data)
-        
-        session = Session(session_id)
-        session.data = {}
-        return session
 
     def get(self, session_id: str) -> Optional[Session]:
         """
@@ -114,36 +113,26 @@ class RedisSession:
             session_id: Session ID
         
         Returns:
-            Session 对象，如果不存在或已过期则返回 None
+            Session 对象，如果不存在则返回 None
         """
-        import pickle
-        
         redis_key = self._make_key(session_id)
-        data = self._redis.get(redis_key)
+        data_str = self._redis.get(redis_key)
         
-        if data:
-            session_data = pickle.loads(data)
-            session = Session(session_id)
-            session.data = session_data
-            return session
-        return None
-
-    def save(self, session: Session) -> None:
-        """
-        保存 Session
+        if data_str is None:
+            return None
         
-        Args:
-            session: Session 对象
-        """
-        import pickle
+        # 反序列化 Session 数据
+        try:
+            data = json.loads(data_str)
+        except Exception as e:
+            # 如果反序列化失败，删除损坏的 Session
+            self.delete(session_id)
+            return None
         
-        redis_key = self._make_key(session.id)
-        data = pickle.dumps(session.data)
-        
-        if self._session_timeout > 0:
-            self._redis.setex(redis_key, self._session_timeout, data)
-        else:
-            self._redis.set(redis_key, data)
+        # 创建 Session 对象
+        session = Session(session_id)
+        session.update(data)
+        return session
 
     def delete(self, session_id: str) -> None:
         """
@@ -154,6 +143,19 @@ class RedisSession:
         """
         redis_key = self._make_key(session_id)
         self._redis.delete(redis_key)
+
+    def delete_pattern(self, pattern: str) -> int:
+        """
+        删除匹配模式的 Session
+        
+        Args:
+            pattern: 键模式
+        
+        Returns:
+            删除的键数量
+        """
+        redis_pattern = self._make_key(pattern)
+        return self._redis.delete(*self._redis.keys(redis_pattern))
 
     def exists(self, session_id: str) -> bool:
         """
@@ -170,7 +172,7 @@ class RedisSession:
 
     def expire(self, session_id: str, expiration: int) -> bool:
         """
-        设置 Session 的过期时间
+        设置 Session 过期时间
         
         Args:
             session_id: Session ID
@@ -184,7 +186,7 @@ class RedisSession:
 
     def ttl(self, session_id: str) -> int:
         """
-        获取 Session 的剩余过期时间
+        获取 Session 剩余过期时间
         
         Args:
             session_id: Session ID
@@ -236,5 +238,5 @@ class RedisSession:
 
 
 __all__ = [
-    "RedisSession",
+    'RedisSession',
 ]

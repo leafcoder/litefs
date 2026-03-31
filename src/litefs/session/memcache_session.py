@@ -8,8 +8,9 @@ Memcache Session 后端
 """
 
 import time
-import uuid
-from typing import Any, Optional, Dict
+import json
+from typing import Any, Optional
+
 from .session import Session
 
 
@@ -17,15 +18,15 @@ class MemcacheSession:
     """
     Memcache Session 实现
     
-    使用 Memcache 存储 Session 数据，提供高性能的分布式 Session 支持
+    使用 Memcache 作为 Session 存储，提供高性能的分布式缓存支持
     """
 
     def __init__(
         self,
         memcache_client=None,
         servers: list = ["localhost:11211"],
-        key_prefix: str = "session:",
-        session_timeout: int = 3600,
+        key_prefix: str = "litefs:session:",
+        expiration_time: int = 3600,
         **kwargs
     ):
         """
@@ -35,11 +36,11 @@ class MemcacheSession:
             memcache_client: Memcache 客户端实例（如果提供，则忽略其他连接参数）
             servers: Memcache 服务器列表
             key_prefix: 键前缀
-            session_timeout: Session 默认超时时间（秒）
+            expiration_time: 默认过期时间（秒）
             **kwargs: 其他 Memcache 连接参数
         """
         self._key_prefix = key_prefix
-        self._session_timeout = session_timeout
+        self._expiration_time = expiration_time
 
         if memcache_client is not None:
             self._mc = memcache_client
@@ -76,28 +77,27 @@ class MemcacheSession:
         """生成带前缀的键"""
         return f"{self._key_prefix}{session_id}"
 
-    def create(self) -> Session:
+    def put(self, session_id: str, session: Session) -> None:
         """
-        创建新的 Session
+        存储 Session
         
-        Returns:
-            Session 对象
+        Args:
+            session_id: Session ID
+            session: Session 对象
         """
-        import pickle
-        
-        session_id = str(uuid.uuid4())
         memcache_key = self._make_key(session_id)
-        
-        data = pickle.dumps({})
-        
+        expiration = self._expiration_time
+
+        # 序列化 Session 数据
+        try:
+            data = json.dumps(dict(session))
+        except Exception as e:
+            raise ValueError(f"无法序列化 Session 数据: {e}")
+
         if self._use_pymemcache:
-            self._mc.set(memcache_key, data, expire=self._session_timeout if self._session_timeout > 0 else 0)
+            self._mc.set(memcache_key, data, expire=expiration if expiration > 0 else 0)
         else:
-            self._mc.set(memcache_key, data, time=self._session_timeout)
-        
-        session = Session(session_id)
-        session.data = {}
-        return session
+            self._mc.set(memcache_key, data, time=expiration)
 
     def get(self, session_id: str) -> Optional[Session]:
         """
@@ -107,36 +107,26 @@ class MemcacheSession:
             session_id: Session ID
         
         Returns:
-            Session 对象，如果不存在或已过期则返回 None
+            Session 对象，如果不存在则返回 None
         """
-        import pickle
-        
         memcache_key = self._make_key(session_id)
-        data = self._mc.get(memcache_key)
+        data_str = self._mc.get(memcache_key)
         
-        if data:
-            session_data = pickle.loads(data)
-            session = Session(session_id)
-            session.data = session_data
-            return session
-        return None
-
-    def save(self, session: Session) -> None:
-        """
-        保存 Session
+        if data_str is None:
+            return None
         
-        Args:
-            session: Session 对象
-        """
-        import pickle
+        # 反序列化 Session 数据
+        try:
+            data = json.loads(data_str)
+        except Exception as e:
+            # 如果反序列化失败，删除损坏的 Session
+            self.delete(session_id)
+            return None
         
-        memcache_key = self._make_key(session.id)
-        data = pickle.dumps(session.data)
-        
-        if self._use_pymemcache:
-            self._mc.set(memcache_key, data, expire=self._session_timeout if self._session_timeout > 0 else 0)
-        else:
-            self._mc.set(memcache_key, data, time=self._session_timeout)
+        # 创建 Session 对象
+        session = Session(session_id)
+        session.update(data)
+        return session
 
     def delete(self, session_id: str) -> None:
         """
@@ -147,6 +137,20 @@ class MemcacheSession:
         """
         memcache_key = self._make_key(session_id)
         self._mc.delete(memcache_key)
+
+    def delete_pattern(self, pattern: str) -> int:
+        """
+        删除匹配模式的 Session
+        
+        注意：Memcache 不支持模式匹配，此方法仅返回 0
+        
+        Args:
+            pattern: 键模式
+        
+        Returns:
+            删除的键数量（始终为 0）
+        """
+        return 0
 
     def exists(self, session_id: str) -> bool:
         """
@@ -163,7 +167,7 @@ class MemcacheSession:
 
     def expire(self, session_id: str, expiration: int) -> bool:
         """
-        设置 Session 的过期时间
+        设置 Session 过期时间
         
         Args:
             session_id: Session ID
@@ -173,21 +177,18 @@ class MemcacheSession:
             是否设置成功
         """
         memcache_key = self._make_key(session_id)
-        data = self._mc.get(memcache_key)
+        session = self.get(session_id)
         
-        if data is None:
+        if session is None:
             return False
         
-        if self._use_pymemcache:
-            self._mc.set(memcache_key, data, expire=expiration if expiration > 0 else 0)
-        else:
-            self._mc.set(memcache_key, data, time=expiration)
-        
+        # 重新存储 Session 以更新过期时间
+        self.put(session_id, session)
         return True
 
     def ttl(self, session_id: str) -> int:
         """
-        获取 Session 的剩余过期时间
+        获取 Session 剩余过期时间
         
         注意：Memcache 不支持 TTL 查询，此方法返回 -1
         
@@ -197,8 +198,7 @@ class MemcacheSession:
         Returns:
             剩余过期时间（秒），如果 Session 不存在则返回 -2，否则返回 -1（不支持查询）
         """
-        memcache_key = self._make_key(session_id)
-        if self._mc.get(memcache_key) is None:
+        if not self.exists(session_id):
             return -2
         return -1
 
@@ -206,7 +206,7 @@ class MemcacheSession:
         """
         清空所有 Session
         
-        注意：此方法仅删除带前缀的键，需要遍历所有键
+        注意：Memcache 不支持清空指定前缀的键，此方法不执行任何操作
         """
         pass
 
@@ -236,10 +236,12 @@ class MemcacheSession:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """支持上下文管理器"""
+        """
+        支持上下文管理器
+        """
         self.close()
 
 
 __all__ = [
-    "MemcacheSession",
+    'MemcacheSession',
 ]

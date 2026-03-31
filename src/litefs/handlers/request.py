@@ -206,6 +206,10 @@ class BaseRequestHandler(object):
             if self.session_id is None:
                 self.set_cookie(default_sid, self.session.id, path="/")
 
+            # 保存 Session 数据到 Session 存储
+            app = self._app
+            app.sessions.put(self.session.id, self.session)
+
             self._add_response_headers(response_headers)
 
         if content is None:
@@ -402,10 +406,13 @@ class WSGIRequestHandler(BaseRequestHandler):
             session_id = morsel.value
             session = sessions.get(session_id)
             if session is not None:
+                # 设置存储后端实例，确保数据修改时自动保存
+                session.store = sessions
                 return session_id, session
 
         session_id = self._new_session_id()
-        session = Session(session_id)
+        # 创建 Session 对象时传入存储后端实例
+        session = Session(session_id, store=sessions)
         sessions.put(session_id, session)
         return None, session
 
@@ -861,12 +868,15 @@ class RequestHandler(BaseRequestHandler):
         morsel = cookie.get(default_sid)
         if morsel is not None:
             session_id = morsel.value
-        else:
-            session_id = self._new_session_id()
-        session = sessions.get(session_id)
-        if session is not None:
-            return session_id, session
-        session = Session(session_id)
+            session = sessions.get(session_id)
+            if session is not None:
+                # 设置存储后端实例，确保数据修改时自动保存
+                session.store = sessions
+                return session_id, session
+        
+        session_id = self._new_session_id()
+        # 创建 Session 对象时传入存储后端实例
+        session = Session(session_id, store=sessions)
         sessions.put(session_id, session)
         return None, session
 
@@ -1207,6 +1217,14 @@ class RequestHandler(BaseRequestHandler):
                 headers = [("Content-Type", "text/plain; charset=utf-8")] + list(headers)
             else:
                 headers = [("Content-Type", default_content_type)] + list(headers)
+
+        # 设置 session cookie
+        if self.session_id is None:
+            self.set_cookie(default_sid, self.session.id, path="/")
+
+        # 保存 Session 数据到 Session 存储
+        app = self._app
+        app.sessions.put(self.session.id, self.session)
 
         self.start_response(status_code, headers=headers)
         if content is None:

@@ -2,15 +2,17 @@
 # coding: utf-8
 
 """
-数据库 Session 后端
+Database Session 后端
 
-提供基于关系数据库的 Session 实现
+提供基于 SQLite 数据库的 Session 实现
 """
 
+from multiprocessing import current_process
 import sqlite3
 import time
-import uuid
-from typing import Any, Optional, Dict
+import json
+from typing import Any, Optional
+
 from .session import Session
 
 
@@ -18,96 +20,100 @@ class DatabaseSession:
     """
     数据库 Session 实现
     
-    使用 SQLite 数据库存储 Session 数据，提供持久化的 Session 支持
+    使用 SQLite 数据库作为 Session 存储，支持持久化存储
     """
 
     def __init__(
         self,
         db_path: str = ":memory:",
         table_name: str = "sessions",
-        session_timeout: int = 3600,
+        expiration_time: int = 3600,
         **kwargs
     ):
         """
-        初始化数据库 Session
+        初始化 Database Session
         
         Args:
             db_path: 数据库文件路径，默认为内存数据库
             table_name: Session 表名
-            session_timeout: Session 默认超时时间（秒）
-            **kwargs: 其他数据库连接参数
+            expiration_time: 默认过期时间（秒）
+            **kwargs: 其他配置参数
         """
         self._db_path = db_path
         self._table_name = table_name
-        self._session_timeout = session_timeout
+        self._expiration_time = expiration_time
         self._conn = None
-        self._cursor = None
-        
-        self._initialize_database()
+        self._create_table()
+        print(f"调试：数据库路径: {self._db_path}")
 
-    def _initialize_database(self):
-        """初始化数据库和表结构"""
-        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        self._cursor = self._conn.cursor()
-        
-        self._cursor.execute(f"""
+    def _connect(self):
+        """连接数据库"""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self._db_path)
+            self._conn.row_factory = sqlite3.Row
+        return self._conn
+
+    def _create_table(self):
+        """创建 Session 表"""
+        conn = self._connect()
+        cursor = conn.cursor()
+        # 只在表不存在时创建表
+        cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {self._table_name} (
                 session_id TEXT PRIMARY KEY,
-                data BLOB,
-                timestamp INTEGER,
-                expiration INTEGER
+                data TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
             )
         """)
-        
-        self._cursor.execute(f"""
-            CREATE INDEX IF NOT EXISTS idx_expiration 
-            ON {self._table_name}(expiration)
-        """)
-        
-        self._conn.commit()
+        conn.commit()
+        # 调试：打印表结构
+        cursor.execute(f"PRAGMA table_info({self._table_name})")
+        columns = cursor.fetchall()
+        print(f"调试：表 {self._table_name} 的结构：")
+        for column in columns:
+            print(f"  {column[1]}: {column[2]}")
 
-    def _cleanup_expired(self):
-        """清理过期的 Session"""
-        if self._cursor is None or self._conn is None:
-            return
-            
-        current_time = int(time.time())
-        self._cursor.execute(
-            f"DELETE FROM {self._table_name} WHERE expiration < ?",
-            (current_time,)
-        )
-        self._conn.commit()
+    def _make_key(self, key: str) -> str:
+        """生成键"""
+        return key
 
-    def create(self) -> Session:
+    def put(self, session_id: str, session: Session) -> None:
         """
-        创建新的 Session
+        存储 Session
         
-        Returns:
-            Session 对象
+        Args:
+            session_id: Session ID
+            session: Session 对象
         """
-        if self._cursor is None or self._conn is None:
-            raise RuntimeError("Database connection not initialized")
-            
-        session_id = str(uuid.uuid4())
-        current_time = int(time.time())
-        expire_timestamp = current_time + self._session_timeout
+        conn = self._connect()
+        cursor = conn.cursor()
+        print(f"调试：存储 Session: {session_id} {session.data}")
         
-        import pickle
-        data = pickle.dumps({})
+        # 序列化 Session 数据
+        try:
+            data = json.dumps(dict(session))
+        except Exception as e:
+            raise ValueError(f"无法序列化 Session 数据: {e}")
         
-        self._cursor.execute(
-            f"""
-            INSERT INTO {self._table_name} 
-            (session_id, data, timestamp, expiration) 
+        created_at = int(time.time())
+        expires_at = created_at + self._expiration_time
+        
+        # 插入或更新 Session
+        cursor.execute(f"""
+            INSERT OR REPLACE INTO {self._table_name} 
+            (session_id, data, created_at, expires_at) 
             VALUES (?, ?, ?, ?)
-            """,
-            (session_id, data, current_time, expire_timestamp)
-        )
-        self._conn.commit()
-        
-        session = Session(session_id)
-        session.data = {}
-        return session
+        """, (session_id, data, created_at, expires_at))
+        conn.commit()
+        cursor = conn.cursor()
+        ret = cursor.execute(f"""
+            SELECT * FROM {self._table_name} 
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        print(row.keys())
+        print(f"调试：查询 Session: {session_id} 结果: {row if row else '无'}")
 
     def get(self, session_id: str) -> Optional[Session]:
         """
@@ -119,51 +125,37 @@ class DatabaseSession:
         Returns:
             Session 对象，如果不存在或已过期则返回 None
         """
-        import pickle
+        conn = self._connect()
+        cursor = conn.cursor()
+        # 查询 Session
+        cursor.execute(f"""
+            SELECT data, expires_at FROM {self._table_name} 
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
         
-        if self._cursor is None or self._conn is None:
+        if row is None:
             return None
-            
-        self._cleanup_expired()
         
-        self._cursor.execute(
-            f"SELECT data FROM {self._table_name} WHERE session_id = ? AND expiration > ?",
-            (session_id, int(time.time()))
-        )
-        result = self._cursor.fetchone()
+        # 检查是否过期
+        expires_at = row['expires_at']
+        if int(time.time()) > expires_at:
+            # 删除过期 Session
+            self.delete(session_id)
+            return None
         
-        if result:
-            data = pickle.loads(result[0])
-            session = Session(session_id)
-            session.data = data
-            return session
-        return None
-
-    def save(self, session: Session) -> None:
-        """
-        保存 Session
+        # 反序列化 Session 数据
+        try:
+            data = json.loads(row['data'])
+        except Exception as e:
+            # 如果反序列化失败，删除损坏的 Session
+            self.delete(session_id)
+            return None
         
-        Args:
-            session: Session 对象
-        """
-        import pickle
-        
-        if self._cursor is None or self._conn is None:
-            return
-            
-        current_time = int(time.time())
-        expire_timestamp = current_time + self._session_timeout
-        data = pickle.dumps(session.data)
-        
-        self._cursor.execute(
-            f"""
-            INSERT OR REPLACE INTO {self._table_name} 
-            (session_id, data, timestamp, expiration) 
-            VALUES (?, ?, ?, ?)
-            """,
-            (session.id, data, current_time, expire_timestamp)
-        )
-        self._conn.commit()
+        # 创建 Session 对象
+        session = Session(session_id)
+        session.update(data)
+        return session
 
     def delete(self, session_id: str) -> None:
         """
@@ -172,14 +164,13 @@ class DatabaseSession:
         Args:
             session_id: Session ID
         """
-        if self._cursor is None or self._conn is None:
-            return
-            
-        self._cursor.execute(
-            f"DELETE FROM {self._table_name} WHERE session_id = ?",
-            (session_id,)
-        )
-        self._conn.commit()
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            DELETE FROM {self._table_name} 
+            WHERE session_id = ?
+        """, (session_id,))
+        conn.commit()
 
     def exists(self, session_id: str) -> bool:
         """
@@ -191,20 +182,26 @@ class DatabaseSession:
         Returns:
             Session 是否存在且未过期
         """
-        if self._cursor is None or self._conn is None:
-            return False
-            
-        self._cleanup_expired()
+        conn = self._connect()
+        cursor = conn.cursor()
         
-        self._cursor.execute(
-            f"SELECT 1 FROM {self._table_name} WHERE session_id = ? AND expiration > ?",
-            (session_id, int(time.time()))
-        )
-        return self._cursor.fetchone() is not None
+        # 查询 Session
+        cursor.execute(f"""
+            SELECT expires_at FROM {self._table_name} 
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        
+        if row is None:
+            return False
+        
+        # 检查是否过期
+        expires_at = row['expires_at']
+        return int(time.time()) <= expires_at
 
     def expire(self, session_id: str, expiration: int) -> bool:
         """
-        设置 Session 的过期时间
+        设置 Session 过期时间
         
         Args:
             session_id: Session ID
@@ -213,56 +210,66 @@ class DatabaseSession:
         Returns:
             是否设置成功
         """
-        if self._cursor is None or self._conn is None:
-            return False
-            
-        current_time = int(time.time())
-        expire_timestamp = current_time + expiration
+        conn = self._connect()
+        cursor = conn.cursor()
         
-        self._cursor.execute(
-            f"UPDATE {self._table_name} SET expiration = ? WHERE session_id = ?",
-            (expire_timestamp, session_id)
-        )
-        self._conn.commit()
-        return self._cursor.rowcount > 0
+        # 检查 Session 是否存在
+        if not self.exists(session_id):
+            return False
+        
+        # 更新过期时间
+        expires_at = int(time.time()) + expiration
+        cursor.execute(f"""
+            UPDATE {self._table_name} 
+            SET expires_at = ? 
+            WHERE session_id = ?
+        """, (expires_at, session_id))
+        conn.commit()
+        return True
 
     def ttl(self, session_id: str) -> int:
         """
-        获取 Session 的剩余过期时间
+        获取 Session 剩余过期时间
         
         Args:
             session_id: Session ID
         
         Returns:
-            剩余过期时间（秒），如果 Session 不存在或已过期则返回 -2
+            剩余过期时间（秒），如果 Session 不存在则返回 -2，已过期则返回 -1
         """
-        if self._cursor is None or self._conn is None:
+        conn = self._connect()
+        cursor = conn.cursor()
+        
+        # 查询 Session
+        cursor.execute(f"""
+            SELECT expires_at FROM {self._table_name} 
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        
+        if row is None:
             return -2
-            
-        self._cleanup_expired()
         
-        self._cursor.execute(
-            f"SELECT expiration FROM {self._table_name} WHERE session_id = ?",
-            (session_id,)
-        )
-        result = self._cursor.fetchone()
+        # 计算剩余过期时间
+        expires_at = row['expires_at']
+        current_time = int(time.time())
+        ttl = expires_at - current_time
         
-        if result:
-            expiration = result[0]
-            if expiration == 0:
-                return -1  # 永不过期
-            return max(0, expiration - int(time.time()))
-        return -2  # Session 不存在
+        if ttl <= 0:
+            # 删除过期 Session
+            self.delete(session_id)
+            return -1
+        
+        return ttl
 
     def clear(self) -> None:
         """
         清空所有 Session
         """
-        if self._cursor is None or self._conn is None:
-            return
-            
-        self._cursor.execute(f"DELETE FROM {self._table_name}")
-        self._conn.commit()
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {self._table_name}")
+        conn.commit()
 
     def __len__(self) -> int:
         """
@@ -271,27 +278,21 @@ class DatabaseSession:
         Returns:
             Session 数量
         """
-        if self._cursor is None or self._conn is None:
-            return 0
-            
-        self._cleanup_expired()
-        
-        self._cursor.execute(
-            f"SELECT COUNT(*) FROM {self._table_name}"
-        )
-        return self._cursor.fetchone()[0]
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT COUNT(*) FROM {self._table_name}")
+        return cursor.fetchone()[0]
 
     def close(self) -> None:
         """
         关闭数据库连接
         """
-        if self._cursor:
-            self._cursor.close()
-        if self._conn:
-            self._conn.close()
-        
-        self._cursor = None
-        self._conn = None
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
 
     def __enter__(self):
         """支持上下文管理器"""
@@ -303,5 +304,5 @@ class DatabaseSession:
 
 
 __all__ = [
-    "DatabaseSession",
+    'DatabaseSession',
 ]

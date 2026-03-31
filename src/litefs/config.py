@@ -38,11 +38,19 @@ class Config:
         'cache_max_size': 10000,
         'cache_clean_period': 60,
         'cache_expiration_time': 3600,
+        'session_backend': 'memory',
+        'session_max_size': 1000000,
+        'session_expiration_time': 3600,
         'redis_host': 'localhost',
         'redis_port': 6379,
         'redis_db': 0,
         'redis_password': None,
         'redis_key_prefix': 'litefs:',
+        'redis_session_key_prefix': 'litefs:session:',
+        'database_path': ':memory:',
+        'database_session_table': 'sessions',
+        'memcache_servers': 'localhost:11211',
+        'memcache_session_key_prefix': 'litefs:session:',
         'error_pages_dir': None,
     }
 
@@ -141,6 +149,10 @@ class Config:
             
             if env_value is not None:
                 self._config[key] = self._parse_env_value(env_value, default_value)
+        
+        # 处理 memcache_servers 配置，确保它是一个列表
+        if isinstance(self._config.get('memcache_servers'), str):
+            self._config['memcache_servers'] = [s.strip() for s in self._config['memcache_servers'].split(',')]
     
     def _parse_env_value(self, value: str, default_value: Any) -> Any:
         """
@@ -159,6 +171,8 @@ class Config:
             return int(value)
         elif isinstance(default_value, float):
             return float(value)
+        elif isinstance(default_value, list):
+            return [v.strip() for v in value.split(',')]
         else:
             return value
     
@@ -172,6 +186,10 @@ class Config:
         for key, value in config_data.items():
             if key in self.DEFAULT_CONFIG:
                 self._config[key] = value
+        
+        # 处理 memcache_servers 配置，确保它是一个列表
+        if isinstance(self._config.get('memcache_servers'), str):
+            self._config['memcache_servers'] = [s.strip() for s in self._config['memcache_servers'].split(',')]
     
     def get(self, key: str, default: Any = None) -> Any:
         """
