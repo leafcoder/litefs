@@ -137,3 +137,9 @@ Thumbs.db
 *.log
 default.log
 *.db
+
+# Performance test files
+tests/performance/litefs_result_*.txt
+tests/performance/fastapi_result_*.txt
+tests/performance/performance_report.md
+tests/performance/site/
