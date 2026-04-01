@@ -11,6 +11,10 @@ app = FastAPI()
 def hello():
     return "Hello world"
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="critical")
+# Gunicorn 配置
+"""
+# gunicorn.conf.py
+workers = 4
+worker_class = "uvicorn.workers.UvicornWorker"
+bind = "0.0.0.0:8001"
+"""

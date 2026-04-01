@@ -3,7 +3,6 @@
 
 import sys
 import os
-import argparse
 
 # 添加 litefs 到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
@@ -17,13 +16,8 @@ os.makedirs("site", exist_ok=True)
 with open("site/index.py", "w") as f:
     f.write("def handler(self):\n    return \"Hello world\"")
 
-# 解析命令行参数
-parser = argparse.ArgumentParser(description='LiteFS server with specified processes')
-parser.add_argument('--processes', type=int, default=1, help='Number of processes')
-args = parser.parse_args()
+# 创建 litefs 应用（用于 Gunicorn）
+app = Litefs(webroot="./site")
 
-# 创建 litefs 应用
-app = Litefs(webroot="./site", host="0.0.0.0", port=8000)
-
-if __name__ == "__main__":
-    app.run(processes=args.processes)
+# 定义 WSGI 应用
+application = app.wsgi()
