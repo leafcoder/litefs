@@ -23,35 +23,50 @@ class Config:
     """
 
     DEFAULT_CONFIG = {
-        'host': 'localhost',
-        'port': 9090,
-        'webroot': './site',
-        'debug': False,
-        'not_found': 'not_found',
-        'default_page': 'index,index.html',
-        'log': './default.log',
-        'listen': 1024,
-        'max_request_size': 10485760,
-        'max_upload_size': 52428800,
-        'config_file': None,
-        'cache_backend': 'tree',
-        'cache_max_size': 10000,
-        'cache_clean_period': 60,
-        'cache_expiration_time': 3600,
-        'session_backend': 'memory',
-        'session_max_size': 1000000,
-        'session_expiration_time': 3600,
-        'redis_host': 'localhost',
-        'redis_port': 6379,
-        'redis_db': 0,
-        'redis_password': None,
-        'redis_key_prefix': 'litefs:',
-        'redis_session_key_prefix': 'litefs:session:',
-        'database_path': ':memory:',
-        'database_session_table': 'sessions',
-        'memcache_servers': 'localhost:11211',
-        'memcache_session_key_prefix': 'litefs:session:',
-        'error_pages_dir': None,
+        # 服务器配置
+        'host': 'localhost',              # 服务器绑定的主机地址
+        'port': 9090,                     # 服务器监听的端口
+        'webroot': './site',              # 静态文件根目录
+        'debug': False,                   # 调试模式
+        'not_found': 'not_found',         # 404页面配置
+        'default_page': 'index,index.html', # 默认页面
+        'log': './default.log',           # 日志文件路径
+        'listen': 1024,                   # 最大监听连接数
+        'max_request_size': 10485760,     # 最大请求大小（10MB）
+        'max_upload_size': 52428800,      # 最大上传大小（50MB）
+        'config_file': None,              # 配置文件路径
+        'error_pages_dir': None,          # 错误页面目录
+        
+        # 缓存配置
+        'cache_backend': 'tree',          # 缓存后端类型（memory, tree, redis, database, memcache）
+        'cache_max_size': 10000,          # 内存缓存最大容量
+        'cache_clean_period': 60,         # 缓存清理周期（秒）
+        'cache_expiration_time': 3600,    # 缓存过期时间（秒）
+        'file_cache_clean_period': 60,    # 文件缓存清理周期（秒）
+        'file_cache_expiration_time': 3600, # 文件缓存过期时间（秒）
+        
+        # 会话配置
+        'session_backend': 'memory',      # 会话后端类型（memory, redis, database, memcache）
+        'session_max_size': 1000000,      # 会话最大容量
+        'session_expiration_time': 3600,  # 会话过期时间（秒）
+        
+        # Redis 配置
+        'redis_host': 'localhost',        # Redis 主机地址
+        'redis_port': 6379,               # Redis 端口
+        'redis_db': 0,                    # Redis 数据库编号
+        'redis_password': None,           # Redis 密码
+        'redis_key_prefix': 'litefs:',    # Redis 缓存键前缀
+        'redis_session_key_prefix': 'litefs:session:', # Redis 会话键前缀
+        
+        # 数据库配置
+        'database_path': ':memory:',      # 数据库路径（SQLite）
+        'database_session_table': 'sessions', # 会话表名
+        'database_cache_table': 'cache',  # 缓存表名
+        
+        # Memcache 配置
+        'memcache_servers': 'localhost:11211', # Memcache 服务器列表
+        'memcache_key_prefix': 'litefs:', # Memcache 缓存键前缀
+        'memcache_session_key_prefix': 'litefs:session:', # Memcache 会话键前缀
     }
 
     ENV_PREFIX = 'LITEFS_'

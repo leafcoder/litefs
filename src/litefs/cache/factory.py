@@ -144,7 +144,7 @@ class CacheFactory:
         elif backend == CacheBackend.DATABASE:
             cache_config = {
                 "db_path": getattr(config, "database_path", ":memory:"),
-                "table_name": getattr(config, "database_table", "cache"),
+                "table_name": getattr(config, "database_cache_table", "cache"),
                 "expiration_time": getattr(config, "cache_expiration_time", 3600),
             }
         elif backend == CacheBackend.MEMCACHE:

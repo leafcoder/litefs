@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from .core import test_server
+from .cli import main
 
 if __name__ == "__main__":
-    test_server()
+    main()
