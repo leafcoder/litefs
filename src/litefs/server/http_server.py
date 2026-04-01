@@ -4,6 +4,8 @@
 import logging
 import socket
 import sys
+import os
+import multiprocessing
 from errno import EAGAIN, EMFILE, ENOTCONN, EPIPE, EWOULDBLOCK
 from functools import lru_cache, partial
 from io import DEFAULT_BUFFER_SIZE, BufferedRWPair, RawIOBase
@@ -447,6 +449,76 @@ class HTTPServer(TCPServer):
         self.server_port = port
 
 
+class ProcessHTTPServer(HTTPServer):
+    """多进程 HTTP 服务器"""
+
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True, processes=4):
+        """
+        初始化多进程 HTTP 服务器
+        
+        Args:
+            server_address: 服务器地址
+            RequestHandlerClass: 请求处理器类
+            bind_and_activate: 是否绑定和激活
+            processes: 进程数，默认为 4
+        """
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+        self.processes = processes
+        self.workers = []
+
+    def server_forever(self, poll_interval=0.1):
+        """启动多进程服务器"""
+        # 启动多个进程
+        for i in range(self.processes):
+            worker = multiprocessing.Process(target=self._run_worker, args=(i, poll_interval))
+            worker.daemon = True
+            worker.start()
+            self.workers.append(worker)
+            logging.info(f"启动工作进程 {i}")
+        
+        # 等待所有进程结束
+        try:
+            for worker in self.workers:
+                worker.join()
+        except KeyboardInterrupt:
+            logging.info("接收到中断信号，停止服务器")
+            self.shutdown()
+
+    def _run_worker(self, worker_id, poll_interval):
+        """运行工作进程"""
+        logging.info(f"工作进程 {worker_id} 启动，PID: {os.getpid()}")
+        try:
+            # 每个进程创建自己的 epoll 实例
+            global epoll
+            epoll = Epoll() if HAS_EPOLL else None
+            
+            # 运行主循环
+            if HAS_EPOLL:
+                # 注册服务器套接字到 epoll
+                if not hasattr(self, '_started') or not self._started:
+                    epoll.register(self)
+                    self._started = True
+                
+                # 运行 epoll 循环
+                while True:
+                    epoll.poll(poll_interval=poll_interval)
+            else:
+                # 运行传统循环
+                while True:
+                    self.handle_request()
+        except Exception as e:
+            logging.error(f"工作进程 {worker_id} 出错: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def shutdown(self):
+        """关闭服务器"""
+        for worker in self.workers:
+            if worker.is_alive():
+                worker.terminate()
+        logging.info("服务器已关闭")
+
+
 class WSGIServer(HTTPServer):
 
     application = None
@@ -476,8 +548,6 @@ def mainloop(poll_interval=0.1):
         epoll.poll(poll_interval=poll_interval)
     except KeyboardInterrupt:
         pass
-    finally:
-        epoll.close()
 
 
 server_forever = mainloop

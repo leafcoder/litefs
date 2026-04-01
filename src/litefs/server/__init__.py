@@ -4,6 +4,7 @@ from .http_server import (
     HAS_GREENLET,
     BufferedRWPair,
     HTTPServer,
+    ProcessHTTPServer,
     SocketIO,
     TCPServer,
     WSGIServer,
@@ -16,6 +17,7 @@ from .http_server import (
 __all__ = [
     "TCPServer",
     "HTTPServer",
+    "ProcessHTTPServer",
     "WSGIServer",
     "SocketIO",
     "BufferedRWPair",

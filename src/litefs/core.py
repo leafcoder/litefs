@@ -25,6 +25,7 @@ from .server import (
     DEFAULT_BUFFER_SIZE,
     BufferedRWPair,
     HTTPServer,
+    ProcessHTTPServer,
     SocketIO,
     mainloop,
 )
@@ -382,24 +383,40 @@ class Litefs(object):
         result = request_handler.handler()
         return request_handler.finish(result)
 
-    def run(self, poll_interval=0.2):
+    def run(self, poll_interval=0.2, processes=1):
         observer = Observer()
         event_handler = FileEventHandler(self)
         observer.schedule(event_handler, self.config.webroot, recursive=True)
         observer.start()
-        self.server = HTTPServer((self.host, self.port), self.handler)
-        self.server.max_request_size = self.config.max_request_size
-        try:
-            self.server.start()
-            mainloop(poll_interval=poll_interval)
-        except KeyboardInterrupt:
-            pass
-        except Exception:
-            log_error(self.logger)
-        finally:
-            observer.stop()
-            observer.join()
-            self.server.server_close()
+        
+        if processes > 1:
+            self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
+            self.server.max_request_size = self.config.max_request_size
+            try:
+                # 启动服务器
+                self.server.server_forever(poll_interval=poll_interval)
+            except KeyboardInterrupt:
+                pass
+            except Exception:
+                log_error(self.logger)
+            finally:
+                observer.stop()
+                observer.join()
+                self.server.server_close()
+        else:
+            self.server = HTTPServer((self.host, self.port), self.handler)
+            self.server.max_request_size = self.config.max_request_size
+            try:
+                self.server.start()
+                mainloop(poll_interval=poll_interval)
+            except KeyboardInterrupt:
+                pass
+            except Exception:
+                log_error(self.logger)
+            finally:
+                observer.stop()
+                observer.join()
+                self.server.server_close()
 
 
 def _cmd_args(args):
@@ -476,6 +493,14 @@ def _cmd_args(args):
         default=None,
         help="path to configuration file (YAML, JSON, or TOML)",
     )
+    parser.add_argument(
+        "--processes",
+        dest="processes",
+        type=int,
+        required=False,
+        default=1,
+        help="number of worker processes (default: 1)",
+    )
     args = parser.parse_args(args and args[1:])
     return args
 
@@ -489,13 +514,14 @@ def test_server():
 
     args = _cmd_args(sys.argv)
     kwargs = vars(args)
+    processes = kwargs.pop('processes', 1)
     litefs = (
         Litefs(**kwargs)
         .add_middleware(LoggingMiddleware)
         .add_middleware(SecurityMiddleware)
         .add_middleware(CORSMiddleware)
     )
-    litefs.run(poll_interval=0.1)
+    litefs.run(poll_interval=0.1, processes=processes)
 
 
 if "__main__" == __name__:

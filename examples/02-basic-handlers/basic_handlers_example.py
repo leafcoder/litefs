@@ -38,7 +38,7 @@ def main():
     print("  /mixed_tuple_text - 元组文本混合响应")
     print("=" * 60)
     
-    app.run()
+    app.run(processes=4)
 
 
 if __name__ == '__main__':
