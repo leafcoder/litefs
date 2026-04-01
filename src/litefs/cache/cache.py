@@ -27,52 +27,18 @@ class FileEventHandler(FileSystemEventHandler):
         self._app = proxy(app)
 
     def on_moved(self, event):
-        src_path = event.src_path
-        dest_path = event.dest_path
-        webroot = self._app.config.webroot
-        if webroot == src_path and event.is_directory:
-            return
-        if not src_path.startswith(webroot + "/"):
-            return
-        if webroot == dest_path and event.is_directory:
-            return
-        if not dest_path.startswith(webroot + "/"):
-            return
-        log_info(self._app.logger, "%s has been moved to %s" % (src_path, dest_path))
-        src_path = "/%s" % src_path[len(webroot) :].strip("/")
-        dest_path = "/%s" % dest_path[len(webroot) :].strip("/")
-        caches = self._app.caches
-        files = self._app.files
-        caches.delete(src_path)
-        files.delete(src_path)
-        caches.delete(dest_path)
-        files.delete(dest_path)
-        src_path, suffix = path_splitext(src_path)
-        if suffix in suffixes:
-            caches.delete(src_path)
-            files.delete(src_path)
-        dest_path, suffix = path_splitext(dest_path)
-        if suffix in suffixes:
-            caches.delete(dest_path)
-            files.delete(dest_path)
+        # 简单的缓存清理逻辑，不依赖 webroot
+        log_info(self._app.logger, "%s has been moved to %s" % (event.src_path, event.dest_path))
+        # 清除所有缓存，确保代码更新后能正确加载
+        self._app.caches.data.clear()
+        self._app.files.data.clear()
 
     def on_created(self, event):
-        src_path = event.src_path
-        webroot = self._app.config.webroot
-        if webroot == src_path and event.is_directory:
-            return
-        if not src_path.startswith(webroot + "/"):
-            return
-        log_info(self._app.logger, "%s has been modified" % src_path)
-        src_path = "/%s" % src_path[len(webroot) :].strip("/")
-        caches = self._app.caches
-        files = self._app.files
-        caches.delete(src_path)
-        files.delete(src_path)
-        src_path, suffix = path_splitext(src_path)
-        if suffix in suffixes:
-            caches.delete(src_path)
-            files.delete(src_path)
+        # 简单的缓存清理逻辑，不依赖 webroot
+        log_info(self._app.logger, "%s has been modified" % event.src_path)
+        # 清除所有缓存，确保代码更新后能正确加载
+        self._app.caches.data.clear()
+        self._app.files.data.clear()
 
     on_modified = on_deleted = on_created
 

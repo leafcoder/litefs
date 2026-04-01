@@ -1,6 +1,6 @@
 # 配置管理
 
-Litefs 配置管理的各种方式示例。
+Litefs 配置管理的各种方式示例，包括新的路由系统配置。
 
 ## 示例文件
 
@@ -107,3 +107,73 @@ python configuration_example.py
 - `log` - 日志文件路径
 - `workers` - 工作进程数（默认：1）
 - `timeout` - 请求超时时间（默认：30）
+
+## 新路由系统配置
+
+### 1. 路由定义方式
+
+Litefs 支持两种路由定义方式：
+
+#### 装饰器风格
+
+```python
+from litefs.routing import get, post
+
+@get('/hello')
+def hello_handler(self):
+    return 'Hello, World!'
+
+@post('/submit')
+def submit_handler(self):
+    return 'Form submitted!'
+```
+
+#### 方法链风格
+
+```python
+app = Litefs()
+
+@app.add_get('/hello')
+def hello_handler(self):
+    return 'Hello, World!'
+
+@app.add_post('/submit')
+def submit_handler(self):
+    return 'Form submitted!'
+```
+
+### 2. 路由注册
+
+使用 `register_routes` 方法注册路由：
+
+```python
+app = Litefs()
+
+# 注册单个路由函数
+app.register_routes(hello_handler)
+
+# 注册模块中的所有路由
+app.register_routes('myapp.routes')
+```
+
+### 3. 路径参数
+
+支持路径参数：
+
+```python
+@get('/user/{id}')
+def user_handler(self, id):
+    return f'User ID: {id}'
+```
+
+### 4. HTTP 方法支持
+
+支持多种 HTTP 方法：
+
+- `get` - GET 方法
+- `post` - POST 方法
+- `put` - PUT 方法
+- `delete` - DELETE 方法
+- `patch` - PATCH 方法
+- `options` - OPTIONS 方法
+- `head` - HEAD 方法

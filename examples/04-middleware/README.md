@@ -1,6 +1,6 @@
 # 中间件
 
-Litefs 中间件使用示例。
+Litefs 中间件使用示例，包括与新路由系统的集成。
 
 ## 示例文件
 
@@ -107,3 +107,44 @@ python middleware_example.py
 ## 中间件执行顺序
 
 中间件按照添加的顺序执行，后添加的中间件先处理请求，先处理响应。
+
+## 与新路由系统集成
+
+中间件可以与新的路由系统无缝集成：
+
+```python
+from litefs import Litefs
+from litefs.middleware import LoggingMiddleware, SecurityMiddleware
+from litefs.routing import get, post
+
+# 创建应用实例
+app = Litefs()
+
+# 添加中间件
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(SecurityMiddleware)
+
+# 定义路由
+@get('/hello')
+def hello_handler(self):
+    return 'Hello, World!'
+
+@post('/submit')
+def submit_handler(self):
+    return 'Form submitted!'
+
+# 注册路由
+app.register_routes(hello_handler)
+app.register_routes(submit_handler)
+
+# 运行应用
+app.run()
+```
+
+### 中间件与路由的执行顺序
+
+1. 请求到达服务器
+2. 中间件的 `process_request` 方法按添加顺序的逆序执行
+3. 路由系统匹配并执行对应的处理函数
+4. 中间件的 `process_response` 方法按添加顺序执行
+5. 响应返回给客户端

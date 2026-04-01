@@ -1,6 +1,6 @@
 # 健康检查
 
-Litefs 健康检查示例。
+Litefs 健康检查示例，包括与新路由系统的集成。
 
 ## 示例文件
 
@@ -185,3 +185,48 @@ upstream backend {
 3. 区分健康检查和就绪检查
 4. 提供详细的检查信息用于调试
 5. 在容器编排系统中正确配置探针
+
+## 与新路由系统集成
+
+使用新的路由系统定义自定义健康检查端点：
+
+```python
+from litefs import Litefs
+from litefs.routing import get
+from litefs.middleware import HealthCheck
+
+app = Litefs()
+
+# 添加默认健康检查中间件
+app.add_middleware(HealthCheck, path='/health', ready_path='/health/ready')
+
+# 定义自定义健康检查路由
+@get('/health/custom')
+def custom_health_check(self):
+    # 执行自定义健康检查逻辑
+    checks = {
+        'app_status': 'healthy',
+        'custom_service': 'healthy',
+        'version': '1.0.0'
+    }
+    
+    # 返回 JSON 响应
+    self.start_response(200, [('Content-Type', 'application/json')])
+    import json
+    return json.dumps({
+        'status': 'healthy',
+        'checks': checks,
+        'timestamp': self.request_time.isoformat()
+    })
+
+# 注册路由
+app.register_routes(custom_health_check)
+
+app.run()
+```
+
+### 访问端点
+
+- **默认健康检查**：http://localhost:9090/health
+- **默认就绪检查**：http://localhost:9090/health/ready
+- **自定义健康检查**：http://localhost:9090/health/custom

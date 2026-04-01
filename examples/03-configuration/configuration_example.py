@@ -8,6 +8,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs import Litefs, Config, load_config
+from litefs.routing import get
 
 
 def example_default_config():
@@ -238,6 +239,48 @@ def example_config_get_set():
     print()
 
 
+def example_routing_with_config():
+    """示例 12: 配置与路由系统配合使用"""
+    print("=== 示例 12: 配置与路由系统配合使用 ===")
+    
+    # 创建配置对象
+    config = Config(
+        host='0.0.0.0',
+        port=8080,
+        debug=True
+    )
+    
+    # 使用配置对象创建应用
+    app = Litefs(config=config)
+    
+    # 定义路由处理函数
+    @get('/hello', name='hello')
+    def hello_handler(request):
+        return f"Hello, World! (Debug: {app.config.debug})"
+    
+    @get('/config', name='config')
+    def config_handler(request):
+        return {
+            "host": app.config.host,
+            "port": app.config.port,
+            "debug": app.config.debug,
+            "webroot": app.config.webroot
+        }
+    
+    # 注册路由
+    app.register_routes(__name__)
+    
+    print(f"应用配置:")
+    print(f"  Host: {app.config.host}")
+    print(f"  Port: {app.config.port}")
+    print(f"  Debug: {app.config.debug}")
+    print()
+    print(f"注册的路由:")
+    for route in app.router.routes:
+        print(f"  {route.path} ({', '.join(route.methods)}) - {route.name}")
+    print()
+
+
 def main():
     """运行所有示例"""
     print("=" * 60)
@@ -256,6 +299,7 @@ def main():
     example_load_config_function()
     example_config_dict_operations()
     example_config_get_set()
+    example_routing_with_config()
     
     print("=" * 60)
     print("所有示例运行完成")

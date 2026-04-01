@@ -12,7 +12,6 @@ import litefs
 
 # 配置 Litefs 应用
 app = litefs.Litefs(
-    webroot='./site',
     debug=False,
     log='./wsgi_access.log'
 )
@@ -25,7 +24,6 @@ print("=" * 60)
 print("Litefs WSGI Application (Quickstart Example)")
 print("=" * 60)
 print("Version:", litefs.__version__)
-print("Webroot:", app.config.webroot)
 print("Debug:", app.config.debug)
 print("=" * 60)
 print("\nUsage:")

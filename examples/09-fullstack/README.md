@@ -1,10 +1,10 @@
 # Litefs Full Stack Example
 
-一个完整的 Litefs Web 应用示例，展示了 Litefs 的核心功能和最佳实践。
+一个完整的 Litefs Web 应用示例，展示了 Litefs 的核心功能、最佳实践和新的路由系统。
 
 ## 功能特性
 
-- **路由处理**：基本的页面路由和处理
+- **新的路由系统**：装饰器风格的路由定义和注册
 - **表单处理**：联系表单提交和验证
 - **会话管理**：用户会话和访问历史记录
 - **缓存使用**：内存缓存示例
@@ -84,15 +84,42 @@ waitress-serve --port=8000 wsgi:application
 - **前端**：HTML5, CSS3
 - **部署**：支持 Gunicorn、uWSGI、Waitress
 
+## 核心功能说明
+
+### 新的路由系统
+
+使用装饰器风格的路由定义：
+
+```python
+from litefs.routing import get, post
+
+# 路由处理函数
+@get('/', name='index')
+def index_route_handler(request):
+    return index_module.handler(request)
+
+@get('/about', name='about')
+def about_route_handler(request):
+    return about_module.handler(request)
+
+@post('/contact', name='contact_post')
+def contact_post_route_handler(request):
+    return contact_module.handler(request)
+
+# 注册路由
+app.register_routes(__name__)
+```
+
 ## 最佳实践
 
 1. **代码组织**：使用类封装应用逻辑
-2. **中间件配置**：合理使用中间件增强应用功能
-3. **会话管理**：利用会话存储用户状态
-4. **表单处理**：验证用户输入
-5. **健康检查**：监控应用状态
-6. **静态文件**：合理组织静态资源
-7. **部署配置**：使用 WSGI 服务器提高性能
+2. **新的路由系统**：使用装饰器风格的路由定义，提高代码可读性
+3. **中间件配置**：合理使用中间件增强应用功能
+4. **会话管理**：利用会话存储用户状态
+5. **表单处理**：验证用户输入
+6. **健康检查**：监控应用状态
+7. **静态文件**：合理组织静态资源
+8. **部署配置**：使用 WSGI 服务器提高性能
 
 ## 扩展建议
 

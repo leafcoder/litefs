@@ -23,6 +23,7 @@ from litefs.cache import (
     CacheBackend,
     CacheManager,
 )
+from litefs.routing import get
 
 
 def example_1_basic_memory_cache():
@@ -673,6 +674,48 @@ def example_11_cache_sharing_across_instances():
     print()
 
 
+def example_12_cache_in_routes():
+    """示例 12: 在路由处理函数中使用缓存"""
+    print("=" * 60)
+    print("示例 12: 在路由处理函数中使用缓存")
+    print("=" * 60)
+
+    # 重置缓存
+    CacheManager.reset_cache()
+
+    # 创建 Litefs 应用实例
+    app = Litefs(
+        host='localhost',
+        port=9092,
+        debug=True
+    )
+
+    # 定义使用缓存的路由处理函数
+    @get('/cache-demo', name='cache_demo')
+    def cache_demo_handler(request):
+        """缓存演示路由"""
+        # 尝试从缓存获取数据
+        cached_data = request.app.caches.get('demo_data')
+        
+        if cached_data:
+            return f"从缓存获取数据: {cached_data}"
+        else:
+            # 生成新数据并缓存
+            new_data = "Hello, Cache!"
+            request.app.caches.put('demo_data', new_data, ttl=3600)
+            return f"新生成数据并缓存: {new_data}"
+
+    # 注册路由
+    app.register_routes(__name__)
+
+    print(f"应用已创建，路由已注册")
+    print(f"访问地址: http://localhost:9092/cache-demo")
+    print(f"首次访问会生成新数据并缓存")
+    print(f"再次访问会从缓存获取数据")
+
+    print()
+
+
 def main():
     """运行所有示例"""
     print("\n")
@@ -692,6 +735,7 @@ def main():
     example_9_database_cache()
     example_10_memcache_cache()
     example_11_cache_sharing_across_instances()
+    example_12_cache_in_routes()
 
     print("=" * 60)
     print("所有示例运行完成！")

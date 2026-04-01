@@ -22,10 +22,11 @@ class TestBasicFunctionality(unittest.TestCase):
         """测试 make_config 函数"""
         import litefs
         
-        config = litefs.make_config(webroot='./site')
+        config = litefs.make_config()
         
         self.assertIsNotNone(config)
-        self.assertTrue(os.path.isabs(config.webroot))
+        self.assertEqual(config.host, 'localhost')
+        self.assertEqual(config.port, 9090)
 
     def test_make_logger(self):
         """测试 make_logger 函数"""

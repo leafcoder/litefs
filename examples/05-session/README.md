@@ -1,11 +1,10 @@
 # 会话管理
 
-Litefs 会话管理示例。
+Litefs 会话管理示例，包括与新路由系统的集成。
 
 ## 示例文件
 
-- `session_example.py` - 会话管理示例主程序
-- `site/session.py` - 会话处理器
+- `session_example.py` - 会话管理示例主程序（使用新的路由系统）
 
 ## 运行示例
 
@@ -124,3 +123,63 @@ def page_handler(self):
 - 自动过期处理
 - 线程安全
 - 支持分布式存储（通过 Redis）
+
+## 与新路由系统集成
+
+使用新的路由系统定义会话相关的路由：
+
+```python
+from litefs import Litefs
+from litefs.routing import get, post
+
+app = Litefs(
+    session_backend='database',
+    session_expiration_time=3600
+)
+
+@get('/session')
+def session_handler(self):
+    # 获取会话数据
+    username = self.session.get('username', 'Guest')
+    visit_count = self.session.get('visit_count', 0)
+    
+    # 更新访问计数
+    self.session['visit_count'] = visit_count + 1
+    
+    # 生成响应
+    return f"Hello, {username}! You've visited {self.session['visit_count']} times."
+
+@post('/login')
+def login_handler(self):
+    # 获取表单数据
+    username = self.post.get('username')
+    password = self.post.get('password')
+    
+    # 验证用户（这里简化处理）
+    if username and password:
+        # 设置会话
+        self.session['username'] = username
+        self.session['user_id'] = 123
+        return "Login successful!"
+    
+    return "Login failed!"
+
+@get('/logout')
+def logout_handler(self):
+    # 清除会话
+    self.session.clear()
+    return "Logged out successfully!"
+
+# 注册路由
+app.register_routes(session_handler)
+app.register_routes(login_handler)
+app.register_routes(logout_handler)
+
+app.run()
+```
+
+### 访问端点
+
+- **会话信息**：http://localhost:8080/session
+- **登录**：POST http://localhost:8080/login
+- **登出**：http://localhost:8080/logout

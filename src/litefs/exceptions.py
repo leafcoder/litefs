@@ -10,3 +10,10 @@ class HttpError(Exception):
 
     def __str__(self):
         return f"{self.status_code} {self.message}"
+
+
+class RouteNotFound(Exception):
+    """
+    路由未找到异常
+    """
+    pass

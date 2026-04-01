@@ -14,6 +14,7 @@ from litefs.middleware import (
     SecurityMiddleware,
     RateLimitMiddleware,
 )
+from litefs.routing import get, post
 
 
 def basic_middleware_example():
@@ -168,6 +169,37 @@ def wsgi_middleware_example():
     print('  uwsgi --http :8000 --wsgi-file wsgi_middleware_example.py')
 
 
+def middleware_with_routing_example():
+    """中间件与路由系统配合使用示例"""
+    print('\n=== 中间件与路由系统配合使用示例 ===')
+    
+    app = Litefs(webroot='../01-quickstart/site')
+    
+    # 添加中间件
+    app.add_middleware(LoggingMiddleware)
+    app.add_middleware(SecurityMiddleware)
+    app.add_middleware(CORSMiddleware)
+    
+    # 定义路由处理函数
+    @get('/hello', name='hello')
+    def hello_handler(request):
+        return 'Hello, World!'
+    
+    @post('/api/data', name='api_data')
+    def api_data_handler(request):
+        data = request.data
+        return {'message': 'Data received', 'data': data}
+    
+    # 注册路由
+    app.register_routes(__name__)
+    
+    print('已添加中间件和路由')
+    print('中间件列表:', [m[0].__name__ for m in app.middleware_manager._middlewares])
+    print('注册的路由:')
+    for route in app.router.routes:
+        print(f'  {route.path} ({', '.join(route.methods)}) - {route.name}')
+
+
 if __name__ == '__main__':
     basic_middleware_example()
     cors_middleware_example()
@@ -177,5 +209,6 @@ if __name__ == '__main__':
     remove_middleware_example()
     clear_middleware_example()
     wsgi_middleware_example()
+    middleware_with_routing_example()
     
     print('\n=== 所有示例运行完成 ===')

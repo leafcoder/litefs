@@ -24,7 +24,6 @@ Litefs(**kwargs)
 |------|------|---------|------|
 | `host` | str | `localhost` | 服务器监听地址 |
 | `port` | int | `9090` | 服务器监听端口 |
-| `webroot` | str | `./site` | Web 根目录 |
 | `debug` | bool | `False` | 调试模式 |
 | `not_found` | str | `not_found` | 404 页面文件名 |
 | `default_page` | str | `index,index.html` | 默认页面文件名（支持多个，逗号分隔） |
@@ -42,7 +41,6 @@ from litefs import Litefs
 app = Litefs(
     host='0.0.0.0',
     port=8080,
-    webroot='./site',
     debug=True,
 )
 ```
@@ -70,7 +68,7 @@ application = app.wsgi()
 ```python
 from litefs import Litefs
 
-app = Litefs(webroot='./site')
+app = Litefs()
 application = app.wsgi()
 
 # 在 Gunicorn 中使用
@@ -173,6 +171,233 @@ def check_migrations():
     return migration_status.is_complete()
 
 app.add_ready_check('migrations', check_migrations)
+```
+
+##### add_get()
+
+添加 GET 路由。
+
+```python
+app.add_get(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径（支持路径参数，如 `/user/{id}`）
+- `handler`: 处理函数（可选，支持装饰器风格）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数（当 handler 为 None 时）或 self
+
+**示例：**
+
+```python
+# 方法链风格
+def index_handler(request):
+    return 'Hello, World!'
+
+app.add_get('/', index_handler, name='index')
+
+# 装饰器风格
+@app.add_get('/hello', name='hello')
+def hello_handler(request):
+    return 'Hello, World!'
+```
+
+##### add_post()
+
+添加 POST 路由。
+
+```python
+app.add_post(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+**示例：**
+
+```python
+@app.add_post('/login', name='login')
+def login_handler(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    return {'status': 'success'}
+```
+
+##### add_put()
+
+添加 PUT 路由。
+
+```python
+app.add_put(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+##### add_delete()
+
+添加 DELETE 路由。
+
+```python
+app.add_delete(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+##### add_patch()
+
+添加 PATCH 路由。
+
+```python
+app.add_patch(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+##### add_options()
+
+添加 OPTIONS 路由。
+
+```python
+app.add_options(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+##### add_head()
+
+添加 HEAD 路由。
+
+```python
+app.add_head(path, handler=None, name=None)
+```
+
+**参数：**
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+##### add_route()
+
+添加通用路由。
+
+```python
+app.add_route(method, path, handler=None, name=None)
+```
+
+**参数：**
+- `method`: HTTP 方法（GET, POST, PUT, DELETE 等）
+- `path`: 路由路径
+- `handler`: 处理函数（可选）
+- `name`: 路由名称（可选）
+
+**返回：**
+- 装饰器函数或 self
+
+**示例：**
+
+```python
+app.add_route('GET', '/api/status', status_handler, name='api_status')
+```
+
+##### add_static()
+
+添加静态文件路由。
+
+```python
+app.add_static(prefix, directory, name=None)
+```
+
+**参数：**
+- `prefix`: URL 前缀（如 `/static`）
+- `directory`: 静态文件目录路径（如 `./static`）
+- `name`: 路由名称（可选）
+
+**示例：**
+
+```python
+app.add_static('/static', './static', name='static')
+app.add_static('/uploads', './uploads', name='uploads')
+```
+
+##### register_routes()
+
+注册装饰器定义的路由。
+
+```python
+app.register_routes(module)
+```
+
+**参数：**
+- `module`: 模块对象或模块名称字符串
+
+**示例：**
+
+```python
+# 注册当前模块的路由
+app.register_routes(__name__)
+
+# 注册其他模块的路由
+import routes_module
+app.register_routes(routes_module)
+
+# 注册模块名称字符串
+app.register_routes('myapp.routes')
+```
+
+##### url_for()
+
+根据路由名称生成 URL。
+
+```python
+url = app.url_for(name, **params)
+```
+
+**参数：**
+- `name`: 路由名称
+- `**params`: 路径参数
+
+**返回：**
+- URL 字符串
+
+**示例：**
+
+```python
+url = app.url_for('user_detail', id=123)  # 返回 '/user/123'
+url = app.url_for('user_post', id=123, post_id=456)  # 返回 '/user/123/posts/456'
 ```
 
 #### 属性
@@ -705,9 +930,59 @@ WSGIRequestHandler(app, environ)
 
 ## 请求处理器
 
+### Request
+
+请求对象，包含请求的所有信息。
+
+#### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `environ` | dict | WSGI 环境变量 |
+| `request_method` | str | HTTP 方法（GET, POST, PUT, DELETE 等） |
+| `path` | str | 请求路径 |
+| `query_string` | str | 查询字符串 |
+| `headers` | dict | 请求头 |
+| `params` | dict | GET 参数（查询参数） |
+| `data` | dict | POST 参数（表单数据） |
+| `files` | dict | 上传的文件 |
+| `body` | bytes | 原始请求体 |
+| `route_params` | dict | 路由路径参数 |
+| `session` | Session | 会话对象 |
+| `session_id` | str | 会话 ID |
+
+#### 示例
+
+```python
+@get('/search', name='search')
+def search_handler(request):
+    # 获取 GET 参数
+    query = request.params.get('query', '')
+    page = int(request.params.get('page', '1'))
+    
+    # 获取 POST 参数
+    name = request.data.get('name')
+    email = request.data.get('email')
+    
+    # 获取路由参数
+    user_id = request.route_params.get('id')
+    
+    # 获取请求头
+    user_agent = request.headers.get('User-Agent')
+    
+    # 获取原始请求体
+    raw_body = request.body
+    
+    # 使用会话
+    request.session.set('user_id', 123)
+    user_id = request.session.get('user_id')
+    
+    return {'query': query, 'page': page}
+```
+
 ### RequestHandler
 
-请求处理器基类。
+请求处理器基类（传统文件系统路由）。
 
 #### 属性
 

@@ -41,7 +41,6 @@ from http.client import responses as http_status_codes
 from io import BytesIO as StringIO
 from urllib.parse import unquote_plus
 
-from ..cache import LiteFile
 from ..exceptions import HttpError
 from ..session import Session
 from ..utils import gmt_date, log_debug, log_error, render_error
@@ -552,42 +551,16 @@ class WSGIRequestHandler(BaseRequestHandler):
         try:
             environ = self._environ
             path_info = environ.get("PATH_INFO", "/")
+            request_method = environ.get("REQUEST_METHOD", "GET")
 
-            path = startswith_dot_sub("/", path_info)
-            path = double_slash_sub("/", path)
-
-            if path != path_info:
-                return self._redirect(path)
-
-            base, name = path_split(path)
-            if not name:
-                default_pages = getattr(app.config, "default_page", default_page)
-                if isinstance(default_pages, str):
-                    default_pages = [p.strip() for p in default_pages.split(",")]
-                else:
-                    default_pages = [default_page]
-                
-                for default_name in default_pages:
-                    test_path = path_join(base, default_name)
-                    realpath = path_abspath(path_join(app.config.webroot, test_path.lstrip("/")))
-                    
-                    if path_isfile(realpath):
-                        name = default_name
-                        break
-                    
-                    script_path = path_abspath(path_join(app.config.webroot, f"{test_path}.py".lstrip("/")))
-                    if path_isfile(script_path):
-                        name = default_name
-                        break
-                else:
-                    name = default_pages[0]
-
-            path = path_join(base, name)
-
-            module = app.caches.get(path)
-            if module is not None:
+            # 尝试使用路由系统处理请求
+            route_match = app.router.match(path_info, request_method)
+            if route_match:
+                handler, params = route_match
                 try:
-                    result = module.handler(self)
+                    # 将路由参数添加到请求对象
+                    setattr(self, 'route_params', params)
+                    result = handler(self, **params)
                     if self._headers_responsed:
                         status_code = int(self._status_code)
                         status_text = http_status_codes.get(status_code, "Unknown")
@@ -611,98 +584,13 @@ class WSGIRequestHandler(BaseRequestHandler):
                         )
                     return app.middleware_manager.process_response(self, self._response(500))
 
-            litefile = app.files.get(path)
-            if litefile is not None:
-                return app.middleware_manager.process_response(
-                    self, self._handle_litefile(litefile)
-                )
-
-            realpath = path_abspath(path_join(app.config.webroot, path.lstrip("/")))
-
-            if path_isdir(realpath):
-                return app.middleware_manager.process_response(self, self._redirect(path + "/"))
-
-            script_name = f"{name}.py"
-            module = self._load_script(base, script_name)
-            if module is not None and hasattr(module, "handler"):
-                app.caches.put(path, module)
-                try:
-                    result = module.handler(self)
-                    if self._headers_responsed:
-                        status_code = int(self._status_code)
-                        status_text = http_status_codes.get(status_code, "Unknown")
-                        status = "%d %s" % (status_code, status_text)
-
-                        response_headers = [("Server", server_info)]
-                        response_headers.extend(self._headers)
-
-                        return app.middleware_manager.process_response(
-                            self, (status, response_headers, result)
-                        )
-                    return app.middleware_manager.process_response(
-                        self, self._response(200, content=result)
-                    )
-                except Exception:
-                    log_error(app.logger)
-                    if app.config.debug:
-                        content = render_error()
-                        return app.middleware_manager.process_response(
-                            self, self._response(500, content=content)
-                        )
-                    return app.middleware_manager.process_response(self, self._response(500))
-
-            try:
-                litefile = self._load_static_file(base, name)
-            except IOError:
-                log_error(app.logger)
-                return app.middleware_manager.process_response(self, self._response(404))
-
-            if litefile is not None:
-                app.files.put(path, litefile)
-                return app.middleware_manager.process_response(
-                    self, self._handle_litefile(litefile)
-                )
-
+            # 路由未匹配，返回 404
             return app.middleware_manager.process_response(self, self._response(404))
         except Exception as e:
             middleware_result = app.middleware_manager.process_exception(self, e)
             if middleware_result is not None:
                 return middleware_result
             raise
-
-    def _handle_litefile(self, litefile):
-        environ = self._environ
-        if_modified_since = environ.get("HTTP_IF_MODIFIED_SINCE")
-        if if_modified_since == litefile.last_modified:
-            return self._response(304)
-
-        if_none_match = environ.get("HTTP_IF_NONE_MATCH")
-        accept_encodings = environ.get("HTTP_ACCEPT_ENCODING", "").split(",")
-        accept_encodings = [s.strip().lower() for s in accept_encodings]
-
-        headers = list(litefile.headers)
-
-        if "gzip" in accept_encodings:
-            if if_none_match == litefile.gzip_etag:
-                return self._response(304)
-            headers.append(("Etag", litefile.gzip_etag))
-            headers.append(("Content-Encoding", "gzip"))
-            text = litefile.gzip_text
-        elif "deflate" in accept_encodings:
-            if if_none_match == litefile.zlib_etag:
-                return self._response(304)
-            headers.append(("Etag", litefile.zlib_etag))
-            headers.append(("Content-Encoding", "deflate"))
-            text = litefile.zlib_text
-        else:
-            if if_none_match == litefile.etag:
-                return self._response(304)
-            headers.append(("Etag", litefile.etag))
-            text = litefile.text
-
-        headers.append(("Content-Length", "%d" % len(text)))
-        return self._response(litefile.status_code, headers=headers, content=text)
-
     def _redirect(self, url):
         url = "/" if url is None else url
         headers = [("Content-Type", "text/html; charset=utf-8"), ("Location", url)]
@@ -710,106 +598,6 @@ class WSGIRequestHandler(BaseRequestHandler):
         status_text = http_status_codes.get(status_code, "Found")
         content = "%d %s" % (status_code, status_text)
         return self._response(status_code, headers=headers, content=content)
-
-    def _load_script(self, base, name):
-        app = self._app
-        webroot = app.config.webroot
-        script_path = path_join(webroot, base.lstrip("/"), name)
-
-        if not path_exists(script_path):
-            return None
-
-        ext = path_splitext(name)[1]
-
-        if ext in suffixes:
-            return self._load_python_script(script_path)
-
-        return None
-
-    def _load_python_script(self, script_path):
-        app = self._app
-        fp = None
-        try:
-            sys.dont_write_bytecode = True
-            fp = open(script_path, "rb")
-            module = new_module()
-            code = compile(fp.read(), script_path, "exec")
-            module_globals = {}
-            exec(code, module_globals)
-            for k, v in module_globals.items():
-                setattr(module, k, v)
-            return module
-        except Exception:
-            log_error(app.logger)
-            return None
-        finally:
-            sys.dont_write_bytecode = False
-            if fp:
-                fp.close()
-
-    def _load_static_file(self, base, name):
-        app = self._app
-        webroot = app.config.webroot
-        file_path = path_join(webroot, base.lstrip("/"), name)
-
-        from posixpath import isfile as path_isfile
-
-        if not path_isfile(file_path):
-            raise IOError("File not found: %s" % file_path)
-
-        with open(file_path, "rb") as fp:
-            text = fp.read()
-
-        return LiteFile(file_path, base, name, text)
-
-
-def new_module(**kwargs):
-    name = "".join(("litefs", uuid4().hex))
-    module = type(name, (), {})
-    for k, v in kwargs.items():
-        setattr(module, k, v)
-    return module
-
-
-def parse_multipart(rw, boundary):
-    boundary = boundary.encode("utf-8")
-    begin_boundary = b"--%s" % boundary
-    end_boundary = b"--%s--" % boundary
-    posts = {}
-    files = {}
-    s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-    while True:
-        if s.strip() != begin_boundary:
-            assert s.strip() == end_boundary
-            break
-        headers = {}
-        s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-        while s:
-            s = s.decode("utf-8")
-            k, v = s.split(":", 1)
-            headers[k.strip().upper()] = v.strip()
-            s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
-        disposition = headers["CONTENT-DISPOSITION"]
-        disposition, params = parse_header(disposition)
-        name = params["name"]
-        filename = params.get("filename")
-        if filename:
-            fp = TemporaryFile(mode="w+b")
-            s = rw.readline(DEFAULT_BUFFER_SIZE)
-            while s.strip() != begin_boundary and s.strip() != end_boundary:
-                fp.write(s)
-                s = rw.readline(DEFAULT_BUFFER_SIZE)
-            fp.seek(0)
-            files[name] = fp
-        else:
-            fp = StringIO()
-            s = rw.readline(DEFAULT_BUFFER_SIZE)
-            while s.strip() != begin_boundary and s.strip() != end_boundary:
-                fp.write(s)
-                s = rw.readline(DEFAULT_BUFFER_SIZE)
-            fp.seek(0)
-            posts[name] = fp.getvalue().strip().decode("utf-8")
-    return posts, files
 
 
 class RequestHandler(BaseRequestHandler):
@@ -854,7 +642,7 @@ class RequestHandler(BaseRequestHandler):
                     self._body = post_content
                 elif content_type_raw.startswith("multipart/form-data"):
                     boundary = content_type_params.get("boundary", None)
-                    self._post, self._files = parse_multipart(rw, boundary)
+                    self._post, self._files = self._parse_multipart(rw, boundary)
                 else:
                     post_content = rw.read(int(content_length))
                     environ["POST_CONTENT"] \
@@ -862,6 +650,46 @@ class RequestHandler(BaseRequestHandler):
                     self._body = post_content
         self._session_id, self._session = self._get_session(environ)
         self._middlewares = app._get_middleware_instances()
+
+    def _parse_multipart(self, rw, boundary):
+        boundary = boundary.encode("utf-8")
+        begin_boundary = b"--%s" % boundary
+        end_boundary = b"--%s--" % boundary
+        posts = {}
+        files = {}
+        s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+        while True:
+            if s.strip() != begin_boundary:
+                assert s.strip() == end_boundary
+                break
+            headers = {}
+            s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+            while s:
+                s = s.decode("utf-8")
+                k, v = s.split(":", 1)
+                headers[k.strip().upper()] = v.strip()
+                s = rw.readline(DEFAULT_BUFFER_SIZE).strip()
+            disposition = headers["CONTENT-DISPOSITION"]
+            disposition, params = parse_header(disposition)
+            name = params["name"]
+            filename = params.get("filename")
+            if filename:
+                fp = TemporaryFile(mode="w+b")
+                s = rw.readline(DEFAULT_BUFFER_SIZE)
+                while s.strip() != begin_boundary and s.strip() != end_boundary:
+                    fp.write(s)
+                    s = rw.readline(DEFAULT_BUFFER_SIZE)
+                fp.seek(0)
+                files[name] = fp
+            else:
+                fp = StringIO()
+                s = rw.readline(DEFAULT_BUFFER_SIZE)
+                while s.strip() != begin_boundary and s.strip() != end_boundary:
+                    fp.write(s)
+                    s = rw.readline(DEFAULT_BUFFER_SIZE)
+                fp.seek(0)
+                posts[name] = fp.getvalue().strip().decode("utf-8")
+        return posts, files
 
     def _get_session(self, environ):
         app = self._app
@@ -1248,64 +1076,16 @@ class RequestHandler(BaseRequestHandler):
         try:
             environ = self.environ
             path_info = environ["PATH_INFO"]
-            path = startswith_dot_sub("/", path_info)
-            path = double_slash_sub("/", path)
-            if path != path_info:
-                return self.redirect(path)
-            base, name = path_split(path)
-            if not name:
-                default_pages = getattr(app.config, "default_page", default_page)
-                if isinstance(default_pages, str):
-                    default_pages = [p.strip() for p in default_pages.split(",")]
-                else:
-                    default_pages = [default_page]
-                
-                for default_name in default_pages:
-                    test_path = path_join(base, default_name)
-                    realpath = path_abspath(path_join(app.config.webroot, test_path.lstrip("/")))
-                    
-                    if path_isfile(realpath):
-                        name = default_name
-                        break
-                    
-                    script_path = path_abspath(path_join(app.config.webroot, f"{test_path}.py".lstrip("/")))
-                    if path_isfile(script_path):
-                        name = default_name
-                        break
-                else:
-                    name = default_pages[0]
+            request_method = environ["REQUEST_METHOD"]
 
-            path = path_join(base, name)
-            module = app.caches.get(path)
-            if module is not None:
+            # 尝试使用路由系统处理请求
+            route_match = app.router.match(path_info, request_method)
+            if route_match:
+                handler, params = route_match
                 try:
-                    result = module.handler(self)
-                    if self._headers_responsed:
-                        return app.middleware_manager.process_response(self, result)
-                    return app.middleware_manager.process_response(
-                        self, self._response(200, content=result)
-                    )
-                except Exception:
-                    log_error(app.logger)
-                    if app.config.debug:
-                        content = render_error()
-                        return app.middleware_manager.process_response(
-                            self, self._response(500, content=content)
-                        )
-                    return app.middleware_manager.process_response(self, self._response(500))
-            litefile = app.files.get(path)
-            if litefile is not None:
-                return app.middleware_manager.process_response(self, litefile.handler(self))
-            realpath = path_abspath(path_join(app.config.webroot, path.lstrip("/")))
-            if path_isdir(realpath):
-                return app.middleware_manager.process_response(self, self.redirect(path + "/"))
-
-            script_name = f"{name}.py"
-            module = self._load_script(base, script_name)
-            if module is not None and hasattr(module, "handler"):
-                app.caches.put(path, module)
-                try:
-                    result = module.handler(self)
+                    # 将路由参数添加到请求对象
+                    setattr(self, 'route_params', params)
+                    result = handler(self, **params)
                     if self._headers_responsed:
                         return app.middleware_manager.process_response(self, result)
                     return app.middleware_manager.process_response(
@@ -1320,127 +1100,10 @@ class RequestHandler(BaseRequestHandler):
                         )
                     return app.middleware_manager.process_response(self, self._response(500))
 
-            try:
-                litefile = self._load_static_file(base, name)
-            except IOError:
-                log_error(app.logger)
-                return app.middleware_manager.process_response(self, self._response(404))
-            if litefile is not None:
-                app.files.put(path, litefile)
-                try:
-                    return app.middleware_manager.process_response(self, litefile.handler(self))
-                except Exception:
-                    log_error(app.logger)
-                    if app.config.debug:
-                        content = render_error()
-                        return app.middleware_manager.process_response(
-                            self, self._response(500, content=content)
-                        )
-                    return app.middleware_manager.process_response(self, self._response(500))
-            path = app.config.not_found
-            base, name = path_split(path)
-            if not name:
-                name = default_404
-            try:
-                litefile = self._load_static_file(base, name)
-            except IOError:
-                litefile = None
-            if litefile is not None:
-                app.files.put(path, litefile)
-                litefile.status_code = 404
-                try:
-                    return app.middleware_manager.process_response(self, litefile.handler(self))
-                except Exception:
-                    log_error(app.logger)
-                    if app.config.debug:
-                        content = render_error()
-                        return app.middleware_manager.process_response(
-                            self, self._response(500, content=content)
-                        )
-                    return app.middleware_manager.process_response(self, self._response(500))
+            # 路由未匹配，返回 404
             return app.middleware_manager.process_response(self, self._response(404))
         except Exception as e:
             middleware_result = app.middleware_manager.process_exception(self, e)
             if middleware_result is not None:
                 return middleware_result
             raise
-
-    def _load_static_file(self, base, name):
-        app = self._app
-        webroot = app.config.webroot
-        realbase = path_realpath(path_abspath(path_join(webroot, base.lstrip("/"))))
-        script_name, ext = path_splitext(name)
-        realpath = path_join(realbase, name)
-        if ext in suffixes or not path_isfile(realpath):
-            return None
-        with open(realpath, "rb") as fp:
-            text = fp.read()
-        return LiteFile(realpath, base, name, text)
-
-    def _load_template(self, base, name):
-        app = self._app
-        webroot = app.config.webroot
-        script_uri = path_join(base.lstrip("/"), name)
-        path = path_join("/%s" % base.rstrip("/"), name)
-        mylookup = TemplateLookup(directories=[webroot])
-
-        def handler(mylookup, script_uri):
-            def _handler(self):
-                try:
-                    template = mylookup.get_template(script_uri)
-                    content = template.render(http=self)
-                    headers = getattr(template.module, "headers", None)
-                    if headers:
-                        headers = "\r\n".join([":".join(h) for h in headers])
-                    if not headers:
-                        headers = [("Content-Type", "text/html;charset=utf-8")]
-                    return self._response(200, headers=headers, content=content)
-                except Exception:
-                    log_error(app.logger)
-                    if app.config.debug:
-                        content = render_error()
-                        return self._response(500, content=content)
-                    return self._response(500)
-
-            return _handler
-
-        module = new_module()
-        module.handler = handler(mylookup, script_uri)
-        return module
-
-    def _load_script(self, base, name):
-        app = self._app
-        webroot = app.config.webroot
-        realbase = path_realpath(path_abspath(path_join(webroot, base.lstrip("/"))))
-        script_uri = path_join(base.lstrip("/"), name)
-        script_path = path_join(realbase, name)
-        if not path_exists(script_path):
-            return None
-        module_name = "litefs_%s" % uuid4().hex
-        sys.dont_write_bytecode = True
-        try:
-            spec = importlib.util.spec_from_file_location(module_name, script_path)
-            if spec is None or spec.loader is None:
-                return None
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-        except Exception:
-            log_error(app.logger)
-            content = None
-            if app.config.debug:
-                content = render_error()
-
-            def handler(content):
-                def _handler(self):
-                    return self._response(500, content=content)
-
-                return _handler
-
-            module = new_module()
-            module.handler = handler(content)
-            return module
-        finally:
-            sys.dont_write_bytecode = False
-            sys.modules.pop(module_name, None)
-        return module

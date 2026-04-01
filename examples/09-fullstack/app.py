@@ -5,7 +5,7 @@
 完整的 Litefs Web 应用示例
 
 这个示例展示了如何使用 Litefs 构建一个完整的 Web 应用，包括：
-- 路由处理
+- 新的路由系统
 - 表单处理
 - 会话管理
 - 缓存使用
@@ -33,6 +33,48 @@ from litefs.middleware import (
     HealthCheck
 )
 from litefs.cache import MemoryCache
+from litefs.routing import get, post
+
+
+# 导入站点中的处理函数
+import importlib.util
+import sys
+
+def load_handler(module_name, file_path):
+    """加载处理函数模块"""
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+# 加载处理函数模块
+index_module = load_handler('index_handler', os.path.join(os.path.dirname(__file__), 'site/index.py'))
+about_module = load_handler('about_handler', os.path.join(os.path.dirname(__file__), 'site/about.py'))
+contact_module = load_handler('contact_handler', os.path.join(os.path.dirname(__file__), 'site/contact.py'))
+dashboard_module = load_handler('dashboard_handler', os.path.join(os.path.dirname(__file__), 'site/dashboard.py'))
+
+
+# 路由处理函数
+@get('/', name='index')
+def index_route_handler(request):
+    return index_module.handler(request)
+
+@get('/about', name='about')
+def about_route_handler(request):
+    return about_module.handler(request)
+
+@get('/contact', name='contact')
+def contact_get_route_handler(request):
+    return contact_module.handler(request)
+
+@post('/contact', name='contact_post')
+def contact_post_route_handler(request):
+    return contact_module.handler(request)
+
+@get('/dashboard', name='dashboard')
+def dashboard_route_handler(request):
+    return dashboard_module.handler(request)
 
 
 class FullStackApp:
@@ -59,6 +101,9 @@ class FullStackApp:
         
         # 配置健康检查
         self._configure_health_checks()
+        
+        # 注册路由
+        self.app.register_routes(__name__)
         
     def _configure_middleware(self):
         """配置中间件"""
@@ -125,6 +170,8 @@ class FullStackApp:
         print("  http://localhost:8080/dashboard - User dashboard")
         print("  http://localhost:8080/health - Health check")
         print("  http://localhost:8080/health/ready - Readiness check")
+        print("=" * 80)
+        print("注意: 所有端点现在都使用新的路由系统")
         print("=" * 80)
         
         # 运行应用

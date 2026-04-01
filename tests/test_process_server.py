@@ -20,7 +20,12 @@ class TestProcessServer(unittest.TestCase):
     def test_single_process(self):
         """测试单进程模式"""
         def run_server():
-            app = Litefs(webroot="./tests/performance/site")
+            app = Litefs(host=self.host, port=self.port)
+            
+            def index_handler(request):
+                return "Hello world"
+            
+            app.add_get('/', index_handler, name='index')
             app.run(processes=1)
 
         # 启动服务器
@@ -42,7 +47,12 @@ class TestProcessServer(unittest.TestCase):
     def test_multi_process(self):
         """测试多进程模式"""
         def run_server():
-            app = Litefs(webroot="./tests/performance/site")
+            app = Litefs(host=self.host, port=self.port)
+            
+            def index_handler(request):
+                return "Hello world"
+            
+            app.add_get('/', index_handler, name='index')
             app.run(processes=2)
 
         # 启动服务器
@@ -64,7 +74,12 @@ class TestProcessServer(unittest.TestCase):
     def test_concurrent_requests(self):
         """测试并发请求"""
         def run_server():
-            app = Litefs(webroot="./tests/performance/site")
+            app = Litefs(host=self.host, port=self.port)
+            
+            def index_handler(request):
+                return "Hello world"
+            
+            app.add_get('/', index_handler, name='index')
             app.run(processes=4)
 
         # 启动服务器
@@ -76,12 +91,13 @@ class TestProcessServer(unittest.TestCase):
         time.sleep(1)
 
         # 发送并发请求
+        status_codes = []
         def send_request():
             try:
                 response = requests.get(self.url, timeout=5)
-                return response.status_code
+                status_codes.append(response.status_code)
             except:
-                return 500
+                status_codes.append(500)
 
         # 创建多个线程发送请求
         threads = []
@@ -95,8 +111,8 @@ class TestProcessServer(unittest.TestCase):
             thread.join()
 
         # 验证所有请求都成功
-        for thread in threads:
-            self.assertEqual(thread.exitcode, 0)
+        for code in status_codes:
+            self.assertEqual(code, 200)
 
 
 if __name__ == '__main__':

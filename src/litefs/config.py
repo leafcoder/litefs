@@ -26,7 +26,6 @@ class Config:
         # 服务器配置
         'host': 'localhost',              # 服务器绑定的主机地址
         'port': 9090,                     # 服务器监听的端口
-        'webroot': './site',              # 静态文件根目录
         'debug': False,                   # 调试模式
         'not_found': 'not_found',         # 404页面配置
         'default_page': 'index,index.html', # 默认页面

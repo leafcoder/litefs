@@ -66,20 +66,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs import Litefs
 
-# 创建 site 目录
-os.makedirs("site", exist_ok=True)
-
-# 创建 index.py 文件，返回 "Hello world"
-with open("site/index.py", "w") as f:
-    f.write("def handler(self):\n    return \"Hello world\"")
-
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='LiteFS server with specified processes')
 parser.add_argument('--processes', type=int, default=1, help='Number of processes')
 args = parser.parse_args()
 
 # 创建 litefs 应用
-app = Litefs(webroot="./site", host="0.0.0.0", port=8000)
+app = Litefs(host="0.0.0.0", port=8000)
+
+def index_handler(request):
+    return "Hello world"
+
+app.add_get('/', index_handler, name='index')
 
 if __name__ == "__main__":
     app.run(processes=args.processes)
@@ -98,15 +96,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs import Litefs
 
-# 创建 site 目录
-os.makedirs("site", exist_ok=True)
-
-# 创建 index.py 文件，返回 "Hello world"
-with open("site/index.py", "w") as f:
-    f.write("def handler(self):\n    return \"Hello world\"")
-
 # 创建 litefs 应用（用于 Gunicorn）
-app = Litefs(webroot="./site")
+app = Litefs()
+
+def index_handler(request):
+    return "Hello world"
+
+app.add_get('/', index_handler, name='index')
 
 # 定义 WSGI 应用
 application = app.wsgi()
@@ -132,7 +128,7 @@ def hello():
 # gunicorn.conf.py
 workers = 4
 worker_class = "uvicorn.workers.UvicornWorker"
-bind = "0.0.0.0:8001"
+bind = "0.0.0.0:8000"
 """
 EOF
 
@@ -242,14 +238,14 @@ for concurrency in "${CONCURRENCY_LEVELS[@]}"; do
     
     # 7. fastapi + gunicorn + uvicorn + 1 核
     echo "测试: fastapi + gunicorn + uvicorn + 1 核"
-    # 杀死占用 8001 端口的进程
-    lsof -ti :8001 | xargs kill -9 2>/dev/null || true
-    echo "启动服务器: gunicorn -w 1 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8001 --log-level critical"
-    gunicorn -w 1 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8001 --log-level critical > /dev/null 2>&1 &
+    # 杀死占用 8000 端口的进程
+    lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+    echo "启动服务器: gunicorn -w 1 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8000 --log-level critical"
+    gunicorn -w 1 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8000 --log-level critical > /dev/null 2>&1 &
     FASTAPI_GUNICORN_1CORE_PID=$!
     sleep 3
-    echo "执行测试: ab -n 10000 -c $concurrency http://localhost:8001/"
-    ab -n 10000 -c $concurrency http://localhost:8001/ > "$TEST_RESULT_DIR/fastapi_gunicorn_1core_result_${concurrency}.txt" 2>&1
+    echo "执行测试: ab -n 10000 -c $concurrency http://localhost:8000/"
+    ab -n 10000 -c $concurrency http://localhost:8000/ > "$TEST_RESULT_DIR/fastapi_gunicorn_1core_result_${concurrency}.txt" 2>&1
     FASTAPI_GUNICORN_1CORE_RPS[$concurrency]=$(grep "Requests per second" "$TEST_RESULT_DIR/fastapi_gunicorn_1core_result_${concurrency}.txt" | awk '{print $4}')
     FASTAPI_GUNICORN_1CORE_TIME[$concurrency]=$(grep "Time taken for tests" "$TEST_RESULT_DIR/fastapi_gunicorn_1core_result_${concurrency}.txt" | awk '{print $4}')
     echo "测试结果: 并发数 $concurrency, 请求数/秒: ${FASTAPI_GUNICORN_1CORE_RPS[$concurrency]}, 测试时间: ${FASTAPI_GUNICORN_1CORE_TIME[$concurrency]} 秒"
@@ -258,14 +254,14 @@ for concurrency in "${CONCURRENCY_LEVELS[@]}"; do
     
     # 8. fastapi + gunicorn + uvicorn + 4 核
     echo "测试: fastapi + gunicorn + uvicorn + 4 核"
-    # 杀死占用 8001 端口的进程
-    lsof -ti :8001 | xargs kill -9 2>/dev/null || true
-    echo "启动服务器: gunicorn -w 4 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8001 --log-level critical"
-    gunicorn -w 4 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8001 --log-level critical > /dev/null 2>&1 &
+    # 杀死占用 8000 端口的进程
+    lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+    echo "启动服务器: gunicorn -w 4 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8000 --log-level critical"
+    gunicorn -w 4 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8000 --log-level critical > /dev/null 2>&1 &
     FASTAPI_GUNICORN_4CORE_PID=$!
     sleep 3
-    echo "执行测试: ab -n 10000 -c $concurrency http://localhost:8001/"
-    ab -n 10000 -c $concurrency http://localhost:8001/ > "$TEST_RESULT_DIR/fastapi_gunicorn_4core_result_${concurrency}.txt" 2>&1
+    echo "执行测试: ab -n 10000 -c $concurrency http://localhost:8000/"
+    ab -n 10000 -c $concurrency http://localhost:8000/ > "$TEST_RESULT_DIR/fastapi_gunicorn_4core_result_${concurrency}.txt" 2>&1
     FASTAPI_GUNICORN_4CORE_RPS[$concurrency]=$(grep "Requests per second" "$TEST_RESULT_DIR/fastapi_gunicorn_4core_result_${concurrency}.txt" | awk '{print $4}')
     FASTAPI_GUNICORN_4CORE_TIME[$concurrency]=$(grep "Time taken for tests" "$TEST_RESULT_DIR/fastapi_gunicorn_4core_result_${concurrency}.txt" | awk '{print $4}')
     echo "测试结果: 并发数 $concurrency, 请求数/秒: ${FASTAPI_GUNICORN_4CORE_RPS[$concurrency]}, 测试时间: ${FASTAPI_GUNICORN_4CORE_TIME[$concurrency]} 秒"
@@ -274,14 +270,14 @@ for concurrency in "${CONCURRENCY_LEVELS[@]}"; do
     
     # 9. fastapi + gunicorn + uvicorn + 8 核
     echo "测试: fastapi + gunicorn + uvicorn + 8 核"
-    # 杀死占用 8001 端口的进程
-    lsof -ti :8001 | xargs kill -9 2>/dev/null || true
-    echo "启动服务器: gunicorn -w 8 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8001 --log-level critical"
-    gunicorn -w 8 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8001 --log-level critical > /dev/null 2>&1 &
+    # 杀死占用 8000 端口的进程
+    lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+    echo "启动服务器: gunicorn -w 8 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8000 --log-level critical"
+    gunicorn -w 8 -k uvicorn.workers.UvicornWorker fastapi_gunicorn_server:app --bind 0.0.0.0:8000 --log-level critical > /dev/null 2>&1 &
     FASTAPI_GUNICORN_8CORE_PID=$!
     sleep 3
-    echo "执行测试: ab -n 10000 -c $concurrency http://localhost:8001/"
-    ab -n 10000 -c $concurrency http://localhost:8001/ > "$TEST_RESULT_DIR/fastapi_gunicorn_8core_result_${concurrency}.txt" 2>&1
+    echo "执行测试: ab -n 10000 -c $concurrency http://localhost:8000/"
+    ab -n 10000 -c $concurrency http://localhost:8000/ > "$TEST_RESULT_DIR/fastapi_gunicorn_8core_result_${concurrency}.txt" 2>&1
     FASTAPI_GUNICORN_8CORE_RPS[$concurrency]=$(grep "Requests per second" "$TEST_RESULT_DIR/fastapi_gunicorn_8core_result_${concurrency}.txt" | awk '{print $4}')
     FASTAPI_GUNICORN_8CORE_TIME[$concurrency]=$(grep "Time taken for tests" "$TEST_RESULT_DIR/fastapi_gunicorn_8core_result_${concurrency}.txt" | awk '{print $4}')
     echo "测试结果: 并发数 $concurrency, 请求数/秒: ${FASTAPI_GUNICORN_8CORE_RPS[$concurrency]}, 测试时间: ${FASTAPI_GUNICORN_8CORE_TIME[$concurrency]} 秒"

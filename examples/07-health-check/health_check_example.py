@@ -14,6 +14,7 @@ from litefs.middleware import (
     SecurityMiddleware,
     HealthCheck,
 )
+from litefs.routing import get
 
 
 def check_database():
@@ -43,9 +44,20 @@ def check_migrations():
     return True
 
 
+# 定义一个额外的健康检查路由，展示如何使用路由装饰器
+@get('/health/custom', name='health_custom')
+def custom_health_check(request):
+    """自定义健康检查路由"""
+    return {
+        "status": "ok",
+        "service": "litefs-health-check",
+        "timestamp": os.path.getmtime(__file__)
+    }
+
+
 def main():
     """启动服务器"""
-    app = Litefs(webroot='../01-quickstart/site', debug=True)
+    app = Litefs(debug=True)
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(SecurityMiddleware)
@@ -59,9 +71,13 @@ def main():
     
     app.add_ready_check('migrations', check_migrations)
     
+    # 注册路由
+    app.register_routes(__name__)
+    
     print("Starting Litefs server with health checks...")
     print("Health check endpoint: http://localhost:9090/health")
     print("Ready check endpoint: http://localhost:9090/health/ready")
+    print("Custom health check endpoint: http://localhost:9090/health/custom")
     
     app.run()
 

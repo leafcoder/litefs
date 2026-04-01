@@ -1,14 +1,12 @@
 # Session 各后端使用示例
 
-本目录包含 Litefs Session 功能的完整使用示例，覆盖所有支持的后端。
+本目录包含 Litefs Session 功能的完整使用示例，覆盖所有支持的后端，包括与新路由系统的集成。
 
 ## 目录结构
 
 ```
 12-session-backends/
 ├── session_backends_example.py  # 命令行示例（5个示例）
-├── site/
-│   └── session-demo.py          # Web 应用示例
 └── README.md                    # 本文件
 ```
 
@@ -237,3 +235,41 @@ def handler(self):
 - **Memcache Session**：极高性能，适合临时 Session 数据
 
 通过这些示例，您可以根据应用需求选择合适的 Session 后端，确保数据安全和性能优化。
+
+## 与新路由系统集成
+
+使用新的路由系统定义 Session 相关的路由：
+
+```python
+from litefs import Litefs
+from litefs.routing import get, post
+
+app = Litefs(
+    session_backend='database',
+    session_expiration_time=3600
+)
+
+@get('/session-demo')
+def session_demo_handler(self):
+    # Session 演示页面逻辑
+    # ...
+
+@get('/get-put')
+def get_put_handler(self):
+    # 简单的 Session 操作示例
+    print(self.session_id, self.session.get('name'))
+    self.session['name'] = 'Tomy2'
+    self.session.save()
+    return 'get put name'
+
+# 注册路由
+app.register_routes(session_demo_handler)
+app.register_routes(get_put_handler)
+
+app.run()
+```
+
+### 访问端点
+
+- **Session 演示页面**：http://localhost:8085/session-demo
+- **简单 Session 操作**：http://localhost:8085/get-put

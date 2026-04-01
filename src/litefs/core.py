@@ -6,6 +6,7 @@ import logging
 import sys
 from datetime import datetime
 from posixpath import abspath as path_abspath
+from typing import Optional
 
 from watchdog.observers import Observer
 
@@ -21,6 +22,7 @@ from .config import Config, load_config
 from .error_pages import ErrorPageRenderer
 from .handlers import RequestHandler, WSGIRequestHandler
 from .middleware import MiddlewareManager
+from .routing import Router
 from .server import (
     DEFAULT_BUFFER_SIZE,
     BufferedRWPair,
@@ -52,7 +54,6 @@ def make_config(**kwargs):
     """
     config_file = kwargs.pop('config_file', None)
     config = load_config(config_file=config_file, **kwargs)
-    config.webroot = path_abspath(config.webroot)
     return config
 
 
@@ -141,6 +142,9 @@ class Litefs(object):
         self._middleware_instances = []
         error_pages_dir = getattr(config, "error_pages_dir", None)
         self.error_page_renderer = ErrorPageRenderer(error_pages_dir)
+        
+        # 初始化路由管理器
+        self.router = Router()
 
     def wsgi(self):
         """
@@ -336,6 +340,212 @@ class Litefs(object):
         """
         self.middleware_manager.clear()
         self._middleware_instances = None
+    
+    def add_route(self, path, methods=None, handler=None, name=None):
+        """
+        添加路由
+        
+        Args:
+            path: 路由路径
+            methods: HTTP 方法列表，默认 ['GET']
+            handler: 处理函数
+            name: 路由名称
+        """
+        if methods is None:
+            methods = ['GET']
+        
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_route(path, methods, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_route(path, methods, handler, name)
+            return self
+    
+    def add_get(self, path, handler=None, name=None):
+        """
+        添加 GET 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_get(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_get(path, handler, name)
+            return self
+    
+    def add_post(self, path, handler=None, name=None):
+        """
+        添加 POST 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_post(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_post(path, handler, name)
+            return self
+    
+    def add_put(self, path, handler=None, name=None):
+        """
+        添加 PUT 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_put(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_put(path, handler, name)
+            return self
+    
+    def add_delete(self, path, handler=None, name=None):
+        """
+        添加 DELETE 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_delete(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_delete(path, handler, name)
+            return self
+    
+    def add_patch(self, path, handler=None, name=None):
+        """
+        添加 PATCH 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_patch(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_patch(path, handler, name)
+            return self
+    
+    def add_options(self, path, handler=None, name=None):
+        """
+        添加 OPTIONS 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_options(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_options(path, handler, name)
+            return self
+    
+    def add_head(self, path, handler=None, name=None):
+        """
+        添加 HEAD 方法路由
+        
+        Args:
+            path: 路由路径
+            handler: 处理函数
+            name: 路由名称
+        """
+        # 支持装饰器风格调用
+        if handler is None:
+            def decorator(func):
+                self.router.add_head(path, func, name)
+                return func
+            return decorator
+        else:
+            self.router.add_head(path, handler, name)
+            return self
+    
+    def add_static(self, prefix: str, directory: str, name: Optional[str] = None):
+        """
+        添加静态文件路由
+        
+        Args:
+            prefix: URL 前缀，如 '/static'
+            directory: 静态文件目录路径
+            name: 路由名称
+        """
+        self.router.add_static(prefix, directory, name)
+        return self
+    
+    def register_routes(self, module):
+        """
+        注册模块中的路由
+        
+        Args:
+            module: 包含路由装饰器的模块对象或模块名称
+        """
+        import importlib
+        
+        # 如果是模块名称字符串，导入模块
+        if isinstance(module, str):
+            module = importlib.import_module(module)
+        
+        for name in dir(module):
+            obj = getattr(module, name)
+            if callable(obj) and hasattr(obj, '_routes'):
+                for route_info in obj._routes:
+                    self.add_route(
+                        path=route_info['path'],
+                        methods=route_info['methods'],
+                        handler=obj,
+                        name=route_info['name']
+                    )
+        return self
+    
+    def url_for(self, name, **kwargs):
+        """
+        根据路由名称生成 URL
+        
+        Args:
+            name: 路由名称
+            **kwargs: 路由参数
+            
+        Returns:
+            生成的 URL
+        """
+        return self.router.url_for(name, **kwargs)
 
     def add_health_check(self, name: str, check_func):
         """
@@ -384,9 +594,12 @@ class Litefs(object):
         return request_handler.finish(result)
 
     def run(self, poll_interval=0.2, processes=1):
+        import os
         observer = Observer()
         event_handler = FileEventHandler(self)
-        observer.schedule(event_handler, self.config.webroot, recursive=True)
+        # 监控启动脚本当前目录
+        current_dir = os.getcwd()
+        observer.schedule(event_handler, current_dir, recursive=True)
         observer.start()
         
         if processes > 1:

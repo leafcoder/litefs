@@ -1,15 +1,13 @@
 # 缓存使用示例
 
-本目录包含 Litefs 缓存功能的完整使用示例。
+本目录包含 Litefs 缓存功能的完整使用示例，包括与新路由系统的集成。
 
 ## 目录结构
 
 ```
 11-cache-usage/
 ├── cache_usage_example.py      # 命令行示例（10个示例）
-├── cache_usage_web_example.py  # Web 应用示例
-├── site/
-│   └── cache_demo.py          # 缓存演示页面
+├── cache_usage_web_example.py  # Web 应用示例（使用新的路由系统）
 └── README.md                  # 本文件
 ```
 
@@ -283,3 +281,32 @@ cache.close()
 ## 许可证
 
 MIT License
+
+## 与新路由系统集成
+
+使用新的路由系统定义缓存相关的路由：
+
+```python
+from litefs import Litefs
+from litefs.routing import get, post
+from litefs.cache import MemoryCache
+
+app = Litefs()
+
+# 创建缓存实例
+cache = MemoryCache(max_size=1000)
+
+@get('/cache-demo')
+def cache_demo_handler(self):
+    # 缓存演示页面逻辑
+    # ...
+
+# 注册路由
+app.register_routes(cache_demo_handler)
+
+app.run()
+```
+
+### 访问端点
+
+- **缓存演示页面**：http://localhost:8080/cache-demo

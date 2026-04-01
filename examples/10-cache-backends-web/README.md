@@ -1,12 +1,11 @@
 # 缓存后端 Web 示例
 
-Litefs 各类缓存后端的 Web 管理界面示例。
+Litefs 各类缓存后端的 Web 管理界面示例，包括与新路由系统的集成。
 
 ## 示例文件
 
-- `cache_backends_web_example.py` - 缓存后端 Web 示例主程序
+- `cache_backends_web_example.py` - 缓存后端 Web 示例主程序（使用新的路由系统）
 - `wsgi.py` - WSGI 部署配置
-- `site/cache_backends_web.py` - 缓存后端 Web 处理器
 
 ## 运行示例
 
@@ -412,3 +411,28 @@ def expensive_calculation(n):
 - [缓存后端文档](../../docs/source/cache-backends.md)
 - [会话后端文档](../../docs/source/session-backends.md)
 - [Litefs 主文档](../../docs/source/index.md)
+
+## 与新路由系统集成
+
+使用新的路由系统定义缓存后端 Web 管理界面：
+
+```python
+from litefs import Litefs
+from litefs.routing import get, post
+
+app = Litefs()
+
+@get('/cache-backends-web')
+def cache_backends_web_handler(self):
+    # 缓存后端 Web 管理界面逻辑
+    # ...
+
+# 注册路由
+app.register_routes(cache_backends_web_handler)
+
+app.run()
+```
+
+### 访问端点
+
+- **缓存后端 Web 管理界面**：http://localhost:8080/cache-backends-web

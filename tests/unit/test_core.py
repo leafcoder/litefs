@@ -29,7 +29,6 @@ class TestMakeConfig(unittest.TestCase):
         config = make_config(
             host='0.0.0.0',
             port=8000,
-            webroot='./test_site',
             debug=True,
             max_request_size=5242880,
             max_upload_size=104857600
@@ -37,16 +36,11 @@ class TestMakeConfig(unittest.TestCase):
         
         self.assertEqual(config.host, '0.0.0.0')
         self.assertEqual(config.port, 8000)
-        self.assertEqual(config.webroot, os.path.abspath('./test_site'))
         self.assertEqual(config.debug, True)
         self.assertEqual(config.max_request_size, 5242880)
         self.assertEqual(config.max_upload_size, 104857600)
 
-    def test_webroot_absolute_path(self):
-        """测试 webroot 转换为绝对路径"""
-        config = make_config(webroot='./site')
-        
-        self.assertTrue(os.path.isabs(config.webroot))
+
 
 
 class TestLitefsInit(unittest.TestCase):
@@ -54,7 +48,7 @@ class TestLitefsInit(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = Litefs(webroot='./site')
+        self.app = Litefs()
 
     def test_init_default(self):
         """测试默认初始化"""
@@ -72,7 +66,6 @@ class TestLitefsInit(unittest.TestCase):
         app = Litefs(
             host='0.0.0.0',
             port=8000,
-            webroot='./site',
             debug=True
         )
         
@@ -105,7 +98,7 @@ class TestLitefsMiddleware(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = Litefs(webroot='./site')
+        self.app = Litefs()
 
     def test_add_middleware(self):
         """测试添加中间件"""
@@ -140,7 +133,7 @@ class TestLitefsMiddleware(unittest.TestCase):
         from litefs.middleware import LoggingMiddleware, SecurityMiddleware, CORSMiddleware
         
         app = (
-            Litefs(webroot='./site')
+            Litefs()
             .add_middleware(LoggingMiddleware)
             .add_middleware(SecurityMiddleware)
             .add_middleware(CORSMiddleware)
@@ -154,7 +147,7 @@ class TestLitefsWSGI(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = Litefs(webroot='./site')
+        self.app = Litefs()
 
     def test_wsgi_returns_callable(self):
         """测试 wsgi() 返回可调用对象"""

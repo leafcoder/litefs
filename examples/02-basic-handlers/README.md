@@ -1,6 +1,6 @@
 # 基础处理器示例
 
-Litefs 基础处理器示例，展示不同类型的 HTTP 响应处理。
+Litefs 基础处理器示例，展示不同类型的 HTTP 响应处理和新的路由系统。
 
 ## 目录结构
 
@@ -34,6 +34,7 @@ Litefs 基础处理器示例，展示不同类型的 HTTP 响应处理。
 - ✅ 生成器响应
 - ✅ 错误处理
 - ✅ 表单处理
+- ✅ **新的路由系统**（装饰器风格）
 - ✅ 完整的 WSGI 支持
 
 ## 快速开始
@@ -99,7 +100,10 @@ waitress-serve --config ../wsgi-configs/waitress.ini wsgi:application
 
 ### 1. 启动文件 (`basic_handlers_example.py`)
 
-创建 Litefs 应用实例，配置基本参数，启动内置服务器。
+创建 Litefs 应用实例，配置基本参数，启动内置服务器。同时展示了新的路由系统的使用方法：
+
+- **装饰器风格路由定义**：使用 `@get`、`@post` 等装饰器
+- **路由注册**：使用 `app.register_routes()` 注册路由
 
 ### 2. 处理函数
 

@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import logging
-import socket
-import sys
-import os
-import multiprocessing
 from errno import EAGAIN, EMFILE, ENOTCONN, EPIPE, EWOULDBLOCK
 from functools import lru_cache, partial
 from io import DEFAULT_BUFFER_SIZE, BufferedRWPair, RawIOBase
@@ -14,6 +9,7 @@ from posixpath import join as path_join
 from time import time
 from traceback import print_exc
 from urllib.parse import unquote_plus
+from email.message import Message
 
 try:
     from greenlet import GreenletExit, getcurrent, greenlet
@@ -35,7 +31,20 @@ except (ImportError, AttributeError):
     EPOLLIN = EPOLLOUT = EPOLLHUP = EPOLLERR = EPOLLET = 0
     select_epoll = None
 
-from email.message import Message
+from ..exceptions import HttpError
+from ..handlers import RequestHandler, parse_form
+from ..utils import log_error
+
+import array
+import traceback
+import logging
+import socket
+import sys
+import os
+import multiprocessing
+
+
+should_retry_error = (EWOULDBLOCK, EAGAIN)
 
 
 @lru_cache(maxsize=512)
@@ -43,16 +52,6 @@ def parse_header(line):
     msg = Message()
     msg["content-type"] = line
     return msg.get_params()[0], dict(msg.get_params()[1:])
-
-
-import array
-import traceback
-
-from ..exceptions import HttpError
-from ..handlers import RequestHandler, parse_form
-from ..utils import log_error
-
-should_retry_error = (EWOULDBLOCK, EAGAIN)
 
 
 def make_headers(rw):
