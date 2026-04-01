@@ -377,9 +377,7 @@ class Litefs(object):
             self._middleware_instances = self.middleware_manager.get_middleware_instances(self)
         return self._middleware_instances
 
-    def handler(self, request, environ, server):
-        raw = SocketIO(server, request)
-        rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
+    def handler(self, request, rw, environ, server):
         request_handler = RequestHandler(self, rw, environ, request)
         result = request_handler.handler()
         return request_handler.finish(result)

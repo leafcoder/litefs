@@ -361,7 +361,7 @@ class TCPServer(object):
         try:
             rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
             environ = make_environ(self, rw, client_address)
-            self.RequestHandlerClass(request, environ, self)
+            self.RequestHandlerClass(request, rw, environ, self)
             self.shutdown_request(request)
         except socket.error as e:
             if e.errno == EPIPE:
