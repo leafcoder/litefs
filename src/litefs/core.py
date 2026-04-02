@@ -171,7 +171,7 @@ class Litefs(object):
 
         用法:
             import litefs
-            app = litefs.Litefs(webroot='./site')
+            app = litefs.Litefs()
             application = app.wsgi()
 
         在 gunicorn 中使用:
@@ -780,13 +780,7 @@ def _cmd_args(args):
         default=9090,
         help="bind server to PORT",
     )
-    parser.add_argument(
-        "--webroot",
-        dest="webroot",
-        required=False,
-        default="./site",
-        help="use WEBROOT as root directory",
-    )
+
     parser.add_argument(
         "--debug",
         action="store_true",
@@ -795,20 +789,7 @@ def _cmd_args(args):
         default=False,
         help="start server in debug mode",
     )
-    parser.add_argument(
-        "--not-found",
-        dest="not_found",
-        required=False,
-        default="not_found",
-        help="use NOT_FOUND as 404 page",
-    )
-    parser.add_argument(
-        "--default-page",
-        dest="default_page",
-        required=False,
-        default="index",
-        help="use DEFAULT_PAGE as web default page",
-    )
+
     parser.add_argument(
         "--log", dest="log", required=False, default="./default.log", help="save log to LOG"
     )

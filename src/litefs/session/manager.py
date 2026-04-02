@@ -7,6 +7,7 @@ Session 管理器
 提供全局 Session 实例管理，确保 Session 对象在应用生命周期内常驻内存。
 """
 
+import os
 import threading
 from typing import Optional, Union
 
@@ -48,11 +49,20 @@ class SessionManager:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
                     cls._instance._initialized = False
+                    cls._instance._pid = os.getpid()
         return cls._instance
 
     def __init__(self):
         if self._initialized:
-            return
+            # 检查是否是新的进程（热重载后）
+            current_pid = os.getpid()
+            if hasattr(self, '_pid') and self._pid != current_pid:
+                # 新的进程，重置 session 缓存
+                with self._lock:
+                    if self._pid != current_pid:
+                        self._session_caches.clear()
+                        self._pid = current_pid
+                return
 
         with self._lock:
             if self._initialized:
@@ -60,6 +70,7 @@ class SessionManager:
 
             self._session_caches: dict = {}
             self._default_cache_key: str = 'default'
+            self._pid = os.getpid()
             self._initialized = True
 
     @classmethod

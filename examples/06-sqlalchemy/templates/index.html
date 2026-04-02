@@ -1,0 +1,31 @@
+<%inherit file="base.html" />
+
+<%block name="title">首页 - SQLAlchemy 示例</%block>
+
+<%block name="content">
+    <h1>博客文章</h1>
+    
+    % if posts:
+        % for post in posts:
+        <div class="post">
+            <h2><a href="/view/${ post.id }">${ post.title }</a></h2>
+            <div class="post-meta">
+                创建时间: ${ post.created_at.strftime('%Y-%m-%d %H:%M:%S') }
+                % if post.updated_at:
+                | 更新时间: ${ post.updated_at.strftime('%Y-%m-%d %H:%M:%S') }
+                % endif
+            </div>
+            <div class="post-content">
+                ${ post.content[:100] }${ '...' if len(post.content) > 100 else '' }
+            </div>
+            <div class="post-actions">
+                <a href="/view/${ post.id }">查看</a>
+                <a href="/edit/${ post.id }">编辑</a>
+                <a href="/delete/${ post.id }">删除</a>
+            </div>
+        </div>
+        % endfor
+    % else:
+        <p>还没有文章，快来创建第一篇吧！</p>
+    % endif
+</%block>

@@ -8,13 +8,59 @@
 pip install litefs
 ```
 
-### 1.2 基本使用
+### 1.2 使用脚手架创建项目
 
-使用现代路由系统创建应用：
+Litefs 提供了脚手架命令，可以快速创建项目结构：
+
+```bash
+# 创建新项目
+litefs startproject myproject
+
+# 进入项目目录
+cd myproject
+
+# 查看项目结构
+tree
+```
+
+生成的项目结构：
+
+```
+myproject/
+├── app.py              # 主应用文件
+├── config.yaml         # 配置文件
+├── requirements.txt    # 依赖文件
+├── README.md          # 项目说明
+├── wsgi.py            # WSGI 应用文件
+├── templates/         # 模板目录
+│   ├── index.html     # 首页模板
+│   └── about.html     # 关于页面模板
+└── static/            # 静态文件目录
+    ├── css/
+    │   └── style.css  # 样式文件
+    ├── js/            # JavaScript 文件目录
+    └── images/        # 图片文件目录
+```
+
+### 1.3 运行开发服务器
+
+```bash
+# 方式一：直接运行 app.py
+python app.py
+
+# 方式二：使用 CLI 命令
+litefs runserver
+```
+
+访问 `http://localhost:9090/` 查看结果。
+
+### 1.4 基本使用示例
+
+#### 方式一：使用装饰器定义路由
 
 ```python
 from litefs import Litefs
-from litefs.routing import get
+from litefs.routing import get, post
 
 app = Litefs(
     host='0.0.0.0',
@@ -24,22 +70,95 @@ app = Litefs(
 
 @get('/', name='index')
 def index_handler(request):
-    return "Hello, Litefs!"
+    """首页处理函数"""
+    return {'message': 'Hello, World!'}
+
+@get('/user/{id}', name='user_detail')
+def user_handler(request, id):
+    """用户详情处理函数"""
+    return {'user_id': id, 'message': f'User details for ID {id}'}
+
+@post('/form', name='form_submit')
+def form_handler(request):
+    """表单处理函数"""
+    return {'message': 'Form submitted', 'data': request.data}
+
+# 注册装饰器定义的路由
+app.register_routes(__name__)
 
 app.run()
 ```
 
-运行应用：
+#### 方式二：使用方法链添加路由
 
-```bash
-python app.py
+```python
+from litefs import Litefs
+
+app = Litefs()
+
+@app.add_get('/hello', name='hello')
+def hello_handler(request):
+    return {'message': 'Hello from route!'}
+
+@app.add_post('/api/data', name='api_data')
+def api_data_handler(request):
+    return {'data': request.data}
+
+app.run()
 ```
 
-访问 `http://localhost:8080/` 查看结果。
+#### 方式三：传统方式添加路由
 
-### 1.3 示例应用
+```python
+from litefs import Litefs
 
-Litefs 提供了丰富的示例，帮助您快速上手和深入学习。所有示例都按照功能模块进行了重新组织，便于学习和参考。
+app = Litefs()
+
+def index_handler(request):
+    return 'Hello, World!'
+
+def user_detail_handler(request, id):
+    return f'User ID: {id}'
+
+app.add_get('/', index_handler, name='index')
+app.add_get('/user/{id}', user_detail_handler, name='user_detail')
+
+app.run()
+```
+
+### 1.5 返回 HTML 页面
+
+当需要返回 HTML 页面时，使用 `request.start_response` 设置 Content-Type：
+
+```python
+@get('/page', name='page')
+def page_handler(request):
+    """返回 HTML 页面"""
+    request.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head><title>My Page</title></head>
+    <body><h1>Hello, World!</h1></body>
+    </html>
+    '''
+```
+
+从文件读取模板：
+
+```python
+@get('/', name='index')
+def index_handler(request):
+    """首页处理函数"""
+    request.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    with open('templates/index.html', 'r', encoding='utf-8') as f:
+        content = f.read().replace('${project_name}', 'My Project')
+    return content
+```
+
+### 1.6 示例应用
+
+Litefs 提供了丰富的示例，帮助您快速上手和深入学习。
 
 #### 示例目录结构
 
@@ -173,11 +292,30 @@ def login_handler(request):
     password = request.data.get('password')
     return {'status': 'success', 'username': username}
 
+# 注册装饰器定义的路由
 app.register_routes(__name__)
 app.run()
 ```
 
 ### 2.2 方法链风格
+
+```python
+from litefs import Litefs
+
+app = Litefs()
+
+@app.add_get('/hello', name='hello')
+def hello_handler(request):
+    return {'message': 'Hello from route!'}
+
+@app.add_post('/api/data', name='api_data')
+def api_data_handler(request):
+    return {'data': request.data}
+
+app.run()
+```
+
+### 2.3 传统方式
 
 ```python
 from litefs import Litefs
@@ -196,7 +334,7 @@ app.add_get('/user/{id}', user_detail_handler, name='user_detail')
 app.run()
 ```
 
-### 2.3 路径参数
+### 2.4 路径参数
 
 ```python
 @get('/user/{id}', name='user_detail')
@@ -208,7 +346,7 @@ def user_post_handler(request, id, post_id):
     return f'User ID: {id}, Post ID: {post_id}'
 ```
 
-### 2.4 HTTP 方法
+### 2.5 HTTP 方法
 
 支持以下 HTTP 方法：
 
@@ -240,17 +378,17 @@ def delete_resource_handler(request, id):
     return {'method': 'DELETE', 'id': id}
 ```
 
-### 2.5 请求属性
+### 2.6 请求属性
 
-在路由处理函数中，``request`` 对象提供了以下属性：
+在路由处理函数中，`request` 对象提供了以下属性：
 
 * **request.params**：GET 参数（字典）
 * **request.data**：POST 参数（字典）
 * **request.files**：上传的文件（字典）
 * **request.body**：原始请求体（字节）
 * **request.environ**：WSGI 环境变量
-* **request.request_method**：HTTP 方法
-* **request.path**：请求路径
+* **request.method**：HTTP 方法
+* **request.path_info**：请求路径
 * **request.headers**：请求头
 * **request.route_params**：路由路径参数
 
@@ -266,6 +404,25 @@ def form_handler(request):
     name = request.data.get('name')
     email = request.data.get('email')
     return {'name': name, 'email': email}
+```
+
+### 2.7 设置响应头部
+
+使用 `request.start_response` 方法设置响应状态码和头部：
+
+```python
+@get('/html', name='html_page')
+def html_page_handler(request):
+    """返回 HTML 页面"""
+    request.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    return '<h1>Hello, World!</h1>'
+
+@get('/json', name='json_data')
+def json_data_handler(request):
+    """返回 JSON 数据"""
+    import json
+    request.start_response(200, [('Content-Type', 'application/json; charset=utf-8')])
+    return json.dumps({'message': 'Hello'})
 ```
 
 ## 3. 静态文件
@@ -338,6 +495,11 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | `config_file` | str | `None` | 配置文件路径 |
 | `session_backend` | str | `memory` | 会话后端（memory/redis/database/memcache） |
 | `session_expiration_time` | int | `3600` | 会话过期时间（秒） |
+| `session_name` | str | `litefs_session` | 会话 cookie 名称 |
+| `session_secure` | bool | `false` | 是否使用安全 cookie |
+| `session_http_only` | bool | `true` | 是否仅 HTTP 访问 cookie |
+| `session_same_site` | str | `Lax` | SameSite 策略（Strict, Lax, None） |
+| `cache_backend` | str | `tree` | 缓存后端（memory, tree, redis, database, memcache） |
 
 ### 4.3 使用方法
 
@@ -358,7 +520,7 @@ app.run()
 
 #### 4.3.2 使用配置文件
 
-创建 `litefs.yaml`：
+创建 `config.yaml`：
 
 ```yaml
 host: localhost
@@ -370,6 +532,11 @@ max_request_size: 10485760
 max_upload_size: 52428800
 session_backend: memory
 session_expiration_time: 3600
+session_name: my_session
+session_secure: false
+session_http_only: true
+session_same_site: Lax
+cache_backend: tree
 ```
 
 使用配置文件：
@@ -377,7 +544,7 @@ session_expiration_time: 3600
 ```python
 from litefs import Litefs
 
-app = Litefs(config_file='litefs.yaml')
+app = Litefs(config_file='config.yaml')
 app.run()
 ```
 
@@ -405,7 +572,7 @@ app.run()
 
 ### 5.1 创建 WSGI 应用文件
 
-创建 `wsgi_example.py` 文件：
+创建 `wsgi.py` 文件：
 
 ```python
 #!/usr/bin/env python
@@ -415,14 +582,30 @@ import sys
 sys.dont_write_bytecode = True
 
 from litefs import Litefs
-from litefs.routing import get
 
-app = Litefs()
+# 创建应用实例
+app = Litefs(
+    host='0.0.0.0',
+    port=9090,
+    debug=False,
+    config_file='config.yaml'
+)
 
-@get('/', name='index')
+# 挂载静态文件目录
+app.add_static('/static', 'static')
+
+# 定义处理函数
 def index_handler(request):
-    return 'Hello, World!'
+    """首页处理函数"""
+    request.start_response(200, [('Content-Type', 'text/html; charset=utf-8')])
+    with open('templates/index.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+    return content
 
+# 添加路由
+app.add_get('/', index_handler, name='index')
+
+# 创建 WSGI 应用
 application = app.wsgi()
 ```
 
@@ -438,7 +621,7 @@ pip install gunicorn
 
 ```bash
 # 基本启动
-gunicorn -w 4 -b :8000 wsgi_example:application
+gunicorn -w 4 -b :8000 wsgi:application
 
 # 生产环境推荐配置
 gunicorn -w 4 -k gevent -b 0.0.0.0:8000 \
@@ -447,7 +630,7 @@ gunicorn -w 4 -k gevent -b 0.0.0.0:8000 \
   --log-level info \
   --timeout 30 \
   --keepalive 5 \
-  wsgi_example:application
+  wsgi:application
 ```
 
 ### 5.3 使用 uWSGI 部署
@@ -462,11 +645,11 @@ pip install uwsgi
 
 ```bash
 # 基本启动
-uwsgi --http :8000 --wsgi-file wsgi_example.py
+uwsgi --http :8000 --wsgi-file wsgi.py
 
 # 生产环境推荐配置
 uwsgi --http 0.0.0.0:8000 \
-  --wsgi-file wsgi_example.py \
+  --wsgi-file wsgi.py \
   --processes 4 \
   --threads 2 \
   --master \
@@ -489,14 +672,14 @@ pip install waitress
 
 ```bash
 # 基本启动
-waitress-serve --port=8000 wsgi_example:application
+waitress-serve --port=8000 wsgi:application
 
 # 生产环境推荐配置
 waitress-serve --port=8000 \
   --threads=4 \
   --url-prefix=/ \
   --log-untrusted-proxy-headers=true \
-  wsgi_example:application
+  wsgi:application
 ```
 
 ### 5.5 Nginx 反向代理配置
@@ -560,7 +743,7 @@ ExecStart=/path/to/venv/bin/gunicorn \
     --error-logfile /var/log/litefs/error.log \
     --log-level info \
     --timeout 30 \
-    wsgi_example:application
+    wsgi:application
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
 RestartSec=10
@@ -596,7 +779,7 @@ COPY . .
 EXPOSE 8000
 
 CMD ["gunicorn", "-w", "4", "-k", "gevent", "-b", "0.0.0.0:8000", 
-     "wsgi_example:application"]
+     "wsgi:application"]
 ```
 
 构建和运行：
@@ -803,7 +986,9 @@ app.error_handler = error_handler_func
 project/
 ├── app.py           # 应用入口
 ├── wsgi.py          # WSGI 应用
-├── routes/          # 路由模块
+├── config.yaml      # 配置文件
+├── requirements.txt # 依赖文件
+├── routes/          # 路由模块（可选）
 │   ├── __init__.py
 │   ├── users.py
 │   └── posts.py
@@ -812,11 +997,9 @@ project/
 │   ├── js/
 │   └── images/
 ├── templates/       # 模板文件
-├── config/          # 配置文件
-│   ├── development.yaml
-│   ├── staging.yaml
-│   └── production.yaml
-└── requirements.txt # 依赖文件
+│   ├── index.html
+│   └── about.html
+└── README.md        # 项目说明
 ```
 
 ### 11.2 部署建议
@@ -895,13 +1078,5 @@ chmod -R 755 /path/to/litefs
 **问题**: 内存不足
 ```bash
 # 减少工作进程数
-gunicorn -w 2 wsgi_example:application
+gunicorn -w 2 wsgi:application
 ```
-
-## 13. 相关文档
-
-- [路由系统指南](routing-guide.rst)
-- [静态文件指南](static-files-guide.rst)
-- [系统设计文档](system_design.md)
-- [单元测试文档](unit-tests.md)
-- [性能测试文档](performance-stress-tests.md)

@@ -48,7 +48,7 @@ from mako.lookup import TemplateLookup
 
 default_page = "index"
 default_404 = "not_found"
-default_sid = "litefs.sid"
+# 会话配置默认值
 default_content_type = "application/json; charset=utf-8"
 
 EOFS = ("", "\n", "\r\n")
@@ -159,6 +159,55 @@ class BaseRequestHandler(object):
         self._files = {}
         self._session_id = None
         self._session = None
+        self._template_lookup = None
+        # 初始化 _headers 属性，用于存储响应头
+        self._headers = []
+
+    def render_template(self, template_name, **kwargs):
+        """
+        渲染模板
+
+        Args:
+            template_name: 模板文件名
+            **kwargs: 模板变量
+
+        Returns:
+            渲染后的 HTML 字符串
+        """
+        import os
+
+        # 延迟初始化模板查找器
+        if self._template_lookup is None:
+            # 获取模板目录路径
+            template_dir = getattr(self._app.config, 'template_dir', 'templates')
+            if not os.path.isabs(template_dir):
+                # 如果是相对路径，相对于当前工作目录
+                template_dir = os.path.join(os.getcwd(), template_dir)
+
+            # 创建模板查找器
+            self._template_lookup = TemplateLookup(
+                directories=[template_dir],
+                input_encoding='utf-8',
+                output_encoding='utf-8',
+                default_filters=['decode.utf8']
+            )
+
+        try:
+            # 获取模板
+            template = self._template_lookup.get_template(template_name)
+            # 渲染模板
+            content = template.render(**kwargs)
+            
+            # 直接返回渲染后的内容，不设置 Content-Type
+            # Content-Type 会在 _response 方法中设置
+            return content
+        except Exception as e:
+            # 模板渲染失败，返回错误信息
+            error_content = f"<h1>Template Error</h1><p>Failed to render template '{template_name}': {str(e)}</p>"
+            
+            # 直接返回错误内容，不设置 Content-Type
+            # Content-Type 会在 _response 方法中设置
+            return error_content
 
     def start_response(self, status_code=200, headers=None):
         if self._headers_responsed:
@@ -183,19 +232,50 @@ class BaseRequestHandler(object):
         status_text = http_status_codes.get(status_code, "Unknown")
         status = "%d %s" % (status_code, status_text)
 
+        # 创建响应头列表
         response_headers = []
         response_headers.append(("Server", server_info))
         response_headers.append(("X-Content-Type-Options", "nosniff"))
         response_headers.append(("X-Frame-Options", "SAMEORIGIN"))
         response_headers.append(("X-XSS-Protection", "1; mode=block"))
 
+        # 添加 self._headers 中的内容
+        if hasattr(self, '_headers'):
+            response_headers.extend(self._headers)
+
+        # 添加传入的 headers 参数
         if headers:
             response_headers.extend(headers)
 
-        if not self._headers_responsed:
+        # 保存 Session 数据到 Session 存储
+        app = self._app
+        session_key = self._session_id or self.session.id
+        app.sessions.put(session_key, self.session)
+
+        # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
+        session_name = self._app.config.session_name
+        session_secure = self._app.config.session_secure
+        session_http_only = self._app.config.session_http_only
+        session_same_site = self._app.config.session_same_site
+        cookie_header = SimpleCookie()
+        cookie_header[session_name] = session_key
+        cookie_header[session_name]['path'] = "/"
+        if session_secure:
+            cookie_header[session_name]['secure'] = True
+        if session_http_only:
+            cookie_header[session_name]['httponly'] = True
+        if session_same_site:
+            cookie_header[session_name]['samesite'] = session_same_site
+        response_headers.append(("Set-Cookie", str(cookie_header[session_name])))
+
+        # 检查是否已经有 Content-Type 响应头
+        has_content_type = any(h[0].lower() == 'content-type' for h in response_headers)
+
+        # 如果没有 Content-Type 响应头，根据状态码和内容类型设置默认的 Content-Type
+        if not has_content_type:
             if status_code >= 400:
                 response_headers.append(("Content-Type", "text/html; charset=utf-8"))
-            elif "Content-Type" not in [h[0] for h in response_headers]:
+            else:
                 from collections.abc import Iterable
 
                 if not isinstance(
@@ -205,15 +285,10 @@ class BaseRequestHandler(object):
                 else:
                     response_headers.append(("Content-Type", default_content_type))
 
-            if self.session_id is None:
-                self.set_cookie(default_sid, self.session.id, path="/")
+        # 标记响应头已发送
+        self._headers_responsed = True
 
-            # 保存 Session 数据到 Session 存储
-            app = self._app
-            app.sessions.put(self.session.id, self.session)
-
-            self._add_response_headers(response_headers)
-
+        # 如果 content 为 None，设置默认的错误信息
         if content is None:
             content = DEFAULT_STATUS_MESSAGE % {
                 "code": status_code,
@@ -221,6 +296,7 @@ class BaseRequestHandler(object):
                 "explain": status_text,
             }
 
+        # 返回响应
         return status, response_headers, content
 
     def _add_response_headers(self, headers):
@@ -400,10 +476,10 @@ class WSGIRequestHandler(BaseRequestHandler):
     def _get_session(self):
         app = self._app
         sessions = app.sessions
+        session_name = app.config.session_name
         cookie_str = self._environ.get("HTTP_COOKIE", "")
         cookie = SimpleCookie(cookie_str)
-        morsel = cookie.get(default_sid)
-
+        morsel = cookie.get(session_name)
         if morsel is not None:
             session_id = morsel.value
             session = sessions.get(session_id)
@@ -562,6 +638,18 @@ class WSGIRequestHandler(BaseRequestHandler):
                     setattr(self, 'route_params', params)
                     result = handler(self, **params)
                     if self._headers_responsed:
+                        # 保存 Session 数据到 Session 存储
+                        app = self._app
+                        session_key = self._session_id or self.session.id
+                        app.sessions.put(session_key, self.session)
+
+                        # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
+                        session_name = app.config.session_name
+                        session_secure = app.config.session_secure
+                        session_http_only = app.config.session_http_only
+                        session_same_site = app.config.session_same_site
+                        self.set_cookie(session_name, session_key, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
+
                         status_code = int(self._status_code)
                         status_text = http_status_codes.get(status_code, "Unknown")
                         status = "%d %s" % (status_code, status_text)
@@ -616,6 +704,7 @@ class RequestHandler(BaseRequestHandler):
         self._rw = rw
         self._buffers = StringIO()
         self._response_headers = {}
+        self._headers = []  # 显式初始化 _headers 属性，确保它存在
         self._cookies = None
         self._get = parse_form(environ["QUERY_STRING"])
         content_type = environ.get("CONTENT_TYPE", "")
@@ -694,9 +783,10 @@ class RequestHandler(BaseRequestHandler):
     def _get_session(self, environ):
         app = self._app
         sessions = app.sessions
+        session_name = app.config.session_name
         cookie = environ.get("HTTP_COOKIE")
         cookie = SimpleCookie(cookie)
-        morsel = cookie.get(default_sid)
+        morsel = cookie.get(session_name)
         if morsel is not None:
             session_id = morsel.value
             session = sessions.get(session_id)
@@ -818,6 +908,7 @@ class RequestHandler(BaseRequestHandler):
         return cookie
 
     def _add_header(self, key, value):
+        # 添加到 _response_headers 字典中
         response_headers = self._response_headers
         response_headers[key] = value
 
@@ -869,6 +960,12 @@ class RequestHandler(BaseRequestHandler):
             if "Content-Length" not in response_headers:
                 response_headers["Content-Length"] = 0
             return []
+
+        # 对于 3xx 重定向响应，设置 Content-Type 为 text/html; charset=utf-8
+        if 300 <= self._status_code < 400:
+            response_headers["Content-Type"] = "text/html; charset=utf-8"
+            # 直接返回空字符串，不需要转换为 JSON 格式
+            return [b""]
 
         content_type = response_headers.get("Content-Type", "")
         is_json_response = "application/json" in content_type
@@ -952,7 +1049,15 @@ class RequestHandler(BaseRequestHandler):
             
             # 如果没有 Content-Type 头部，添加默认值
             if "Content-Type" not in headers:
-                headers["Content-Type"] = default_content_type
+                # 对于 3xx 重定向响应，设置 Content-Type 为 text/html; charset=utf-8
+                if 300 <= status_code < 400:
+                    headers["Content-Type"] = "text/html; charset=utf-8"
+                else:
+                    # 对于其他响应，检查是否是 HTML 内容
+                    if isinstance(content, str) and content.startswith('<'):
+                        headers["Content-Type"] = "text/html; charset=utf-8"
+                    else:
+                        headers["Content-Type"] = default_content_type
             
             # 写入头部
             for header, value in headers.items():
@@ -966,8 +1071,12 @@ class RequestHandler(BaseRequestHandler):
                     line = line.encode("utf-8")
                     rw.write(line)
             rw.write("\r\n".encode("utf-8"))
-            for _ in self._cast(content):
-                rw.write(_)
+            # 对于 3xx 重定向响应，直接返回空字符串，不需要转换为 JSON 格式
+            if 300 <= status_code < 400:
+                rw.write(b"")
+            else:
+                for _ in self._cast(content):
+                    rw.write(_)
             rw.close()
         except Exception:
             if not self._headers_responsed:
@@ -1022,6 +1131,16 @@ class RequestHandler(BaseRequestHandler):
         if headers is None:
             headers = []
 
+        # 直接设置 Content-Type 为 text/html; charset=utf-8
+        # 这样可以确保无论 _response_headers 字典中是否有 Content-Type 响应头，Content-Type 都会被正确设置
+        headers.insert(0, ("Content-Type", "text/html; charset=utf-8"))
+
+        # 添加 self._response_headers 中的响应头
+        existing_header_names = [h[0].lower() for h in headers]
+        for header, value in self._response_headers.items():
+            if header.lower() not in existing_header_names:
+                headers.append((header, value))
+
         # 添加标准头部
         standard_headers = [
             ("Server", "litefs/0.4.0"),
@@ -1031,15 +1150,19 @@ class RequestHandler(BaseRequestHandler):
         ]
         
         # 检查并添加标准头部，避免重复
-        existing_headers = [h[0] for h in headers]
+        existing_header_names = [h[0].lower() for h in headers]
         for header in standard_headers:
-            if header[0] not in existing_headers:
+            if header[0].lower() not in existing_header_names:
                 headers.append(header)
 
+        # 检查是否已经有 Content-Type 响应头
+        has_content_type = any(h[0].lower() == 'content-type' for h in headers)
+        
         if status_code >= 400:
-            html_headers = [("Content-Type", "text/html; charset=utf-8")]
-            headers = html_headers + list(headers)
-        elif "Content-Type" not in [h[0] for h in headers]:
+            if not has_content_type:
+                html_headers = [("Content-Type", "text/html; charset=utf-8")]
+                headers = html_headers + list(headers)
+        elif not has_content_type:
             from collections.abc import Iterable
 
             if not isinstance(content, (str, bytes, dict, list, tuple, type(None))) and isinstance(
@@ -1051,7 +1174,11 @@ class RequestHandler(BaseRequestHandler):
 
         # 设置 session cookie
         if self.session_id is None:
-            self.set_cookie(default_sid, self.session.id, path="/")
+            session_name = self._app.config.session_name
+            session_secure = self._app.config.session_secure
+            session_http_only = self._app.config.session_http_only
+            session_same_site = self._app.config.session_same_site
+            self.set_cookie(session_name, self.session.id, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
 
         # 保存 Session 数据到 Session 存储
         app = self._app

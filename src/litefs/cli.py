@@ -72,18 +72,14 @@ def _create_project_structure(project_path: Path, project_name: str):
         project_path: 项目根目录
         project_name: 项目名称
     """
+    # 创建项目目录结构
     directories = [
         project_path,
-        project_path / "site",
-        project_path / "site" / "static",
-        project_path / "site" / "static" / "css",
-        project_path / "site" / "static" / "js",
-        project_path / "site" / "static" / "images",
         project_path / "templates",
-        project_path / "apps",
-        project_path / "apps" / "home",
-        project_path / "apps" / "utils",
-        project_path / "config",
+        project_path / "static",
+        project_path / "static" / "css",
+        project_path / "static" / "js",
+        project_path / "static" / "images",
     ]
     
     for directory in directories:
@@ -106,18 +102,10 @@ def _create_project_files(project_path: Path, project_name: str):
         "requirements.txt": "requirements.txt.j2",
         ".gitignore": ".gitignore.j2",
         "README.md": "README.md.j2",
-        "config/__init__.py": "config/__init__.py.j2",
-        "config/settings.py": "config/settings.py.j2",
-        "config/routes.py": "config/routes.py.j2",
-        "apps/__init__.py": "apps/__init__.py.j2",
-        "apps/home/__init__.py": "apps/home/__init__.py.j2",
-        "apps/home/handlers.py": "apps/home/handlers.py.j2",
-        "apps/utils/__init__.py": "apps/utils/__init__.py.j2",
-        "apps/utils/helpers.py": "apps/utils/helpers.py.j2",
-        "templates/index.html": "templates/index.html.j2",
-        "site/static/css/style.css": "site/static/css/style.css.j2",
-        "site/index.html": "site/index.html.j2",
         "wsgi.py": "wsgi.py.j2",
+        "templates/index.html": "templates/index.html.j2",
+        "templates/about.html": "templates/about.html.j2",
+        "static/css/style.css": "site/static/css/style.css.j2",
     }
     
     for file_path, template_name in template_files.items():

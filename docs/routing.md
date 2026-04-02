@@ -99,6 +99,29 @@ Litefs 路由系统使用正则表达式进行路径匹配，支持：
 - 精确匹配（如 `/hello`）
 - 路径参数（如 `/user/{id}`）
 - 优先级排序（更具体的路由优先匹配）
+- 加载顺序匹配（按照路由定义的顺序进行匹配）
+
+**重要提示**：Litefs 路由系统是根据路由定义的加载顺序进行匹配的。在注册路由时，建议：
+
+1. **先注册更具体的路由**，再注册更通用的路由
+2. **避免路由路径重叠**，如果必须重叠，确保具体的路由先被注册
+3. **注意模块导入顺序**，因为不同模块的路由注册顺序会影响匹配结果
+
+例如，以下定义顺序是正确的：
+
+```python
+# 先注册具体路由
+@get('/user/admin', name='admin_user')
+def admin_user_handler(request):
+    return 'Admin User'
+
+# 再注册通用路由
+@get('/user/{id}', name='user_detail')
+def user_detail_handler(request, id):
+    return f'User ID: {id}'
+```
+
+如果顺序颠倒，`/user/admin` 会被 `/user/{id}` 匹配，因为它先被注册。
 
 ### 2. HTTP 方法支持
 

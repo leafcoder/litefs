@@ -27,8 +27,6 @@ class Config:
         'host': 'localhost',              # 服务器绑定的主机地址
         'port': 9090,                     # 服务器监听的端口
         'debug': False,                   # 调试模式
-        'not_found': 'not_found',         # 404页面配置
-        'default_page': 'index,index.html', # 默认页面
         'log': './default.log',           # 日志文件路径
         'listen': 1024,                   # 最大监听连接数
         'max_request_size': 10485760,     # 最大请求大小（10MB）
@@ -48,6 +46,10 @@ class Config:
         'session_backend': 'memory',      # 会话后端类型（memory, redis, database, memcache）
         'session_max_size': 1000000,      # 会话最大容量
         'session_expiration_time': 3600,  # 会话过期时间（秒）
+        'session_name': 'litefs.sid',     # 会话cookie名称
+        'session_secure': False,          # 是否使用安全cookie
+        'session_http_only': True,        # 是否仅HTTP访问
+        'session_same_site': 'Lax',       # SameSite策略（Strict, Lax, None）
         
         # Redis 配置
         'redis_host': 'localhost',        # Redis 主机地址

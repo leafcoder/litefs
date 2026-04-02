@@ -5,14 +5,6 @@
 ${project_name} - Litefs 应用
 """
 
-import sys
-import os
-from pathlib import Path
-
-# 添加项目根目录到 Python 路径，以便导入 apps 和 config 模块
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
-
 from litefs import Litefs
 from litefs.middleware import (
     CORSMiddleware,
@@ -20,29 +12,82 @@ from litefs.middleware import (
     SecurityMiddleware,
     HealthCheck,
 )
-from litefs.config import load_config
 
 
-def create_app():
+# 创建应用实例
+app = (
+    Litefs(config_file="config.yaml")
+    .add_middleware(LoggingMiddleware)
+    .add_middleware(SecurityMiddleware)
+    .add_middleware(CORSMiddleware)
+    .add_middleware(HealthCheck)
+)
+
+
+# 挂载静态文件目录
+app.add_static('/static', 'static')
+
+
+# 定义默认首页处理函数
+def index_handler(request):
     """
-    创建应用实例
+    处理首页请求
     
+    Args:
+        request: 请求对象
+        
     Returns:
-        Litefs 应用实例
+        str: 响应内容
     """
-    config = load_config(config_file="config.yaml")
+    request.start_response(200, [("Content-Type", "text/html; charset=utf-8")])
+    with open('templates/index.html', 'r', encoding='utf-8') as f:
+        content = f.read().replace('${project_name}', '${project_name}')
+    return content
+
+
+# 定义关于页面处理函数
+def about_handler(request):
+    """
+    处理关于页面请求
     
-    litefs = (
-        Litefs(**config.to_dict())
-        .add_middleware(LoggingMiddleware)
-        .add_middleware(SecurityMiddleware)
-        .add_middleware(CORSMiddleware)
-        .add_middleware(HealthCheck)
-    )
+    Args:
+        request: 请求对象
+        
+    Returns:
+        str: 响应内容
+    """
+    request.start_response(200, [("Content-Type", "text/html; charset=utf-8")])
+    with open('templates/about.html', 'r', encoding='utf-8') as f:
+        content = f.read().replace('${project_name}', '${project_name}')
+    return content
+
+
+# 定义 API 接口处理函数
+def api_handler(request):
+    """
+    处理 API 请求
     
-    return litefs
+    Args:
+        request: 请求对象
+        
+    Returns:
+        str: 响应内容
+    """
+    request.start_response(200, [("Content-Type", "application/json; charset=utf-8")])
+    import json
+    return json.dumps({
+        "name": "${project_name}",
+        "version": "1.0.0",
+        "status": "ok",
+        "message": "Welcome to the API!"
+    }, ensure_ascii=False)
+
+
+# 添加路由
+app.add_get('/', index_handler, name='index')
+app.add_get('/about', about_handler, name='about')
+app.add_get('/api', api_handler, name='api')
 
 
 if __name__ == "__main__":
-    app = create_app()
     app.run()

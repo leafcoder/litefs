@@ -1,216 +1,136 @@
 # Litefs 示例
 
-本目录包含 Litefs Web 框架的各种示例，帮助您快速上手和深入学习。
+本目录包含 Litefs Web 框架的精选示例，通过可视化的项目展示框架的各种功能。
 
-## 目录结构
+## 示例列表
 
+| 示例 | 描述 | 主要特性 |
+|------|------|----------|
+| [01-hello-world](./01-hello-world/) | 入门示例 | 基础应用、JSON响应 |
+| [02-routing](./02-routing/) | 路由系统 | 装饰器路由、方法链、路径参数、查询参数 |
+| [03-blog](./03-blog/) | 博客系统 | HTML模板、静态文件、会话管理、表单处理 |
+| [04-api-service](./04-api-service/) | RESTful API | API设计、认证授权、CRUD操作、分页过滤 |
+| [05-fullstack](./05-fullstack/) | 全栈应用 | 综合展示所有功能、中间件、缓存、健康检查 |
+
+## 快速开始
+
+### 1. Hello World (入门)
+
+最简单的 Litefs 应用，适合初学者：
+
+```bash
+cd 01-hello-world
+python app.py
 ```
-examples/
-├── 01-quickstart/              # 快速入门
-├── 02-basic-handlers/          # 基础处理器
-├── 03-configuration/          # 配置管理
-├── 04-middleware/             # 中间件
-├── 05-session/                # 会话管理
-├── 06-cache/                  # 缓存
-├── 07-health-check/           # 健康检查
-├── 08-wsgi-deployment/        # WSGI 部署
-├── 09-fullstack/              # 完整应用
-├── 10-cache-backends-web/     # 缓存后端 Web 管理界面
-└── common/                    # 公共资源
-    ├── config/                # 配置文件
-    └── static/                # 静态资源
+
+访问 http://localhost:8080
+
+### 2. 路由系统 (进阶)
+
+学习 Litefs 的路由系统：
+
+```bash
+cd 02-routing
+python app.py
+```
+
+### 3. 博客系统 (可视化)
+
+一个完整的博客 Web 应用：
+
+```bash
+cd 03-blog
+python app.py
+```
+
+默认账号: `admin` / `admin123`
+
+### 4. API 服务 (后端)
+
+RESTful API 服务示例：
+
+```bash
+cd 04-api-service
+python app.py
+```
+
+### 5. 全栈应用 (综合)
+
+展示 Litefs 所有功能的完整应用：
+
+```bash
+cd 05-fullstack
+python app.py
 ```
 
 ## 学习路径
 
-### 1. 快速入门
-
-从 [01-quickstart](./01-quickstart/) 开始，了解 Litefs 的基本用法。
-
-```bash
-cd 01-quickstart
-python quickstart.py
+```
+初学者 → 01-hello-world → 02-routing → 03-blog
+                                      ↓
+后端开发 ← 04-api-service ← 05-fullstack
 ```
 
-### 2. 基础处理器
+## 示例详情
 
-学习 [02-basic-handlers](./02-basic-handlers/)，掌握各种响应类型的处理器。
+### 01-hello-world
 
-### 3. 配置管理
+**适合**: 初次接触 Litefs
 
-了解 [03-configuration](./03-configuration/)，学习如何配置 Litefs 应用。
+展示内容:
+- 创建应用实例
+- 定义路由
+- 返回 JSON 数据
+- 启动服务器
 
-### 4. 中间件
+### 02-routing
 
-探索 [04-middleware](./04-middleware/)，使用中间件增强应用功能。
+**适合**: 学习路由系统
 
-### 5. 会话管理
+展示内容:
+- 装饰器路由定义
+- 方法链路由定义
+- 路径参数
+- 查询参数
+- 多种 HTTP 方法
 
-学习 [05-session](./05-session/)，管理用户会话状态。
+### 03-blog
 
-### 6. 缓存
+**适合**: 学习 Web 应用开发
 
-了解 [06-cache](./06-cache/)，使用缓存提高应用性能。
-
-### 7. 健康检查
-
-学习 [07-health-check](./07-health-check/)，实现应用健康监控。
-
-### 8. WSGI 部署
-
-掌握 [08-wsgi-deployment](./08-wsgi-deployment/)，将应用部署到生产环境。
-
-### 9. 完整应用
-
-参考 [09-fullstack](./09-fullstack/)，构建完整的 Web 应用。
-
-### 10. 缓存后端 Web 管理界面
-
-使用 [10-cache-backends-web](./10-cache-backends-web/)，通过 Web 界面管理各种缓存后端。
-
-## 示例说明
-
-### 01-quickstart
-
-最简单的 Litefs 应用示例，包含：
-- 基本应用启动
-- HTML 响应
-- JSON 响应
-- 请求信息展示
-
-### 02-basic-handlers
-
-各种响应类型的处理器示例：
-- JSON 响应
-- HTML 响应
-- 文本响应
-- 表单处理
-- 错误处理
-- 生成器响应
-- 混合响应
-
-### 03-configuration
-
-配置管理的各种方式：
-- 默认配置
-- 代码配置
-- YAML 配置文件
-- JSON 配置文件
-- TOML 配置文件
-- 环境变量配置
-- 混合配置
-
-### 04-middleware
-
-中间件使用示例：
-- 日志中间件
-- 安全中间件
-- CORS 中间件
-- 限流中间件
-- 健康检查中间件
-- 自定义中间件
-
-### 05-session
-
-会话管理示例：
-- 设置会话
-- 获取会话
-- 删除会话
-- 清除会话
-- 会话应用场景
-
-### 06-cache
-
-缓存管理示例：
-- MemoryCache
-- TreeCache
-- RedisCache
-- 缓存操作
-- 缓存应用场景
-
-### 07-health-check
-
-健康检查示例：
-- 数据库检查
-- 缓存检查
-- 磁盘空间检查
-- 外部 API 检查
-- 消息队列检查
-
-### 08-wsgi-deployment
-
-WSGI 部署示例：
-- Gunicorn
-- uWSGI
-- Waitress
-- mod_wsgi
-- 性能优化
-- 负载均衡
-
-### 09-fullstack
-
-完整的 Web 应用示例：
-- 路由处理
-- 表单处理
-- 会话管理
-- 缓存使用
-- 中间件集成
+展示内容:
+- HTML 页面渲染
 - 静态文件服务
-- 健康检查
+- 会话管理（登录/登出）
+- 表单处理
+- 响应式 CSS 设计
 
-### 10-cache-backends-web
+### 04-api-service
 
-缓存后端 Web 管理界面示例：
-- 支持 Memory、Tree、Redis、Database、Memcache 缓存
-- 可视化缓存操作
-- 批量操作支持
-- TTL 管理
-- 性能对比
-- 缓存应用场景
+**适合**: 学习 API 开发
 
-## 运行示例
+展示内容:
+- RESTful API 设计
+- Token + Session 认证
+- 权限控制（角色）
+- CRUD 操作
+- 分页和过滤
+- 统一的响应格式
 
-每个示例目录都包含独立的 Python 文件，可以直接运行：
+### 05-fullstack
 
-```bash
-cd <example-directory>
-python <example-file>.py
-```
+**适合**: 了解 Litefs 全部功能
 
-## 依赖要求
-
-所有示例都需要安装 Litefs：
-
-```bash
-pip install -r ../../requirements.txt
-```
-
-部分示例可能需要额外的依赖：
-
-```bash
-pip install gunicorn gevent  # WSGI 部署
-pip install uwsgi           # uWSGI 部署
-pip install waitress        # Waitress 部署
-pip install redis           # Redis 缓存
-pip install python-memcached  # Memcache 缓存
-```
-
-## 最佳实践
-
-1. 从简单示例开始，逐步学习复杂功能
-2. 阅读每个示例的 README 文档
-3. 运行示例并查看效果
-4. 修改示例代码进行实验
-5. 参考完整应用示例构建自己的应用
-
-## 贡献
-
-欢迎贡献更多示例！请确保：
-- 代码符合 PEP 8 规范
-- 添加必要的注释和文档
-- 示例可以直接运行
-- 包含 README 说明文档
-
-## 许可证
-
-与 Litefs 主项目保持一致。
+展示内容:
+- 现代路由系统（装饰器 + 方法链）
+- 会话管理（用户认证）
+- 缓存使用（内存缓存）
+- 中间件集成:
+  - 日志中间件
+  - 安全中间件
+  - CORS 中间件
+  - 限流中间件
+  - 健康检查
+- 静态文件服务
+- API 接口
+- 错误处理
