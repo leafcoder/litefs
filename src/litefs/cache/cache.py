@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import os
 import sqlite3
 import time
 from collections import OrderedDict, deque
@@ -25,22 +26,181 @@ class FileEventHandler(FileSystemEventHandler):
     def __init__(self, app):
         FileSystemEventHandler.__init__(self)
         self._app = proxy(app)
+        self._monitored_files = set()  # 记录已监控的文件
+        self._last_reload_time = 0  # 上次重载时间
+        self._reload_cooldown = 1.0  # 重载冷却时间（秒）
+
+    def _should_reload(self, path):
+        """
+        判断文件变化是否需要重新加载应用
+        
+        Args:
+            path: 文件路径
+            
+        Returns:
+            True 表示需要重新加载，False 表示不需要
+        """
+        # 排除不需要触发重载的文件
+        # 日志文件
+        if path.endswith('.log'):
+            return False
+        # Python 编译文件
+        if path.endswith(('.pyc', '.pyo', '.so')):
+            return False
+        # 临时文件和备份文件（包括 ~, .bak, .tmp, .swp 等）
+        if path.endswith(('~', '.bak', '.tmp', '.swp', '.orig')):
+            return False
+        # 检查文件名是否包含波浪号（某些编辑器创建的备份文件）
+        if '~' in os.path.basename(path):
+            return False
+        # __pycache__ 目录
+        if '/__pycache__/' in path or path.startswith('__pycache__/'):
+            return False
+        # .git 目录
+        if '/.git/' in path or path.startswith('.git/'):
+            return False
+        # .svn 目录
+        if '/.svn/' in path or path.startswith('.svn/'):
+            return False
+        # .hg 目录
+        if '/.hg/' in path or path.startswith('.hg/'):
+            return False
+        # node_modules 目录
+        if '/node_modules/' in path:
+            return False
+        
+        # Python 源文件变化需要重新加载
+        if path.endswith('.py'):
+            return True
+        # 配置文件变化需要重新加载
+        if path.endswith(('.yaml', '.yml', '.json', '.ini', '.conf')):
+            return True
+        return False
+
+    def _can_reload_now(self):
+        """
+        检查现在是否可以触发重载（防止频繁重载）
+        
+        Returns:
+            True 表示可以触发重载，False 表示需要等待
+        """
+        import time
+        current_time = time.time()
+        if current_time - self._last_reload_time >= self._reload_cooldown:
+            self._last_reload_time = current_time
+            return True
+        return False
+
+    def add_monitored_file(self, path):
+        """
+        添加需要监控的文件
+        
+        Args:
+            path: 文件路径
+        """
+        self._monitored_files.add(path)
+
+    def _reload_app(self, event_type, path):
+        """
+        重新加载应用
+        
+        Args:
+            event_type: 事件类型
+            path: 文件路径
+        """
+        # 检查是否可以触发重载（防止频繁重载）
+        if not self._can_reload_now():
+            return
+        
+        log_info(self._app.logger, "File %s: %s, reloading application..." % (event_type, path))
+        
+        # 标记需要重新加载
+        self._app._need_reload = True
+        
+        # 清除所有缓存
+        self._app.caches.data.clear()
+        
+        # 关闭服务器，触发重新加载
+        if hasattr(self._app, 'server') and self._app.server:
+            try:
+                self._app.server.server_close()
+            except Exception:
+                pass
 
     def on_moved(self, event):
-        # 简单的缓存清理逻辑，不依赖 webroot
-        log_info(self._app.logger, "%s has been moved to %s" % (event.src_path, event.dest_path))
-        # 清除所有缓存，确保代码更新后能正确加载
-        self._app.caches.data.clear()
-        self._app.files.data.clear()
+        src_path = event.src_path
+        dest_path = event.dest_path
+        
+        # 对于移动事件，需要特殊处理
+        # 如果是 .py 文件移动到备份文件（如 quickstart.py -> quickstart.py~），不触发重载
+        # 这是编辑器保存文件时的常见行为
+        src_is_backup = src_path.endswith('~') or '~' in os.path.basename(src_path)
+        dest_is_backup = dest_path.endswith('~') or '~' in os.path.basename(dest_path)
+        
+        # 如果源文件或目标文件是备份文件，不触发重载
+        if src_is_backup or dest_is_backup:
+            return
+        
+        # 对于不需要触发重载的文件，不记录日志，避免循环触发
+        if not self._should_reload(src_path) and not self._should_reload(dest_path):
+            return
+        
+        log_info(self._app.logger, "%s has been moved to %s" % (src_path, dest_path))
+        
+        # 判断是否需要重新加载应用
+        if self._should_reload(src_path) or self._should_reload(dest_path):
+            self._reload_app('moved', dest_path)
+        else:
+            # 只清空缓存
+            self._app.caches.data.clear()
 
     def on_created(self, event):
-        # 简单的缓存清理逻辑，不依赖 webroot
-        log_info(self._app.logger, "%s has been modified" % event.src_path)
-        # 清除所有缓存，确保代码更新后能正确加载
-        self._app.caches.data.clear()
-        self._app.files.data.clear()
+        src_path = event.src_path
+        
+        # 对于不需要触发重载的文件，不记录日志，避免循环触发
+        if not self._should_reload(src_path):
+            return
+        
+        log_info(self._app.logger, "%s has been created" % src_path)
+        
+        # 判断是否需要重新加载应用
+        if self._should_reload(src_path):
+            self._reload_app('created', src_path)
+        else:
+            # 只清空缓存
+            self._app.caches.data.clear()
 
-    on_modified = on_deleted = on_created
+    def on_modified(self, event):
+        src_path = event.src_path
+        
+        # 对于不需要触发重载的文件，不记录日志，避免循环触发
+        if not self._should_reload(src_path):
+            return
+        
+        log_info(self._app.logger, "%s has been modified" % src_path)
+        
+        # 判断是否需要重新加载应用
+        if self._should_reload(src_path):
+            self._reload_app('modified', src_path)
+        else:
+            # 只清空缓存
+            self._app.caches.data.clear()
+
+    def on_deleted(self, event):
+        src_path = event.src_path
+        
+        # 对于不需要触发重载的文件，不记录日志，避免循环触发
+        if not self._should_reload(src_path):
+            return
+        
+        log_info(self._app.logger, "%s has been deleted" % src_path)
+        
+        # 判断是否需要重新加载应用
+        if self._should_reload(src_path):
+            self._reload_app('deleted', src_path)
+        else:
+            # 只清空缓存
+            self._app.caches.data.clear()
 
 
 class LiteFile(object):

@@ -9,11 +9,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 import litefs
 from litefs.routing import get, post
+from litefs.middleware.logging import LoggingMiddleware
 
 
-@get('/hello', name='hello')
-def hello_handler(request):
-    """Hello World 处理函数"""
+@get('/', name='index')
+def index_handler(request):
+    """首页处理函数"""
     return {
         'message': 'Hello, World!',
         'method': request.method,
@@ -38,13 +39,17 @@ def form_handler(request):
         'data': request.data
     }
 
-def main():
+def main(processes=1):
     """快速入门示例 - 最简单的 Litefs 应用"""
     app = litefs.Litefs(
         host='0.0.0.0',
         port=8080,
         debug=True
     )
+    # app.add_middleware(LoggingMiddleware)
+    
+    # 注册装饰器定义的路由
+    app.register_routes(__name__)
     
     # 使用新的路由系统（方法链风格）
     @app.add_get('/hello_route', name='hello_route')
@@ -61,14 +66,18 @@ def main():
     print(f"访问地址: http://localhost:8080")
     print("=" * 60)
     print("路由系统示例:")
-    print("  GET  /hello          - Hello World 路由（装饰器风格）")
+    print("  GET  /               - 首页路由")
     print("  GET  /user/{id}      - 用户详情路由")
     print("  POST /form           - 表单提交路由")
-    print("  GET  /hello_route    - Hello World 路由（方法链风格）")
+    print("  GET  /hello_route    - 测试路由")
     print("=" * 60)
     
-    app.run()
+    app.run(processes=processes)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        processes = int(sys.argv[1])
+    except (IndexError, ValueError):
+        processes = 1
+    main(processes=processes)

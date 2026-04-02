@@ -142,4 +142,9 @@ default.log
 tests/performance/litefs_result_*.txt
 tests/performance/fastapi_result_*.txt
 tests/performance/performance_report.md
-tests/performance/site/
+tests/performance/fastapi_gunicorn_server.py
+tests/performance/litefs_gunicorn_server.py
+tests/performance/gunicorn_server.py
+tests/performance/fastapi_server.py
+tests/performance/litefs_server.py
+tests/performance/test_results/

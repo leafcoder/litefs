@@ -298,6 +298,12 @@ class TCPServer(object):
     def server_bind(self):
         if self.allow_reuse_address:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # 启用 SO_REUSEPORT，允许多个进程绑定到同一个端口
+        try:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except (AttributeError, OSError):
+            # 某些系统可能不支持 SO_REUSEPORT
+            pass
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         logging.info("bind %s:%s", *self.server_address)
         self.socket.bind(self.server_address)
@@ -461,12 +467,17 @@ class ProcessHTTPServer(HTTPServer):
             bind_and_activate: 是否绑定和激活
             processes: 进程数，默认为 4
         """
-        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+        # 延迟绑定端口，避免热重载时端口被占用
+        super().__init__(server_address, RequestHandlerClass, False)
         self.processes = processes
         self.workers = []
 
     def server_forever(self, poll_interval=0.1):
         """启动多进程服务器"""
+        # 绑定和激活服务器
+        self.server_bind()
+        self.server_activate()
+        
         # 启动多个进程
         for i in range(self.processes):
             worker = multiprocessing.Process(target=self._run_worker, args=(i, poll_interval))
@@ -515,6 +526,8 @@ class ProcessHTTPServer(HTTPServer):
         for worker in self.workers:
             if worker.is_alive():
                 worker.terminate()
+                # 等待工作进程完全关闭
+                worker.join(timeout=5)
         logging.info("服务器已关闭")
 
 

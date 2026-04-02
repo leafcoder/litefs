@@ -4,6 +4,8 @@
 import argparse
 import logging
 import sys
+import socket
+import time
 from datetime import datetime
 from posixpath import abspath as path_abspath
 from typing import Optional
@@ -31,7 +33,7 @@ from .server import (
     SocketIO,
     mainloop,
 )
-from .utils import log_error, make_logger
+from .utils import log_error, log_info, make_logger
 
 from ._version import __version__
 
@@ -69,6 +71,26 @@ def make_server(host, port, request_size=-1):
     sock.setblocking(False)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     return sock
+
+def is_port_available(host, port):
+    """
+    检查端口是否可用
+    
+    Args:
+        host: 主机地址
+        port: 端口号
+        
+    Returns:
+        bool: 端口是否可用
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((host, port))
+        sock.close()
+        return True
+    except OSError:
+        return False
 
 
 class Litefs(object):
@@ -133,10 +155,7 @@ class Litefs(object):
             clean_period=getattr(config, 'cache_clean_period', 60),
             expiration_time=getattr(config, 'cache_expiration_time', 3600),
         )
-        self.files = CacheManager.get_file_cache(
-            clean_period=getattr(config, 'file_cache_clean_period', 60),
-            expiration_time=getattr(config, 'file_cache_expiration_time', 3600),
-        )
+
 
         self.middleware_manager = MiddlewareManager()
         self._middleware_instances = []
@@ -593,43 +612,156 @@ class Litefs(object):
         result = request_handler.handler()
         return request_handler.finish(result)
 
-    def run(self, poll_interval=0.2, processes=1):
+    def run(self, poll_interval=0.2, processes=1, no_reload=False):
         import os
-        observer = Observer()
-        event_handler = FileEventHandler(self)
-        # 监控启动脚本当前目录
-        current_dir = os.getcwd()
-        observer.schedule(event_handler, current_dir, recursive=True)
-        observer.start()
+        import sys
+        import subprocess
+        import time
+        import signal
+        from pathlib import Path
+        from watchdog.events import FileSystemEventHandler
+        from watchdog.observers import Observer
         
-        if processes > 1:
-            self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
-            self.server.max_request_size = self.config.max_request_size
+        # 获取启动脚本路径
+        main_file = getattr(sys.modules['__main__'], '__file__', None)
+        if main_file:
+            main_file = os.path.abspath(main_file)
+        
+        # 检查是否是子进程
+        is_child_process = os.environ.get('LITEFS_CHILD_PROCESS', '0') == '1'
+        
+        print(f"[DEBUG] run() called: is_child_process={is_child_process}, no_reload={no_reload}")
+        
+        # 如果禁用热重载或已经是子进程，直接运行服务器
+        if no_reload or is_child_process:
+            # 子进程：实际运行服务器
+            # 设置环境变量
+            os.environ['LITEFS_CHILD_PROCESS'] = '1'
+            
+            log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
+            
             try:
-                # 启动服务器
-                self.server.server_forever(poll_interval=poll_interval)
+                if processes > 1:
+                    self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
+                    self.server.max_request_size = self.config.max_request_size
+                    self.server.server_forever(poll_interval=poll_interval)
+                else:
+                    self.server = HTTPServer((self.host, self.port), self.handler)
+                    self.server.max_request_size = self.config.max_request_size
+                    self.server.start()
+                    mainloop(poll_interval=poll_interval)
             except KeyboardInterrupt:
-                pass
-            except Exception:
-                log_error(self.logger)
+                log_info(self.logger, "Server stopped by user")
+            except Exception as e:
+                log_error(self.logger, "Server error: %s" % str(e))
             finally:
-                observer.stop()
-                observer.join()
-                self.server.server_close()
+                # 关闭服务器
+                if hasattr(self, 'server') and self.server:
+                    try:
+                        # 先关闭所有工作进程
+                        if hasattr(self.server, 'shutdown'):
+                            self.server.shutdown()
+                            # 给工作进程足够的时间关闭
+                            time.sleep(1)
+                        # 再关闭服务器套接字
+                        self.server.server_close()
+                    except Exception:
+                        pass
         else:
-            self.server = HTTPServer((self.host, self.port), self.handler)
-            self.server.max_request_size = self.config.max_request_size
-            try:
-                self.server.start()
-                mainloop(poll_interval=poll_interval)
-            except KeyboardInterrupt:
-                pass
-            except Exception:
-                log_error(self.logger)
-            finally:
-                observer.stop()
-                observer.join()
-                self.server.server_close()
+            # 父进程，启动子进程监控
+            print("[DEBUG] Parent process: Starting")
+            
+            # 启动子进程循环
+            while True:
+                print("[DEBUG] Parent process: Starting child process")
+                
+                # 启动子进程
+                try:
+                    # 准备环境变量
+                    env = os.environ.copy()
+                    env['LITEFS_CHILD_PROCESS'] = '1'
+                    
+                    # 启动子进程
+                    child_proc = subprocess.Popen(
+                        [sys.executable] + sys.argv,
+                        env=env,
+                        close_fds=True
+                    )
+                    
+                    print(f"[DEBUG] Parent process: Child process started (PID: {child_proc.pid})")
+                    
+                    # 简单的文件监控（暂时跳过 watchdog 避免复杂问题）
+                    if main_file:
+                        project_dir = os.path.dirname(main_file)
+                        print(f"[DEBUG] Parent process: Monitoring directory: {project_dir}")
+                        
+                        # 监控文件变化
+                        file_mod_times = {}
+                        for root, dirs, files in os.walk(project_dir):
+                            for file in files:
+                                if file.endswith('.py'):
+                                    file_path = os.path.join(root, file)
+                                    file_mod_times[file_path] = os.path.getmtime(file_path)
+                        
+                        # 等待子进程或文件变化
+                        while child_proc.poll() is None:
+                            # 检查文件变化
+                            should_restart = False
+                            for root, dirs, files in os.walk(project_dir):
+                                for file in files:
+                                    if file.endswith('.py'):
+                                        file_path = os.path.join(root, file)
+                                        if file_path in file_mod_times:
+                                            current_mtime = os.path.getmtime(file_path)
+                                            if current_mtime != file_mod_times[file_path]:
+                                                print(f"[DEBUG] Parent process: File changed: {file_path}")
+                                                should_restart = True
+                                                break
+                                if should_restart:
+                                    break
+                            
+                            if should_restart:
+                                print("[DEBUG] Parent process: Stopping child process")
+                                child_proc.terminate()
+                                try:
+                                    child_proc.wait(timeout=3)
+                                except subprocess.TimeoutExpired:
+                                    print("[DEBUG] Parent process: Killing child process")
+                                    child_proc.kill()
+                                    child_proc.wait()
+                                break
+                            
+                            time.sleep(1)
+                    else:
+                        # 没有主文件，直接等待子进程退出
+                        child_proc.wait()
+                    
+                    # 子进程已退出
+                    exit_code = child_proc.returncode
+                    print(f"[DEBUG] Parent process: Child process exited with code: {exit_code}")
+                    
+                    # 如果是文件变化导致的重启，继续循环
+                    if 'should_restart' in locals() and should_restart:
+                        print("[DEBUG] Parent process: Restarting...")
+                        # 等待一段时间，确保所有旧的工作进程都已经完全关闭
+                        # 检查端口是否已经释放
+                        print(f"[DEBUG] Parent process: Checking if port {self.port} is available...")
+                        start_time = time.time()
+                        while time.time() - start_time < 30:  # 最多等待 30 秒
+                            if is_port_available(self.host, self.port):
+                                print(f"[DEBUG] Parent process: Port {self.port} is available!")
+                                break
+                            print(f"[DEBUG] Parent process: Port {self.port} is still in use, waiting...")
+                            time.sleep(1)
+                        else:
+                            print(f"[DEBUG] Parent process: Port {self.port} is still in use after 30 seconds, trying anyway...")
+                        continue
+                    else:
+                        break
+                        
+                except Exception as e:
+                    print(f"[DEBUG] Parent process: Error: {e}")
+                    time.sleep(1)
 
 
 def _cmd_args(args):

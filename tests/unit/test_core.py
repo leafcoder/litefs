@@ -58,7 +58,6 @@ class TestLitefsInit(unittest.TestCase):
         self.assertEqual(self.app.port, 9090)
         self.assertIsNotNone(self.app.sessions)
         self.assertIsNotNone(self.app.caches)
-        self.assertIsNotNone(self.app.files)
         self.assertIsNotNone(self.app.middleware_manager)
 
     def test_init_custom_config(self):
@@ -86,11 +85,7 @@ class TestLitefsInit(unittest.TestCase):
         
         self.assertIsInstance(self.app.caches, TreeCache)
 
-    def test_files_tree_cache(self):
-        """测试 files 树缓存"""
-        from litefs.cache import TreeCache
-        
-        self.assertIsInstance(self.app.files, TreeCache)
+
 
 
 class TestLitefsMiddleware(unittest.TestCase):

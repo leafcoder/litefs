@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import logging
+import os
 import time
 from typing import Optional
 
@@ -38,8 +39,9 @@ class LoggingMiddleware(Middleware):
         """
         request_handler._start_time = time.time()
         self.logger.info(
-            "%s - %s %s %s - Started",
+            "%s - [PID: %d] - %s %s %s - Started",
             request_handler.environ.get("REMOTE_ADDR", "-"),
+            os.getpid(),
             request_handler.environ.get("REQUEST_METHOD", "GET"),
             request_handler.environ.get("PATH_INFO", "/"),
             request_handler.environ.get("SERVER_PROTOCOL", "HTTP/1.1"),
@@ -65,8 +67,9 @@ class LoggingMiddleware(Middleware):
             else:
                 status_code = 200
             self.logger.info(
-                "%s - %s %s %s - %s - %.3fs",
+                "%s - [PID: %d] - %s %s %s - %s - %.3fs",
                 request_handler.environ.get("REMOTE_ADDR", "-"),
+                os.getpid(),
                 request_handler.environ.get("REQUEST_METHOD", "GET"),
                 request_handler.environ.get("PATH_INFO", "/"),
                 request_handler.environ.get("SERVER_PROTOCOL", "HTTP/1.1"),
@@ -88,8 +91,9 @@ class LoggingMiddleware(Middleware):
             None: 继续抛出异常
         """
         self.logger.error(
-            "%s - %s %s %s - Exception: %s",
+            "%s - [PID: %d] - %s %s %s - Exception: %s",
             request_handler.environ.get("REMOTE_ADDR", "-"),
+            os.getpid(),
             request_handler.environ.get("REQUEST_METHOD", "GET"),
             request_handler.environ.get("PATH_INFO", "/"),
             request_handler.environ.get("SERVER_PROTOCOL", "HTTP/1.1"),
