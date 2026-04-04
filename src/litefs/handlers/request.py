@@ -329,6 +329,16 @@ class BaseRequestHandler(object):
     def files(self):
         return self._files
 
+    @property
+    def form(self):
+        """
+        表单数据，与 post 属性相同
+
+        Returns:
+            表单数据字典
+        """
+        return self._post
+
 
 class WSGIRequestHandler(BaseRequestHandler):
     """

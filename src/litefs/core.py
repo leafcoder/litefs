@@ -632,6 +632,26 @@ class Litefs(object):
         
         print(f"[DEBUG] run() called: is_child_process={is_child_process}, no_reload={no_reload}")
         
+        # 子进程 PID 存储，用于信号处理
+        child_proc = None
+        
+        def signal_handler(signum, frame):
+            """信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
+            print(f"[DEBUG] Parent process: Received signal {signum}")
+            if child_proc:
+                print("[DEBUG] Parent process: Stopping child process")
+                try:
+                    child_proc.terminate()
+                    try:
+                        child_proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        print("[DEBUG] Parent process: Killing child process")
+                        child_proc.kill()
+                        child_proc.wait()
+                except Exception as e:
+                    print(f"[DEBUG] Parent process: Error stopping child process: {e}")
+            sys.exit(0)
+        
         # 如果禁用热重载或已经是子进程，直接运行服务器
         if no_reload or is_child_process:
             # 子进程：实际运行服务器
@@ -662,14 +682,18 @@ class Litefs(object):
                         if hasattr(self.server, 'shutdown'):
                             self.server.shutdown()
                             # 给工作进程足够的时间关闭
-                            time.sleep(1)
+                            time.sleep(2)
                         # 再关闭服务器套接字
                         self.server.server_close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"[DEBUG] Child process: Error closing server: {e}")
         else:
             # 父进程，启动子进程监控
             print("[DEBUG] Parent process: Starting")
+            
+            # 注册信号处理
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
             
             # 启动子进程循环
             while True:
@@ -707,24 +731,33 @@ class Litefs(object):
                         while child_proc.poll() is None:
                             # 检查文件变化
                             should_restart = False
-                            for root, dirs, files in os.walk(project_dir):
-                                for file in files:
-                                    if file.endswith('.py'):
-                                        file_path = os.path.join(root, file)
-                                        if file_path in file_mod_times:
-                                            current_mtime = os.path.getmtime(file_path)
-                                            if current_mtime != file_mod_times[file_path]:
-                                                print(f"[DEBUG] Parent process: File changed: {file_path}")
-                                                should_restart = True
-                                                break
-                                if should_restart:
-                                    break
+                            try:
+                                for root, dirs, files in os.walk(project_dir):
+                                    for file in files:
+                                        if file.endswith('.py'):
+                                            file_path = os.path.join(root, file)
+                                            if file_path in file_mod_times:
+                                                try:
+                                                    current_mtime = os.path.getmtime(file_path)
+                                                    if current_mtime != file_mod_times[file_path]:
+                                                        print(f"[DEBUG] Parent process: File changed: {file_path}")
+                                                        should_restart = True
+                                                        break
+                                                except FileNotFoundError:
+                                                    # 文件被删除
+                                                    print(f"[DEBUG] Parent process: File deleted: {file_path}")
+                                                    should_restart = True
+                                                    break
+                                    if should_restart:
+                                        break
+                            except Exception as e:
+                                print(f"[DEBUG] Parent process: Error checking file changes: {e}")
                             
                             if should_restart:
                                 print("[DEBUG] Parent process: Stopping child process")
                                 child_proc.terminate()
                                 try:
-                                    child_proc.wait(timeout=3)
+                                    child_proc.wait(timeout=5)
                                 except subprocess.TimeoutExpired:
                                     print("[DEBUG] Parent process: Killing child process")
                                     child_proc.kill()
@@ -762,6 +795,19 @@ class Litefs(object):
                 except Exception as e:
                     print(f"[DEBUG] Parent process: Error: {e}")
                     time.sleep(1)
+                finally:
+                    # 确保子进程被关闭
+                    if child_proc and child_proc.poll() is None:
+                        print("[DEBUG] Parent process: Cleaning up child process")
+                        try:
+                            child_proc.terminate()
+                            child_proc.wait(timeout=5)
+                        except Exception:
+                            try:
+                                child_proc.kill()
+                                child_proc.wait()
+                            except Exception:
+                                pass
 
 
 def _cmd_args(args):
