@@ -60,7 +60,7 @@ class Config:
         'redis_session_key_prefix': 'litefs:session:', # Redis 会话键前缀
         
         # 数据库配置
-        'database_path': ':memory:',      # 数据库路径（SQLite）
+        'database_url': None,             # 数据库连接 URL
         'database_session_table': 'sessions', # 会话表名
         'database_cache_table': 'cache',  # 缓存表名
         

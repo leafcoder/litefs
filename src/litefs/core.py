@@ -21,6 +21,7 @@ from .cache import (
     TreeCache,
 )
 from .config import Config, load_config
+from .database import DatabaseManager
 from .error_pages import ErrorPageRenderer
 from .handlers import RequestHandler, WSGIRequestHandler
 from .middleware import MiddlewareManager
@@ -164,6 +165,66 @@ class Litefs(object):
         
         # 初始化路由管理器
         self.router = Router()
+
+        # 初始化数据库管理器
+        self.db_manager = DatabaseManager()
+        self.db = self.db_manager.get_database(self.config)
+
+    def database(self, name: str = 'default'):
+        """
+        获取数据库实例
+
+        Args:
+            name: 数据库名称
+
+        Returns:
+            数据库实例
+        """
+        return self.db_manager.get_database(self.config, name)
+
+    def db_session(self, name: str = 'default'):
+        """
+        获取数据库会话
+
+        Args:
+            name: 数据库名称
+
+        Returns:
+            数据库会话实例
+        """
+        return self.db_manager.get_session(name)
+
+    def session(self, name: str = 'default'):
+        """
+        获取数据库会话（别名，已废弃，建议使用 db_session）
+
+        Args:
+            name: 数据库名称
+
+        Returns:
+            数据库会话实例
+        """
+        import warnings
+        warnings.warn('session() method is deprecated, use db_session() instead', DeprecationWarning)
+        return self.db_session(name)
+
+    def create_all_tables(self, name: str = 'default'):
+        """
+        创建所有数据表
+
+        Args:
+            name: 数据库名称
+        """
+        self.db_manager.create_all(name)
+
+    def drop_all_tables(self, name: str = 'default'):
+        """
+        删除所有数据表
+
+        Args:
+            name: 数据库名称
+        """
+        self.db_manager.drop_all(name)
 
     def wsgi(self):
         """
@@ -531,26 +592,32 @@ class Litefs(object):
     def register_routes(self, module):
         """
         注册模块中的路由
-        
+
         Args:
             module: 包含路由装饰器的模块对象或模块名称
         """
         import importlib
-        
+
         # 如果是模块名称字符串，导入模块
         if isinstance(module, str):
             module = importlib.import_module(module)
-        
+
         for name in dir(module):
             obj = getattr(module, name)
+            # 确保对象是可调用的，并且有 _routes 属性
             if callable(obj) and hasattr(obj, '_routes'):
-                for route_info in obj._routes:
-                    self.add_route(
-                        path=route_info['path'],
-                        methods=route_info['methods'],
-                        handler=obj,
-                        name=route_info['name']
-                    )
+                try:
+                    # 尝试遍历 _routes
+                    for route_info in obj._routes:
+                        self.add_route(
+                            path=route_info['path'],
+                            methods=route_info['methods'],
+                            handler=obj,
+                            name=route_info['name']
+                        )
+                except TypeError:
+                    # 如果 _routes 不是可迭代的，跳过
+                    pass
         return self
     
     def url_for(self, name, **kwargs):
@@ -687,6 +754,12 @@ class Litefs(object):
                         self.server.server_close()
                     except Exception as e:
                         print(f"[DEBUG] Child process: Error closing server: {e}")
+                # 关闭数据库连接
+                try:
+                    from .database import DatabaseManager
+                    DatabaseManager.close_all()
+                except Exception as e:
+                    print(f"[DEBUG] Child process: Error closing database: {e}")
         else:
             # 父进程，启动子进程监控
             print("[DEBUG] Parent process: Starting")

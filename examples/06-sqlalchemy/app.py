@@ -17,32 +17,36 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 from litefs import Litefs
 from litefs.routing import get, post
 from litefs.middleware import LoggingMiddleware
-from models import Base, Post
+from litefs.database import Base
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Column, Integer, String, Text, DateTime, func
 
 # 创建应用实例
 app = Litefs(
     host='0.0.0.0',
     port=8080,
-    debug=True
+    debug=False,
+    database_url='sqlite:///blog.db'
 ).add_middleware(LoggingMiddleware)
 
-# 配置 SQLAlchemy
-DATABASE_URL = 'sqlite:///blog.db'
-engine = create_engine(DATABASE_URL, echo=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# 定义数据库模型
+class Post(Base):
+    __tablename__ = 'posts'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(100), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 # 创建数据库表
-Base.metadata.create_all(bind=engine)
+app.create_all_tables()
 
 # 依赖项：获取数据库会话
 def get_db():
     """
     获取数据库会话
     """
-    db = SessionLocal()
+    db = app.db_session()
     try:
         yield db
     finally:
@@ -54,14 +58,36 @@ def index(request):
     """
     首页视图，显示所有文章
     """
-    db = next(get_db())
-    posts = db.query(Post).order_by(Post.created_at.desc()).all()
-    
-    return request.render_template('index.html',
-        posts=posts,
-        message=request.session.get('message'),
-        message_type=request.session.get('message_type')
-    )
+    db = None
+    try:
+        db = next(get_db())
+        posts = db.query(Post).order_by(Post.created_at.desc()).all()
+        
+        return request.render_template('index.html',
+            posts=posts,
+            message=request.session.get('message'),
+            message_type=request.session.get('message_type')
+        )
+    finally:
+        # 确保数据库会话被关闭
+        if db:
+            db.close()
+
+
+@get('/test', name='test')
+def test(request):
+    db = None
+    try:
+        db = next(get_db())
+        post = db.query(Post).first()
+        return {
+            'title': post.title,
+        }
+    finally:
+        # 确保数据库会话被关闭
+        if db:
+            db.close()
+
 
 # 创建文章页面
 @get('/create', name='create')
@@ -77,8 +103,8 @@ def create_post(request):
     """
     创建文章处理函数
     """
-    # 直接创建数据库会话，不使用 yield 机制
-    db = SessionLocal()
+    # 使用应用的数据库会话
+    db = app.db_session()
     try:
         # 获取表单数据
         title = request.form.get('title')
@@ -117,6 +143,7 @@ def view(request, id):
     """
     查看文章详情
     """
+    db = None
     try:
         db = next(get_db())
         post = db.query(Post).filter(Post.id == id).first()
@@ -134,6 +161,10 @@ def view(request, id):
         request.session['message_type'] = 'error'
         request.start_response(302, [('Location', '/')])
         return ''
+    finally:
+        # 确保数据库会话被关闭
+        if db:
+            db.close()
 
 # 编辑文章页面
 @get('/edit/{id}', name='edit')
@@ -141,6 +172,7 @@ def edit(request, id):
     """
     编辑文章页面
     """
+    db = None
     try:
         db = next(get_db())
         post = db.query(Post).filter(Post.id == id).first()
@@ -158,6 +190,10 @@ def edit(request, id):
         request.session['message_type'] = 'error'
         request.start_response(302, [('Location', '/')])
         return ''
+    finally:
+        # 确保数据库会话被关闭
+        if db:
+            db.close()
 
 # 更新文章
 @post('/edit/{id}', name='update')
@@ -165,6 +201,7 @@ def update(request, id):
     """
     更新文章处理函数
     """
+    db = None
     try:
         # 获取表单数据
         title = request.form.get('title')
@@ -194,6 +231,10 @@ def update(request, id):
         # 设置错误消息
         request.session['message'] = f'更新文章失败：{str(e)}'
         request.session['message_type'] = 'error'
+    finally:
+        # 确保数据库会话被关闭
+        if db:
+            db.close()
     
     # 重定向到首页
     request.start_response(302, [('Location', '/')])
@@ -205,6 +246,7 @@ def delete(request, id):
     """
     删除文章
     """
+    db = None
     try:
         db = next(get_db())
         post = db.query(Post).filter(Post.id == id).first()
@@ -223,6 +265,10 @@ def delete(request, id):
         # 设置错误消息
         request.session['message'] = f'删除文章失败：{str(e)}'
         request.session['message_type'] = 'error'
+    finally:
+        # 确保数据库会话被关闭
+        if db:
+            db.close()
     
     # 重定向到首页
     request.start_response(302, [('Location', '/')])
