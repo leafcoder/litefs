@@ -697,26 +697,35 @@ class Litefs(object):
         # 检查是否是子进程
         is_child_process = os.environ.get('LITEFS_CHILD_PROCESS', '0') == '1'
         
-        print(f"[DEBUG] run() called: is_child_process={is_child_process}, no_reload={no_reload}")
-        
         # 子进程 PID 存储，用于信号处理
         child_proc = None
         
-        def signal_handler(signum, frame):
-            """信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
-            print(f"[DEBUG] Parent process: Received signal {signum}")
+        def parent_signal_handler(signum, frame):
+            """父进程信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
             if child_proc:
-                print("[DEBUG] Parent process: Stopping child process")
                 try:
+                    # 发送 SIGTERM 信号给子进程
                     child_proc.terminate()
+                    # 等待子进程关闭，最多等待 15 秒
                     try:
-                        child_proc.wait(timeout=5)
+                        child_proc.wait(timeout=15)
                     except subprocess.TimeoutExpired:
-                        print("[DEBUG] Parent process: Killing child process")
                         child_proc.kill()
                         child_proc.wait()
-                except Exception as e:
-                    print(f"[DEBUG] Parent process: Error stopping child process: {e}")
+                except Exception:
+                    pass
+            sys.exit(0)
+        
+        def child_signal_handler(signum, frame):
+            """子进程信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
+            # 关闭服务器
+            if hasattr(self, 'server') and self.server:
+                try:
+                    if hasattr(self.server, 'shutdown'):
+                        self.server.shutdown()
+                except Exception:
+                    pass
+            # 退出进程
             sys.exit(0)
         
         # 如果禁用热重载或已经是子进程，直接运行服务器
@@ -724,6 +733,10 @@ class Litefs(object):
             # 子进程：实际运行服务器
             # 设置环境变量
             os.environ['LITEFS_CHILD_PROCESS'] = '1'
+            
+            # 注册信号处理函数
+            signal.signal(signal.SIGINT, child_signal_handler)
+            signal.signal(signal.SIGTERM, child_signal_handler)
             
             log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
             
@@ -739,6 +752,8 @@ class Litefs(object):
                     mainloop(poll_interval=poll_interval)
             except KeyboardInterrupt:
                 log_info(self.logger, "Server stopped by user")
+            except SystemExit:
+                log_info(self.logger, "Server stopped by signal")
             except Exception as e:
                 log_error(self.logger, "Server error: %s" % str(e))
             finally:
@@ -752,25 +767,23 @@ class Litefs(object):
                             time.sleep(2)
                         # 再关闭服务器套接字
                         self.server.server_close()
-                    except Exception as e:
-                        print(f"[DEBUG] Child process: Error closing server: {e}")
+                    except Exception:
+                        pass
                 # 关闭数据库连接
                 try:
                     from .database import DatabaseManager
                     DatabaseManager.close_all()
-                except Exception as e:
-                    print(f"[DEBUG] Child process: Error closing database: {e}")
+                except Exception:
+                    pass
         else:
             # 父进程，启动子进程监控
-            print("[DEBUG] Parent process: Starting")
             
             # 注册信号处理
-            signal.signal(signal.SIGINT, signal_handler)
-            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGINT, parent_signal_handler)
+            signal.signal(signal.SIGTERM, parent_signal_handler)
             
             # 启动子进程循环
             while True:
-                print("[DEBUG] Parent process: Starting child process")
                 
                 # 启动子进程
                 try:
@@ -785,12 +798,9 @@ class Litefs(object):
                         close_fds=True
                     )
                     
-                    print(f"[DEBUG] Parent process: Child process started (PID: {child_proc.pid})")
-                    
                     # 简单的文件监控（暂时跳过 watchdog 避免复杂问题）
                     if main_file:
                         project_dir = os.path.dirname(main_file)
-                        print(f"[DEBUG] Parent process: Monitoring directory: {project_dir}")
                         
                         # 监控文件变化
                         file_mod_times = {}
@@ -813,26 +823,22 @@ class Litefs(object):
                                                 try:
                                                     current_mtime = os.path.getmtime(file_path)
                                                     if current_mtime != file_mod_times[file_path]:
-                                                        print(f"[DEBUG] Parent process: File changed: {file_path}")
                                                         should_restart = True
                                                         break
                                                 except FileNotFoundError:
                                                     # 文件被删除
-                                                    print(f"[DEBUG] Parent process: File deleted: {file_path}")
                                                     should_restart = True
                                                     break
                                     if should_restart:
                                         break
-                            except Exception as e:
-                                print(f"[DEBUG] Parent process: Error checking file changes: {e}")
+                            except Exception:
+                                pass
                             
                             if should_restart:
-                                print("[DEBUG] Parent process: Stopping child process")
                                 child_proc.terminate()
                                 try:
-                                    child_proc.wait(timeout=5)
+                                    child_proc.wait(timeout=15)
                                 except subprocess.TimeoutExpired:
-                                    print("[DEBUG] Parent process: Killing child process")
                                     child_proc.kill()
                                     child_proc.wait()
                                 break
@@ -844,37 +850,28 @@ class Litefs(object):
                     
                     # 子进程已退出
                     exit_code = child_proc.returncode
-                    print(f"[DEBUG] Parent process: Child process exited with code: {exit_code}")
                     
                     # 如果是文件变化导致的重启，继续循环
                     if 'should_restart' in locals() and should_restart:
-                        print("[DEBUG] Parent process: Restarting...")
                         # 等待一段时间，确保所有旧的工作进程都已经完全关闭
                         # 检查端口是否已经释放
-                        print(f"[DEBUG] Parent process: Checking if port {self.port} is available...")
                         start_time = time.time()
                         while time.time() - start_time < 30:  # 最多等待 30 秒
                             if is_port_available(self.host, self.port):
-                                print(f"[DEBUG] Parent process: Port {self.port} is available!")
                                 break
-                            print(f"[DEBUG] Parent process: Port {self.port} is still in use, waiting...")
                             time.sleep(1)
-                        else:
-                            print(f"[DEBUG] Parent process: Port {self.port} is still in use after 30 seconds, trying anyway...")
                         continue
                     else:
                         break
                         
-                except Exception as e:
-                    print(f"[DEBUG] Parent process: Error: {e}")
+                except Exception:
                     time.sleep(1)
                 finally:
                     # 确保子进程被关闭
                     if child_proc and child_proc.poll() is None:
-                        print("[DEBUG] Parent process: Cleaning up child process")
                         try:
                             child_proc.terminate()
-                            child_proc.wait(timeout=5)
+                            child_proc.wait(timeout=15)
                         except Exception:
                             try:
                                 child_proc.kill()

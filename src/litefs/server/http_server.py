@@ -42,6 +42,7 @@ import socket
 import sys
 import os
 import multiprocessing
+import time
 
 
 should_retry_error = (EWOULDBLOCK, EAGAIN)
@@ -521,14 +522,178 @@ class ProcessHTTPServer(HTTPServer):
             import traceback
             traceback.print_exc()
 
+    def _check_port_free(self, host, port, timeout=5):
+        """检查端口是否已释放
+        
+        Args:
+            host: 主机名
+            port: 端口号
+            timeout: 超时时间（秒）
+            
+        Returns:
+            bool: 端口是否已释放
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                # 尝试绑定到端口，如果成功则说明端口已释放
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((host, port))
+                sock.close()
+                return True
+            except socket.error:
+                # 端口被占用，继续等待
+                time.sleep(0.1)
+        return False
+    
+    def _get_all_children(self, process):
+        """递归获取所有子进程和孙子进程
+        
+        Args:
+            process: 父进程对象
+            
+        Returns:
+            list: 所有子进程列表
+        """
+        all_children = []
+        try:
+            # 尝试获取子进程
+            # 注意：multiprocessing.Process没有直接获取子进程的方法
+            # 这里我们通过psutil库来实现（如果可用）
+            try:
+                import psutil
+                parent = psutil.Process(process.pid)
+                for child in parent.children(recursive=True):
+                    all_children.append(child)
+            except ImportError:
+                # 如果没有psutil，只检查直接子进程
+                # 注意：这可能无法获取所有孙子进程
+                pass
+        except Exception:
+            pass
+        return all_children
+    
     def shutdown(self):
         """关闭服务器"""
-        for worker in self.workers:
+        import signal
+        
+        # 记录服务器地址和端口
+        host, port = self.server_address
+        
+        # 只在主进程中打印关闭信息
+        if os.getpid() == os.getppid() or len(self.workers) > 0:
+            logging.info("开始关闭服务器...")
+        
+        # 终止所有工作进程
+        alive_workers = [w for w in self.workers if w.is_alive()]
+        if alive_workers:
+            logging.info(f"发现 {len(alive_workers)} 个活跃的工作进程")
+        
+        # 首先尝试优雅地终止所有工作进程
+        for i, worker in enumerate(alive_workers):
             if worker.is_alive():
-                worker.terminate()
-                # 等待工作进程完全关闭
-                worker.join(timeout=5)
-        logging.info("服务器已关闭")
+                try:
+                    # 发送 SIGTERM 信号
+                    worker.terminate()
+                except Exception:
+                    pass
+        
+        # 等待工作进程关闭
+        if alive_workers:
+            logging.info("等待工作进程关闭...")
+        start_time = time.time()
+        timeout = 10  # 最多等待 10 秒
+        
+        while time.time() - start_time < timeout:
+            all_dead = True
+            for worker in self.workers:
+                if worker.is_alive():
+                    all_dead = False
+                    worker.join(timeout=0.1)
+            
+            if all_dead:
+                if alive_workers:
+                    logging.info("所有工作进程已关闭")
+                break
+            
+            time.sleep(0.1)
+        
+        # 如果还有进程存活，强制终止
+        for i, worker in enumerate(self.workers):
+            if worker.is_alive():
+                try:
+                    worker.kill()
+                    worker.join(timeout=1)
+                except Exception:
+                    pass
+        
+        # 清空工作进程列表
+        self.workers = []
+        
+        # 关闭服务器套接字
+        try:
+            self.server_close()
+            if alive_workers:
+                logging.info("服务器套接字已关闭")
+        except Exception:
+            pass
+        
+        # 尝试使用 psutil 找到并终止所有相关进程
+        try:
+            import psutil
+            current_pid = os.getpid()
+            
+            # 查找所有监听指定端口的进程
+            for proc in psutil.process_iter(['pid', 'name', 'connections']):
+                try:
+                    # 跳过当前进程
+                    if proc.info['pid'] == current_pid:
+                        continue
+                    
+                    # 检查进程是否监听指定端口
+                    connections = proc.info.get('connections', [])
+                    if connections:
+                        for conn in connections:
+                            if conn.status == 'LISTEN' and conn.laddr.port == port:
+                                # 终止进程及其所有子进程
+                                for child in proc.children(recursive=True):
+                                    try:
+                                        child.terminate()
+                                    except Exception:
+                                        pass
+                                
+                                try:
+                                    proc.terminate()
+                                    proc.wait(timeout=5)
+                                except psutil.TimeoutExpired:
+                                    proc.kill()
+                                    proc.wait()
+                                except Exception:
+                                    pass
+                                break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+                except Exception:
+                    pass
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        
+        # 等待一段时间让端口释放
+        time.sleep(1)
+        
+        # 检查端口是否已释放
+        if self._check_port_free(host, port, timeout=5):
+            if alive_workers:
+                logging.info("端口已释放，服务器已完全关闭")
+        else:
+            if alive_workers:
+                logging.warning("端口可能未完全释放，服务器已尝试关闭")
+        
+        if alive_workers:
+            logging.info("服务器已关闭")
 
 
 class WSGIServer(HTTPServer):

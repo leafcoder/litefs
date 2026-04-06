@@ -55,4 +55,4 @@ if __name__ == '__main__':
     print("  GET /about  - 关于页面")
     print("=" * 60)
     
-    app.run(processes=8)
+    app.run(processes=6)
