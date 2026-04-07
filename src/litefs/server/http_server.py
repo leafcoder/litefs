@@ -195,11 +195,16 @@ class SocketIO(RawIOBase):
             return
         RawIOBase.close(self)
         try:
-            self._sock.shutdown(socket.SHUT_RDWR)
-        except socket.error as e:
-            if e.errno != ENOTCONN:
-                raise
-        self._sock.close()
+            try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except socket.error as e:
+                if e.errno != ENOTCONN:
+                    raise
+        finally:
+            try:
+                self._sock.close()
+            except:
+                pass
 
     read_gr = write_gr = None
 
@@ -251,20 +256,32 @@ class Epoll(object):
                         print_exc()
                     except Exception:
                         print_exc()
-                elif (event & EPOLLIN) or (event & EPOLLOUT):
-                    try:
-                        greenlets[fileno].switch()
-                    except KeyboardInterrupt:
-                        break
-                    except Exception:
-                        print_exc()
-                elif event & (EPOLLHUP | EPOLLERR):
-                    try:
-                        greenlets[fileno].throw()
-                    except KeyboardInterrupt:
-                        break
-                    except Exception:
-                        print_exc()
+                elif fileno in greenlets:
+                    # 只处理还在 greenlets 字典中的连接
+                    if (event & EPOLLIN) or (event & EPOLLOUT):
+                        try:
+                            greenlets[fileno].switch()
+                        except KeyboardInterrupt:
+                            break
+                        except Exception:
+                            # greenlet 执行出错，清理连接
+                            gr = greenlets.pop(fileno, None)
+                            if gr is not None:
+                                gr.throw()
+                            print_exc()
+                    elif event & (EPOLLHUP | EPOLLERR):
+                        try:
+                            # 发送异常给 greenlet，让它退出
+                            greenlets[fileno].throw()
+                        except KeyboardInterrupt:
+                            break
+                        except Exception:
+                            pass
+                        finally:
+                            # 清理 greenlet
+                            gr = greenlets.pop(fileno, None)
+                            if gr is not None:
+                                gr.throw()
             while len(idles):
                 now_ts = time()
                 ts, gr = idles.pop(0)
@@ -390,9 +407,6 @@ class TCPServer(object):
                 # Flush the buffer to ensure the response is sent
                 if hasattr(rw, 'flush'):
                     rw.flush()
-                # Give some time for the response to be sent
-                import time
-                time.sleep(0.1)
             except Exception:
                 pass
             finally:
@@ -400,19 +414,25 @@ class TCPServer(object):
         except Exception as e:
             raise
         finally:
+            # 确保在所有情况下都清理 greenlet 和关闭连接
             try:
-                if raw.read_gr is not None:
-                    raw.read_gr.throw()
-                if raw.write_gr is not None:
-                    raw.write_gr.throw()
-            finally:
-                fileno = raw.fileno()
-                epoll._greenlets.pop(fileno, None)
-            if not raw.closed:
                 try:
-                    raw.close()
-                except Exception:
-                    pass
+                    if raw.read_gr is not None:
+                        raw.read_gr.throw()
+                    if raw.write_gr is not None:
+                        raw.write_gr.throw()
+                finally:
+                    fileno = raw.fileno()
+                    gr = epoll._greenlets.pop(fileno, None)
+                    if gr is not None:
+                        gr.throw()
+            finally:
+                # 确保连接被关闭
+                if not raw.closed:
+                    try:
+                        raw.close()
+                    except Exception:
+                        pass
 
     def shutdown_request(self, request):
         try:
