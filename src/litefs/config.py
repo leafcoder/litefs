@@ -11,15 +11,15 @@ class Config:
     """
     配置管理类
 
-    支持多种配置来源：
-    1. 默认配置
-    2. 配置文件（YAML、JSON、TOML）
-    3. 环境变量
-    4. 命令行参数
+    支持多种配置来源和分层管理：
+    1. 默认配置（内置）
+    2. 环境配置（如 config.production.yaml）
+    3. 本地配置（如 config.local.yaml）
+    4. 环境变量
     5. 代码中的配置
 
     配置优先级（从高到低）：
-    代码配置 > 环境变量 > 配置文件 > 默认值
+    代码配置 > 环境变量 > 本地配置 > 环境配置 > 默认值
     """
 
     DEFAULT_CONFIG = {
@@ -33,6 +33,8 @@ class Config:
         'max_upload_size': 52428800,      # 最大上传大小（50MB）
         'config_file': None,              # 配置文件路径
         'error_pages_dir': None,          # 错误页面目录
+        'config_env': None,               # 环境名称（如 development, production）
+        'default_page': 'index,index.html', # 默认页面
         
         # 缓存配置
         'cache_backend': 'tree',          # 缓存后端类型（memory, tree, redis, database, memcache）
@@ -68,10 +70,14 @@ class Config:
         'memcache_servers': 'localhost:11211', # Memcache 服务器列表
         'memcache_key_prefix': 'litefs:', # Memcache 缓存键前缀
         'memcache_session_key_prefix': 'litefs:session:', # Memcache 会话键前缀
+        
+        # 配置管理
+        'config_encrypted_keys': [],      # 需要加密的配置键
+        'config_secret_key': None,        # 配置加密密钥
     }
 
     ENV_PREFIX = 'LITEFS_'
-
+    
     def __init__(self, config_file: Optional[str] = None, **kwargs):
         """
         初始化配置
@@ -81,19 +87,76 @@ class Config:
             **kwargs: 其他配置项
         """
         self._config: Dict[str, Any] = {}
+        self._config_files: List[str] = []  # 已加载的配置文件列表
+        
+        # 加载默认配置
         self._load_default_config()
         
-        if config_file:
-            self._load_config_file(config_file)
-        elif kwargs.get('config_file'):
-            self._load_config_file(kwargs['config_file'])
+        # 确定配置文件路径
+        config_path = config_file or kwargs.get('config_file')
         
+        # 加载分层配置
+        if config_path:
+            self._load_layered_configs(config_path)
+        else:
+            # 尝试自动加载配置文件
+            self._load_auto_configs()
+        
+        # 加载环境变量
         self._load_env_vars()
+        
+        # 应用代码配置
         self._update_config(kwargs)
+        
+        # 验证配置
+        self._validate_config()
     
     def _load_default_config(self):
         """加载默认配置"""
         self._config.update(self.DEFAULT_CONFIG.copy())
+    
+    def _load_auto_configs(self):
+        """自动加载配置文件"""
+        config_dir = Path('.')
+        env = os.getenv(f'{self.ENV_PREFIX}CONFIG_ENV', 'development')
+        
+        # 尝试加载环境配置和本地配置
+        env_config = config_dir / f'config.{env}.yaml'
+        local_config = config_dir / 'config.local.yaml'
+        
+        if env_config.exists():
+            self._load_config_file(str(env_config))
+        
+        if local_config.exists():
+            self._load_config_file(str(local_config))
+    
+    def _load_layered_configs(self, config_file: str):
+        """
+        加载分层配置文件
+        
+        1. 基础配置文件（如 config.yaml）
+        2. 环境配置文件（如 config.production.yaml）
+        3. 本地配置文件（如 config.local.yaml）
+        """
+        config_path = Path(config_file)
+        config_dir = config_path.parent
+        base_name = config_path.stem
+        ext = config_path.suffix
+        
+        # 加载基础配置
+        if config_path.exists():
+            self._load_config_file(str(config_path))
+        
+        # 加载环境配置
+        env = os.getenv(f'{self.ENV_PREFIX}CONFIG_ENV', 'development')
+        env_config = config_dir / f'{base_name}.{env}{ext}'
+        if env_config.exists():
+            self._load_config_file(str(env_config))
+        
+        # 加载本地配置
+        local_config = config_dir / f'{base_name}.local{ext}'
+        if local_config.exists():
+            self._load_config_file(str(local_config))
     
     def _load_config_file(self, config_file: str):
         """
@@ -109,6 +172,10 @@ class Config:
         if not config_path.exists():
             raise FileNotFoundError(f"配置文件不存在: {config_file}")
         
+        # 记录已加载的配置文件
+        if str(config_path) not in self._config_files:
+            self._config_files.append(str(config_path))
+        
         file_ext = config_path.suffix.lower()
         
         if file_ext in ['.yaml', '.yml']:
@@ -119,6 +186,102 @@ class Config:
             self._load_toml_config(config_path)
         else:
             raise ValueError(f"不支持的配置文件格式: {file_ext}")
+    
+    def _validate_config(self):
+        """
+        验证配置的有效性
+        """
+        # 验证缓存后端
+        valid_cache_backends = ['memory', 'tree', 'redis', 'database', 'memcache']
+        if self._config.get('cache_backend') not in valid_cache_backends:
+            raise ValueError(f"无效的缓存后端: {self._config.get('cache_backend')}")
+        
+        # 验证会话后端
+        valid_session_backends = ['memory', 'redis', 'database', 'memcache']
+        if self._config.get('session_backend') not in valid_session_backends:
+            raise ValueError(f"无效的会话后端: {self._config.get('session_backend')}")
+        
+        # 验证 SameSite 策略
+        valid_same_site = ['Strict', 'Lax', 'None']
+        if self._config.get('session_same_site') not in valid_same_site:
+            raise ValueError(f"无效的 SameSite 策略: {self._config.get('session_same_site')}")
+        
+        # 验证端口
+        port = self._config.get('port')
+        if not isinstance(port, int) or port < 1 or port > 65535:
+            raise ValueError(f"无效的端口: {port}")
+    
+
+    
+    def encrypt_config(self, key: str, value: Any) -> str:
+        """
+        加密配置值
+        
+        Args:
+            key: 配置键
+            value: 配置值
+            
+        Returns:
+            加密后的字符串
+        """
+        import base64
+        from cryptography.fernet import Fernet
+        
+        secret_key = self._config.get('config_secret_key')
+        if not secret_key:
+            raise ValueError("配置加密密钥未设置")
+        
+        # 确保密钥长度正确
+        if len(secret_key) < 32:
+            secret_key = secret_key.ljust(32, '0')
+        elif len(secret_key) > 32:
+            secret_key = secret_key[:32]
+        
+        # 创建 Fernet 实例
+        fernet = Fernet(base64.urlsafe_b64encode(secret_key.encode()))
+        
+        # 序列化值
+        import json
+        serialized_value = json.dumps(value)
+        
+        # 加密
+        encrypted = fernet.encrypt(serialized_value.encode())
+        
+        return base64.b64encode(encrypted).decode()
+    
+    def decrypt_config(self, encrypted_value: str) -> Any:
+        """
+        解密配置值
+        
+        Args:
+            encrypted_value: 加密后的字符串
+            
+        Returns:
+            解密后的值
+        """
+        import base64
+        from cryptography.fernet import Fernet
+        
+        secret_key = self._config.get('config_secret_key')
+        if not secret_key:
+            raise ValueError("配置加密密钥未设置")
+        
+        # 确保密钥长度正确
+        if len(secret_key) < 32:
+            secret_key = secret_key.ljust(32, '0')
+        elif len(secret_key) > 32:
+            secret_key = secret_key[:32]
+        
+        # 创建 Fernet 实例
+        fernet = Fernet(base64.urlsafe_b64encode(secret_key.encode()))
+        
+        # 解密
+        encrypted = base64.b64decode(encrypted_value.encode())
+        decrypted = fernet.decrypt(encrypted)
+        
+        # 反序列化
+        import json
+        return json.loads(decrypted.decode())
     
     def _load_yaml_config(self, config_path: Path):
         """加载 YAML 配置文件"""
@@ -201,7 +364,17 @@ class Config:
         """
         for key, value in config_data.items():
             if key in self.DEFAULT_CONFIG:
-                self._config[key] = value
+                # 检查是否需要解密
+                if key in self._config.get('config_encrypted_keys', []) and isinstance(value, str):
+                    try:
+                        # 尝试解密
+                        decrypted_value = self.decrypt_config(value)
+                        self._config[key] = decrypted_value
+                    except Exception:
+                        # 解密失败，使用原始值
+                        self._config[key] = value
+                else:
+                    self._config[key] = value
         
         # 处理 memcache_servers 配置，确保它是一个列表
         if isinstance(self._config.get('memcache_servers'), str):

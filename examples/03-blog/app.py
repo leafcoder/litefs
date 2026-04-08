@@ -363,4 +363,4 @@ if __name__ == '__main__':
     print("默认账号: admin / admin123")
     print("=" * 60)
     
-    app.run()
+    app.run(processes=6)

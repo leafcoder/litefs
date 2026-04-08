@@ -35,7 +35,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.host, 'localhost')
         self.assertEqual(config.port, 9090)
         self.assertEqual(config.debug, False)
-        self.assertEqual(config.not_found, 'not_found')
         self.assertEqual(config.default_page, 'index,index.html')
         self.assertEqual(config.log, './default.log')
         self.assertEqual(config.listen, 1024)

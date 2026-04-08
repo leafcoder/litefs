@@ -76,8 +76,110 @@ DEFAULT_STATUS_MESSAGE = """\
 </html>"""
 
 
-def is_unicode(s):
-    return isinstance(s, str)
+class Response:
+    """
+    响应对象，提供更丰富的响应方法
+    """
+    
+    def __init__(self, content=None, status_code=200, headers=None):
+        self.content = content
+        self.status_code = status_code
+        self.headers = headers or []
+    
+    @classmethod
+    def json(cls, data, status_code=200, headers=None):
+        """
+        返回 JSON 响应
+        """
+        import json
+        content = json.dumps(data, ensure_ascii=False)
+        headers = headers or []
+        # 确保设置正确的 Content-Type
+        has_content_type = any(h[0].lower() == 'content-type' for h in headers)
+        if not has_content_type:
+            headers.insert(0, ("Content-Type", "application/json; charset=utf-8"))
+        return cls(content, status_code, headers)
+    
+    @classmethod
+    def html(cls, content, status_code=200, headers=None):
+        """
+        返回 HTML 响应
+        """
+        headers = headers or []
+        # 确保设置正确的 Content-Type
+        has_content_type = any(h[0].lower() == 'content-type' for h in headers)
+        if not has_content_type:
+            headers.insert(0, ("Content-Type", "text/html; charset=utf-8"))
+        return cls(content, status_code, headers)
+    
+    @classmethod
+    def text(cls, content, status_code=200, headers=None):
+        """
+        返回纯文本响应
+        """
+        headers = headers or []
+        # 确保设置正确的 Content-Type
+        has_content_type = any(h[0].lower() == 'content-type' for h in headers)
+        if not has_content_type:
+            headers.insert(0, ("Content-Type", "text/plain; charset=utf-8"))
+        return cls(content, status_code, headers)
+    
+    @classmethod
+    def file(cls, file_path, status_code=200, headers=None):
+        """
+        返回文件响应
+        """
+        import os
+        from mimetypes import guess_type
+        
+        if not os.path.exists(file_path):
+            return cls("File not found", 404)
+        
+        # 猜测文件的 MIME 类型
+        mime_type, encoding = guess_type(file_path)
+        mime_type = mime_type or "application/octet-stream"
+        
+        # 读取文件内容
+        with open(file_path, 'rb') as f:
+            content = f.read()
+        
+        headers = headers or []
+        # 确保设置正确的 Content-Type
+        has_content_type = any(h[0].lower() == 'content-type' for h in headers)
+        if not has_content_type:
+            headers.insert(0, ("Content-Type", mime_type))
+        # 添加 Content-Disposition 头，使浏览器下载文件
+        headers.append(("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}"))
+        headers.append(("Content-Length", str(len(content))))
+        
+        return cls(content, status_code, headers)
+    
+    @classmethod
+    def redirect(cls, url, status_code=302, headers=None):
+        """
+        返回重定向响应
+        """
+        headers = headers or []
+        headers.insert(0, ("Location", url))
+        headers.insert(0, ("Content-Type", "text/html; charset=utf-8"))
+        return cls(f"Redirecting to {url}", status_code, headers)
+    
+    @classmethod
+    def error(cls, status_code, message=None, headers=None):
+        """
+        返回错误响应
+        """
+        from http.client import responses
+        status_text = responses.get(status_code, "Unknown Error")
+        message = message or status_text
+        content = DEFAULT_STATUS_MESSAGE % {
+            "code": status_code,
+            "message": message,
+            "explain": status_text,
+        }
+        headers = headers or []
+        headers.insert(0, ("Content-Type", "text/html; charset=utf-8"))
+        return cls(content, status_code, headers)
 
 
 def is_bytes(s):
@@ -296,6 +398,25 @@ class BaseRequestHandler(object):
                 "explain": status_text,
             }
 
+        # 检查是否已经有 Content-Length 或 Transfer-Encoding 头
+        has_content_length = any(h[0].lower() == 'content-length' for h in response_headers)
+        has_transfer_encoding = any(h[0].lower() == 'transfer-encoding' for h in response_headers)
+
+        # 处理不同类型的 content
+        from collections.abc import Iterable
+        if not has_content_length and not has_transfer_encoding:
+            if isinstance(content, (str, bytes)):
+                # 对于字符串或字节，计算长度并添加 Content-Length 头
+                if isinstance(content, str):
+                    content_bytes = content.encode('utf-8')
+                    content_length = len(content_bytes)
+                else:
+                    content_length = len(content)
+                response_headers.append(("Content-Length", str(content_length)))
+            elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+                # 对于生成器等可迭代对象，使用 Transfer-Encoding: chunked
+                response_headers.append(("Transfer-Encoding", "chunked"))
+
         # 返回响应
         return status, response_headers, content
 
@@ -338,6 +459,16 @@ class BaseRequestHandler(object):
             表单数据字典
         """
         return self._post
+
+    @property
+    def app(self):
+        """
+        获取应用实例
+
+        Returns:
+            应用实例
+        """
+        return self._app
 
 
 class WSGIRequestHandler(BaseRequestHandler):
@@ -647,6 +778,37 @@ class WSGIRequestHandler(BaseRequestHandler):
                     # 将路由参数添加到请求对象
                     setattr(self, 'route_params', params)
                     result = handler(self, **params)
+                    
+                    # 处理 Response 对象
+                    if isinstance(result, Response):
+                        # 保存 Session 数据到 Session 存储
+                        app = self._app
+                        session_key = self._session_id or self.session.id
+                        app.sessions.put(session_key, self.session)
+
+                        # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
+                        session_name = app.config.session_name
+                        session_secure = app.config.session_secure
+                        session_http_only = app.config.session_http_only
+                        session_same_site = app.config.session_same_site
+                        cookie_header = SimpleCookie()
+                        cookie_header[session_name] = session_key
+                        cookie_header[session_name]['path'] = "/"
+                        if session_secure:
+                            cookie_header[session_name]['secure'] = True
+                        if session_http_only:
+                            cookie_header[session_name]['httponly'] = True
+                        if session_same_site:
+                            cookie_header[session_name]['samesite'] = session_same_site
+                        result.headers.append(("Set-Cookie", str(cookie_header[session_name])))
+                        
+                        status_code = result.status_code
+                        status_text = http_status_codes.get(status_code, "Unknown")
+                        status = "%d %s" % (status_code, status_text)
+                        return app.middleware_manager.process_response(
+                            self, (status, result.headers, result.content)
+                        )
+                    
                     if self._headers_responsed:
                         # 保存 Session 数据到 Session 存储
                         app = self._app
@@ -987,10 +1149,10 @@ class RequestHandler(BaseRequestHandler):
                 s = [json.dumps(item, ensure_ascii=False) for item in s]
                 s = "[" + ",".join(s) + "]"
             else:
-                if len(s) > 0 and (is_unicode(s[0]) or is_bytes(s[0])):
+                if len(s) > 0 and (isinstance(s[0], str) or is_bytes(s[0])):
                     first_type = type(s[0])
-                    if is_unicode(first_type):
-                        s = [item if is_unicode(item) else str(item) for item in s]
+                    if isinstance(first_type, type) and issubclass(first_type, str):
+                        s = [item if isinstance(item, str) else str(item) for item in s]
                         join_chr = s[0][:0]
                         s = join_chr.join(s)
                     else:
@@ -1000,7 +1162,7 @@ class RequestHandler(BaseRequestHandler):
                 else:
                     s = [str(item) for item in s]
                     s = "".join(s)
-        elif not (is_unicode(s) or is_bytes(s) or isinstance(s, (tuple, list))):
+        elif not (isinstance(s, str) or is_bytes(s) or isinstance(s, (tuple, list))):
             if is_json_response:
                 import json
 
@@ -1011,7 +1173,7 @@ class RequestHandler(BaseRequestHandler):
             else:
                 s = str(s)
 
-        if is_unicode(s):
+        if isinstance(s, str):
             s = s.encode("utf-8")
         if is_bytes(s):
             if "Content-Length" not in response_headers:
@@ -1026,13 +1188,27 @@ class RequestHandler(BaseRequestHandler):
             return self._cast()
         if is_bytes(first):
             new_iter_s = itertools.chain([first], iter_s)
-        elif is_unicode(first):
+        elif isinstance(first, str):
             encoder = lambda item: str(item).encode("utf-8")
             new_iter_s = itertools.chain([first], iter_s)
             new_iter_s = imap(encoder, new_iter_s)
         else:
             raise TypeError("response type is not allowd: %s" % type(first))
         return new_iter_s
+    
+    def handle_response(self, result):
+        """
+        处理响应结果，支持 Response 对象
+        """
+        if isinstance(result, Response):
+            # 设置状态码
+            self._status_code = result.status_code
+            # 添加响应头
+            for header, value in result.headers:
+                self._add_header(header, value)
+            # 返回响应内容
+            return result.content
+        return result
 
     def finish(self, content):
         try:
@@ -1068,6 +1244,25 @@ class RequestHandler(BaseRequestHandler):
                         headers["Content-Type"] = "text/html; charset=utf-8"
                     else:
                         headers["Content-Type"] = default_content_type
+            
+            # 检查是否已经有 Content-Length 或 Transfer-Encoding 头
+            has_content_length = "Content-Length" in headers
+            has_transfer_encoding = "Transfer-Encoding" in headers
+            
+            # 处理不同类型的 content
+            from collections.abc import Iterable
+            if not has_content_length and not has_transfer_encoding:
+                if isinstance(content, (str, bytes)):
+                    # 对于字符串或字节，计算长度并添加 Content-Length 头
+                    if isinstance(content, str):
+                        content_bytes = content.encode('utf-8')
+                        content_length = len(content_bytes)
+                    else:
+                        content_length = len(content)
+                    headers["Content-Length"] = str(content_length)
+                elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+                    # 对于生成器等可迭代对象，使用 Transfer-Encoding: chunked
+                    headers["Transfer-Encoding"] = "chunked"
             
             # 写入头部
             for header, value in headers.items():
@@ -1194,6 +1389,25 @@ class RequestHandler(BaseRequestHandler):
         app = self._app
         app.sessions.put(self.session.id, self.session)
 
+        # 检查是否已经有 Content-Length 或 Transfer-Encoding 头
+        has_content_length = any(h[0].lower() == 'content-length' for h in headers)
+        has_transfer_encoding = any(h[0].lower() == 'transfer-encoding' for h in headers)
+        
+        # 处理不同类型的 content
+        from collections.abc import Iterable
+        if not has_content_length and not has_transfer_encoding:
+            if isinstance(content, (str, bytes)):
+                # 对于字符串或字节，计算长度并添加 Content-Length 头
+                if isinstance(content, str):
+                    content_bytes = content.encode('utf-8')
+                    content_length = len(content_bytes)
+                else:
+                    content_length = len(content)
+                headers.append(("Content-Length", str(content_length)))
+            elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+                # 对于生成器等可迭代对象，使用 Transfer-Encoding: chunked
+                headers.append(("Transfer-Encoding", "chunked"))
+
         self.start_response(status_code, headers=headers)
         if content is None:
             content = DEFAULT_STATUS_MESSAGE % {
@@ -1223,10 +1437,14 @@ class RequestHandler(BaseRequestHandler):
                     # 将路由参数添加到请求对象
                     setattr(self, 'route_params', params)
                     result = handler(self, **params)
+                    
+                    # 处理 Response 对象
+                    content = self.handle_response(result)
+                    
                     if self._headers_responsed:
-                        return app.middleware_manager.process_response(self, result)
+                        return app.middleware_manager.process_response(self, content)
                     return app.middleware_manager.process_response(
-                        self, self._response(200, content=result)
+                        self, self._response(200, content=content)
                     )
                 except Exception:
                     log_error(app.logger)

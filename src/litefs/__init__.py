@@ -38,7 +38,7 @@ from .config import Config, load_config, merge_configs
 from .core import Litefs, _cmd_args, make_config, make_server, test_server
 from .error_pages import ErrorPageRenderer
 from .exceptions import HttpError
-from .handlers import RequestHandler, WSGIRequestHandler, EnhancedRequestHandler, parse_form
+from .handlers import RequestHandler, WSGIRequestHandler, EnhancedRequestHandler, parse_form, Response
 from .middleware import MiddlewareManager
 
 from .server import HTTPServer, TCPServer, WSGIServer, mainloop, make_environ, make_headers
@@ -109,6 +109,7 @@ __all__ = [
     "__email__",
     "ErrorPageRenderer",
     "EnhancedRequestHandler",
+    "Response",
     "ValidationError",
     "Validator",
     "RequiredValidator",

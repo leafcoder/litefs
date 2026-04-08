@@ -37,6 +37,7 @@ from .server import (
 from .utils import log_error, log_info, make_logger
 
 from ._version import __version__
+from .plugins import PluginManager, PluginLoader
 
 
 def make_config(**kwargs):
@@ -169,6 +170,14 @@ class Litefs(object):
         # 初始化数据库管理器
         self.db_manager = DatabaseManager()
         self.db = self.db_manager.get_database(self.config)
+        
+        # 初始化插件系统
+        self.plugin_manager = PluginManager(self)
+        self.plugin_loader = PluginLoader(self)
+        
+        # 添加默认插件目录
+        self.plugin_loader.add_plugin_dir('./plugins')
+        self.plugin_loader.add_plugin_dir('./litefs/plugins')
 
     def database(self, name: str = 'default'):
         """
@@ -632,6 +641,62 @@ class Litefs(object):
             生成的 URL
         """
         return self.router.url_for(name, **kwargs)
+    
+    def register_plugin(self, plugin_class):
+        """
+        注册插件
+        
+        Args:
+            plugin_class: 插件类
+        """
+        self.plugin_manager.register(plugin_class)
+        return self
+    
+    def load_plugins(self):
+        """
+        加载所有插件
+        """
+        # 从文件系统加载插件
+        plugins = self.plugin_loader.load_plugins()
+        for plugin_name, plugin_class in plugins.items():
+            self.plugin_manager.register(plugin_class)
+        
+        # 加载所有注册的插件
+        self.plugin_manager.load_all()
+        return self
+    
+    def get_plugin(self, plugin_name: str):
+        """
+        获取插件实例
+        
+        Args:
+            plugin_name: 插件名称
+            
+        Returns:
+            插件实例或 None
+        """
+        return self.plugin_manager.get_plugin(plugin_name)
+    
+    def has_plugin(self, plugin_name: str) -> bool:
+        """
+        检查插件是否已加载
+        
+        Args:
+            plugin_name: 插件名称
+            
+        Returns:
+            是否已加载
+        """
+        return self.plugin_manager.has_plugin(plugin_name)
+    
+    def get_all_plugins(self):
+        """
+        获取所有已加载的插件
+        
+        Returns:
+            插件实例列表
+        """
+        return self.plugin_manager.get_all_plugins()
 
     def add_health_check(self, name: str, check_func):
         """
@@ -737,6 +802,9 @@ class Litefs(object):
             # 注册信号处理函数
             signal.signal(signal.SIGINT, child_signal_handler)
             signal.signal(signal.SIGTERM, child_signal_handler)
+            
+            # 加载插件
+            self.load_plugins()
             
             log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
             
@@ -962,6 +1030,7 @@ def test_server():
         .add_middleware(LoggingMiddleware)
         .add_middleware(SecurityMiddleware)
         .add_middleware(CORSMiddleware)
+        .add_middleware(CSRFMiddleware)
     )
     litefs.run(poll_interval=0.1, processes=processes)
 
