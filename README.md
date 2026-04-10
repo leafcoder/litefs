@@ -44,7 +44,7 @@ consumption.
 - Session management
 - Multi-level caching system (Memory + Tree cache + Redis)
 - File monitoring and hot reload
-- Python 2.6-3.14 support
+- Python 3.8-3.14 support
 - Enhanced request handling with separated query and post parameters
 - Comprehensive form validation system
 - Beautiful error pages with customization support

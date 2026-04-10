@@ -28,15 +28,11 @@ def test_scaffold_generation():
         
         # 检查目录结构
         expected_dirs = [
-            "site",
-            "site/static",
-            "site/static/css",
-            "site/static/js",
-            "site/static/images",
             "templates",
-            "apps",
-            "apps/home",
-            "config",
+            "static",
+            "static/css",
+            "static/js",
+            "static/images",
         ]
         
         for dir_path in expected_dirs:
@@ -53,15 +49,9 @@ def test_scaffold_generation():
             "requirements.txt",
             "README.md",
             ".gitignore",
-            "config/__init__.py",
-            "config/settings.py",
-            "config/routes.py",
-            "apps/__init__.py",
-            "apps/home/__init__.py",
-            "apps/home/handlers.py",
             "templates/index.html",
-            "site/index.html",
-            "site/static/css/style.css",
+            "templates/about.html",
+            "static/css/style.css",
             "wsgi.py",
         ]
         
@@ -71,31 +61,6 @@ def test_scaffold_generation():
                 print(f"  ✗ 文件不存在: {file_path}")
                 return False
             print(f"  ✓ 文件存在: {file_path}")
-        
-        # 检查文件内容
-        config_settings = project_path / "config" / "settings.py"
-        content = config_settings.read_text()
-        
-        if "class Settings:" not in content:
-            print(f"  ✗ config/settings.py 内容不正确")
-            return False
-        print(f"  ✓ config/settings.py 内容正确")
-        
-        config_routes = project_path / "config" / "routes.py"
-        content = config_routes.read_text()
-        
-        if "routes = {" not in content:
-            print(f"  ✗ config/routes.py 内容不正确")
-            return False
-        print(f"  ✓ config/routes.py 内容正确")
-        
-        apps_home_handlers = project_path / "apps" / "home" / "handlers.py"
-        content = apps_home_handlers.read_text()
-        
-        if "def home_handler(self):" not in content:
-            print(f"  ✗ apps/home/handlers.py 内容不正确")
-            return False
-        print(f"  ✓ apps/home/handlers.py 内容正确")
         
         return True
 

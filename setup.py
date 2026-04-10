@@ -60,7 +60,7 @@ def get_dependencies():
     
     return [
         "argh>=0.26.2",
-        "greenlet>=0.4.13,<4.0",
+        "greenlet>=0.4.13",
         "Mako>=1.0.6",
         "MarkupSafe>=1.1.1",
         "pathtools>=0.1.2",

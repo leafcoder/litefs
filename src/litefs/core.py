@@ -383,12 +383,10 @@ class Litefs(object):
                 from .exceptions import HttpError
 
                 if isinstance(e, HttpError):
-                    status_code = e.args[0] if len(e.args) > 0 else 500
-                    message = e.args[1] if len(e.args) > 1 else str(e)
-                    status = f"{status_code} {message}"
+                    status = f"{e.status_code} {e.message}"
                     headers = [("Content-Type", "text/plain; charset=utf-8")]
                     start_response(status, headers)
-                    return [message.encode("utf-8")]
+                    return [e.message.encode("utf-8")]
                 else:
                     log_error(self.logger, str(e))
                     status = "500 Internal Server Error"
@@ -1020,6 +1018,7 @@ def test_server():
         CORSMiddleware,
         LoggingMiddleware,
         SecurityMiddleware,
+        CSRFMiddleware,
     )
 
     args = _cmd_args(sys.argv)

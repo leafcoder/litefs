@@ -11,6 +11,8 @@ from traceback import print_exc
 from urllib.parse import unquote_plus
 from email.message import Message
 
+from typing import Dict, List, Optional, Callable, Any, Union, Tuple, cast
+
 try:
     from greenlet import GreenletExit, getcurrent, greenlet
 
@@ -49,13 +51,13 @@ should_retry_error = (EWOULDBLOCK, EAGAIN)
 
 
 @lru_cache(maxsize=512)
-def parse_header(line):
+def parse_header(line: str) -> Tuple[Tuple[str, str], Dict[str, str]]:
     msg = Message()
     msg["content-type"] = line
     return msg.get_params()[0], dict(msg.get_params()[1:])
 
 
-def make_headers(rw):
+def make_headers(rw: Any) -> Dict[str, str]:
     headers = {}
     s = rw.readline(DEFAULT_BUFFER_SIZE)
     s = s.decode("utf-8")
@@ -70,7 +72,7 @@ def make_headers(rw):
     return headers
 
 
-def make_environ(server, rw, client_address):
+def make_environ(server: Any, rw: Any, client_address: Tuple[str, int]) -> Dict[str, Any]:
     environ = dict()
     environ["SERVER_NAME"] = server.server_name
     environ["SERVER_SOFTWARE"] = "litefs/0.4.0"
@@ -122,22 +124,22 @@ def make_environ(server, rw, client_address):
 
 class SocketIO(RawIOBase):
 
-    def __init__(self, server, sock):
+    def __init__(self, server: Any, sock: socket.socket) -> None:
         RawIOBase.__init__(self)
         self._fileno = sock.fileno()
         self._sock = sock
         self._server = server
 
-    def fileno(self):
+    def fileno(self) -> int:
         return self._fileno
 
-    def readable(self):
+    def readable(self) -> bool:
         return True
 
-    def writable(self):
+    def writable(self) -> bool:
         return True
 
-    def readinto(self, b):
+    def readinto(self, b: Any) -> int:
         real_epoll = epoll._epoll
         fileno = self._fileno
         curr = getcurrent()
@@ -168,7 +170,7 @@ class SocketIO(RawIOBase):
             b[:n] = array.array(b"b", data)
         return n
 
-    def write(self, data):
+    def write(self, data: bytes) -> int:
         real_epoll = epoll._epoll
         fileno = self._fileno
         curr = getcurrent()
@@ -190,7 +192,7 @@ class SocketIO(RawIOBase):
             else:
                 real_epoll.modify(fileno, EPOLLIN | EPOLLET)
 
-    def close(self):
+    def close(self) -> None:
         if self.closed:
             return
         RawIOBase.close(self)
@@ -206,37 +208,38 @@ class SocketIO(RawIOBase):
             except:
                 pass
 
-    read_gr = write_gr = None
+    read_gr: Optional[Any] = None
+    write_gr: Optional[Any] = None
 
 
 class Epoll(object):
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._epoll = select_epoll()
-        self._servers = {}
-        self._greenlets = {}
-        self._idles = []
+        self._servers: Dict[int, socket.socket] = {}
+        self._greenlets: Dict[int, Any] = {}
+        self._idles: List[Tuple[float, Any]] = []
 
-    def register(self, server_socket):
+    def register(self, server_socket: socket.socket) -> None:
         servers = self._servers
         fileno = server_socket.fileno()
         servers[fileno] = server_socket
         self._epoll.register(fileno, EPOLLIN | EPOLLET)
 
-    def unregister(self, server_socket):
+    def unregister(self, server_socket: socket.socket) -> None:
         servers = self._servers
         fileno = server_socket.fileno()
         if fileno in servers:
             self._epoll.unregister(fileno)
             del servers[fileno]
 
-    def close(self):
+    def close(self) -> None:
         for fileno, server_socket in self._servers.items():
             self._epoll.unregister(fileno)
             server_socket.server_close()
         self._epoll.close()
 
-    def poll(self, poll_interval=0.2):
+    def poll(self, poll_interval: float = 0.2) -> None:
         servers = self._servers
         greenlets = self._greenlets
         _poll = self._epoll.poll
@@ -300,7 +303,7 @@ class TCPServer(object):
     request_queue_size = 4194304
     address_family, socket_type = socket.AF_INET, socket.SOCK_STREAM
 
-    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Any, bind_and_activate: bool = True) -> None:
         self.server_address = server_address
         self.RequestHandlerClass = RequestHandlerClass
         self.socket = socket.socket(self.address_family, self.socket_type)
@@ -313,7 +316,7 @@ class TCPServer(object):
                 self.server_close()
                 raise
 
-    def server_bind(self):
+    def server_bind(self) -> None:
         if self.allow_reuse_address:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # 启用 SO_REUSEPORT，允许多个进程绑定到同一个端口
@@ -327,22 +330,22 @@ class TCPServer(object):
         self.socket.bind(self.server_address)
         self.socket.setblocking(0)
 
-    def server_activate(self):
+    def server_activate(self) -> None:
         self.socket.listen(self.request_queue_size)
 
-    def server_close(self):
+    def server_close(self) -> None:
         self.socket.close()
 
-    def fileno(self):
+    def fileno(self) -> int:
         return self.socket.fileno()
 
-    def get_request(self):
+    def get_request(self) -> Tuple[socket.socket, Tuple[str, int]]:
         return self.socket.accept()
 
-    def handle_request(self):
+    def handle_request(self) -> None:
         self._handle_request_noblock()
 
-    def _handle_request_noblock(self):
+    def _handle_request_noblock(self) -> None:
         while True:
             try:
                 request, client_address = self.get_request()
@@ -360,20 +363,20 @@ class TCPServer(object):
             else:
                 self.shutdown_request(request)
 
-    def handle_timeout(self):
+    def handle_timeout(self) -> None:
         pass
 
-    def verify_request(self, request, client_address):
+    def verify_request(self, request: socket.socket, client_address: Tuple[str, int]) -> bool:
         return True
 
-    def process_request(self, request, client_address):
+    def process_request(self, request: socket.socket, client_address: Tuple[str, int]) -> None:
         try:
             self.finish_request(request, client_address)
         except Exception:
             self.handle_error(request, client_address)
             self.shutdown_request(request)
 
-    def finish_request(self, request, client_address):
+    def finish_request(self, request: socket.socket, client_address: Tuple[str, int]) -> None:
         request.setblocking(0)
         fileno = request.fileno()
         epoll._greenlets[fileno] = curr = greenlet(
@@ -381,7 +384,7 @@ class TCPServer(object):
         )
         curr.switch()
 
-    def _finish_request(self, request, client_address):
+    def _finish_request(self, request: socket.socket, client_address: Tuple[str, int]) -> None:
         raw = SocketIO(self, request)
         try:
             rw = BufferedRWPair(raw, raw, DEFAULT_BUFFER_SIZE)
@@ -434,30 +437,30 @@ class TCPServer(object):
                     except Exception:
                         pass
 
-    def shutdown_request(self, request):
+    def shutdown_request(self, request: socket.socket) -> None:
         try:
             request.shutdown(socket.SHUT_WR)
         except OSError:
             pass
         self.close_request(request)
 
-    def close_request(self, request):
+    def close_request(self, request: socket.socket) -> None:
         request.close()
 
-    def handle_error(self, request, client_address):
+    def handle_error(self, request: socket.socket, client_address: Tuple[str, int]) -> None:
         traceback.print_exc()
 
-    def server_forever(self, poll_interval=0.1):
+    def server_forever(self, poll_interval: float = 0.1) -> None:
         if not self._started:
             epoll.register(self)
         mainloop(poll_interval=poll_interval)
 
-    def start(self):
+    def start(self) -> None:
         if not self._started:
             epoll.register(self)
             self._started = True
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         if self._started:
             epoll.unregister(self)
             self._started = False
@@ -740,7 +743,7 @@ class WSGIServer(HTTPServer):
         self.application = application
 
 
-def mainloop(poll_interval=0.1):
+def mainloop(poll_interval: float = 0.1) -> None:
     try:
         epoll.poll(poll_interval=poll_interval)
     except KeyboardInterrupt:
