@@ -63,7 +63,7 @@ double_slash_sub = re.compile(r"\/{2,}").sub
 startswith_dot_sub = re.compile(r"\/\.+").sub
 suffixes = (".py", ".pyc", ".pyo", ".so")
 form_dict_match = re.compile(r"(.+)\[([^\[\]]+)\]").match
-server_info = "litefs/%s python/%s" % ("0.4.0", sys.version.split()[0])
+server_info = "litefs/%s python/%s" % ("0.5.0", sys.version.split()[0])
 
 DEFAULT_STATUS_MESSAGE = """\
 <html>
@@ -890,7 +890,7 @@ class RequestHandler(BaseRequestHandler):
 
     default_headers = {
         "Content-Type": default_content_type,
-        "Server": "litefs/0.4.0",
+        "Server": "litefs/0.5.0",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "X-XSS-Protection": "1; mode=block"

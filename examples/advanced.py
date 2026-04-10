@@ -48,7 +48,7 @@ def index(request):
     # 使用 Response 对象返回 JSON 响应
     return Response.json({
         'message': 'Hello, Litefs!',
-        'version': '0.4.0',
+        'version': '0.5.0',
         'features': ['Response object', 'Config management', 'Plugin system', 'CSRF protection']
     })
 
