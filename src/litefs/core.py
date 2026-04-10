@@ -8,7 +8,7 @@ import socket
 import time
 from datetime import datetime
 from posixpath import abspath as path_abspath
-from typing import Optional
+from typing import Dict, List, Optional, Callable, Any, Union, Iterable, Type, TypeVar, Tuple, cast
 
 from watchdog.observers import Observer
 
@@ -40,7 +40,7 @@ from ._version import __version__
 from .plugins import PluginManager, PluginLoader
 
 
-def make_config(**kwargs):
+def make_config(**kwargs: Dict[str, Any]) -> Config:
     """
     创建配置对象
 
@@ -61,7 +61,7 @@ def make_config(**kwargs):
     return config
 
 
-def make_server(host, port, request_size=-1):
+def make_server(host: str, port: int, request_size: int = -1) -> socket.socket:
     import socket
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -74,7 +74,7 @@ def make_server(host, port, request_size=-1):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     return sock
 
-def is_port_available(host, port):
+def is_port_available(host: str, port: int) -> bool:
     """
     检查端口是否可用
     
@@ -97,7 +97,7 @@ def is_port_available(host, port):
 
 class Litefs(object):
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Dict[str, Any]) -> None:
         self.config = config = make_config(**kwargs)
         level = logging.DEBUG if config.debug else logging.INFO
         self.logger = make_logger(__name__, log=config.log, level=level)
@@ -108,9 +108,9 @@ class Litefs(object):
         watchdog_observers_logger = logging.getLogger('watchdog.observers')
         watchdog_observers_logger.setLevel(logging.INFO)
         
-        self.host = config.host
-        self.port = config.port
-        self.server = None
+        self.host: str = config.host
+        self.port: int = config.port
+        self.server: Optional[Union[HTTPServer, ProcessHTTPServer]] = None
 
         # 使用全局 Session 管理器，确保 Session 对象常驻内存
         # 不会因为 Litefs 实例的创建和销毁而丢失数据
@@ -179,7 +179,7 @@ class Litefs(object):
         self.plugin_loader.add_plugin_dir('./plugins')
         self.plugin_loader.add_plugin_dir('./litefs/plugins')
 
-    def database(self, name: str = 'default'):
+    def database(self, name: str = 'default') -> Any:
         """
         获取数据库实例
 
@@ -191,7 +191,7 @@ class Litefs(object):
         """
         return self.db_manager.get_database(self.config, name)
 
-    def db_session(self, name: str = 'default'):
+    def db_session(self, name: str = 'default') -> Any:
         """
         获取数据库会话
 
@@ -203,7 +203,7 @@ class Litefs(object):
         """
         return self.db_manager.get_session(name)
 
-    def session(self, name: str = 'default'):
+    def session(self, name: str = 'default') -> Any:
         """
         获取数据库会话（别名，已废弃，建议使用 db_session）
 

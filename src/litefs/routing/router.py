@@ -6,6 +6,9 @@ import re
 from mimetypes import guess_type
 from typing import Any, Callable, Dict, List, Optional, Pattern, Tuple, Union
 
+from ..security import secure_path_join
+from .radix_tree import RadixTree
+
 
 class Route:
     """
@@ -88,8 +91,12 @@ class Router:
         """
         初始化路由管理器
         """
+        from .radix_tree import RadixTree
+        
         self.routes: List[Route] = []
         self.named_routes: Dict[str, Route] = {}
+        self._route_tree = RadixTree()
+        self._tree_dirty = True
     
     def add_route(self, path: str, methods: List[str], handler: Callable, name: Optional[str] = None):
         """
@@ -106,6 +113,9 @@ class Router:
         
         if name:
             self.named_routes[name] = route
+        
+        # 标记路由树需要重建
+        self._tree_dirty = True
     
     def add_get(self, path: str, handler: Callable, name: Optional[str] = None):
         """
@@ -204,13 +214,13 @@ class Router:
                 handler_self: 请求处理器实例
                 file_path: 文件路径（相对于静态目录）
             """
-            # 安全检查：防止路径遍历攻击
-            if '..' in file_path or file_path.startswith('/'):
+            # 使用安全的路径拼接
+            full_path = secure_path_join(directory, file_path.lstrip('/'))
+            
+            # 检查路径是否安全
+            if full_path is None:
                 handler_self.start_response(403, [('Content-Type', 'text/plain; charset=utf-8')])
                 return 'Forbidden'
-            
-            # 构建完整文件路径
-            full_path = os.path.join(directory, file_path.lstrip('/'))
             
             # 检查文件是否存在
             if not os.path.exists(full_path):
@@ -257,12 +267,34 @@ class Router:
         Returns:
             匹配成功返回 (handler, params)，失败返回 None
         """
-        for route in self.routes:
-            params = route.match(path, method)
-            if params is not None:
-                return route.handler, params
+        # 如果路由树过期，重新构建
+        if self._tree_dirty:
+            self._build_route_tree()
         
-        return None
+        result = self._route_tree.find(path, method)
+        if result is None:
+            return None
+        
+        route, params = result
+        
+        return route.handler, params
+    
+    def _build_route_tree(self):
+        """
+        构建路由树
+        
+        将所有路由插入到 Radix Tree 中
+        """
+        self._route_tree = RadixTree()
+        
+        for route in self.routes:
+            self._route_tree.insert(route.path, route)
+            
+            if route.name:
+                self.named_routes[route.name] = route
+                self._route_tree.add_named_route(route.name, route)
+        
+        self._tree_dirty = False
     
     def url_for(self, name: str, **kwargs) -> str:
         """

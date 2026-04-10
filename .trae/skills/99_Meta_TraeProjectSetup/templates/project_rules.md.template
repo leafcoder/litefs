@@ -1,0 +1,63 @@
+# Project Rules 模板
+
+本文件定义项目特定的开发规范，Trae 会在开发过程中遵循这些规则。
+
+## 构建与验证命令
+
+定义项目的构建、测试和验证命令：
+
+*   **Lint**: npm run lint
+*   **TypeCheck**: npm run typecheck
+*   **Test**: npm run test
+*   **Build**: npm run build
+*   **Dev**: npm run dev
+
+## 代码规范
+
+### 注释规范
+
+*   **函数注释**: 必须添加函数级注释，说明参数和返回值
+*   **语言要求**: 中文注释，技术术语保留英文
+*   **外链库**: 确保在中国可访问
+
+### 命名规范
+
+*   **变量**: camelCase
+*   **常量**: UPPER_SNAKE_CASE
+*   **类名**: PascalCase
+*   **文件名**: kebab-case
+
+### 代码风格
+
+*   **缩进**: 2 空格 / 4 空格
+*   **引号**: 单引号 / 双引号
+*   **分号**: 使用 / 不使用
+
+## Git 规范
+
+### Commit 规范
+
+遵循 Conventional Commits 规范：
+
+*   `feat:` 新功能
+*   `fix:` 修复 Bug
+*   `docs:` 文档更新
+*   `style:` 代码格式调整
+*   `refactor:` 重构
+*   `test:` 测试相关
+*   `chore:` 构建/工具相关
+
+### 分支规范
+
+*   `main` - 主分支
+*   `develop` - 开发分支
+*   `feature/*` - 功能分支
+*   `fix/*` - 修复分支
+*   `release/*` - 发布分支
+
+## 项目特定规则
+
+在此添加项目特定的规则：
+
+*   [添加项目特定规则]
+*   [添加项目特定规则]

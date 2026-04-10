@@ -1,0 +1,58 @@
+---
+name: webapp-testing
+description: Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.
+---
+
+# WebApp Testing
+
+使用 Playwright 进行本地 Web 应用测试的工具集。
+
+## 核心能力
+
+### 1. 浏览器交互
+- 打开和导航页面
+- 点击、填写表单
+- 截图和快照
+- 等待元素出现
+
+### 2. 调试功能
+- 查看控制台日志
+- 检查网络请求
+- 分析性能问题
+- 内存快照
+
+### 3. 测试验证
+- 验证 UI 元素存在
+- 检查文本内容
+- 验证样式和布局
+- 测试交互行为
+
+## 使用场景
+
+- **功能验证**: 验证前端功能是否正常工作
+- **UI 调试**: 调试 UI 显示问题
+- **自动化测试**: 编写自动化测试脚本
+- **性能分析**: 分析页面加载和渲染性能
+
+## 工作流程
+
+1. **启动测试服务器**: 确保本地服务正在运行
+2. **打开浏览器**: 使用 Playwright 打开目标页面
+3. **执行测试**: 进行点击、输入、验证等操作
+4. **收集结果**: 截图、日志、性能数据
+
+## 与 Browser Automation 的区别
+
+| 特性 | WebApp Testing | Browser Automation |
+|------|---------------|-------------------|
+| 主要用途 | 测试本地应用 | 自动化浏览器操作 |
+| 侧重点 | 功能验证 | 任务自动化 |
+| 典型场景 | 开发阶段测试 | 数据采集、自动化流程 |
+| 工具链 | Playwright | Puppeteer/Playwright |
+
+## 如何使用
+
+- **验证功能**: "帮我测试一下登录功能是否正常"
+- **调试 UI**: "检查这个按钮为什么点击没反应"
+- **截图验证**: "帮我截个图看看页面效果"
+- **性能分析**: "分析一下页面加载为什么这么慢"

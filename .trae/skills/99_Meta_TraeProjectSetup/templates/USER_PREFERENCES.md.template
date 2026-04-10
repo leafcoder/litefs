@@ -1,0 +1,41 @@
+# User Preferences 模板
+
+本文件定义 Trae 的全局行为偏好，所有 Skill 和 Agent 都会遵循这些设置。
+
+## 1. 技术栈偏好 (Tech Stack)
+
+*   **前端框架**: React / Vue / Flutter / 其他
+*   **CSS 方案**: Tailwind CSS / CSS Modules / Styled Components
+*   **状态管理**: Zustand / Redux / Riverpod / 其他
+*   **测试框架**: Vitest / Jest / Pytest / 其他
+*   **语言偏好**: TypeScript (Strict Mode) / JavaScript / Python
+
+## 2. 交互风格 (Communication Style)
+
+*   **语言**: 请始终使用**中文**回复，技术术语保留英文
+*   **详细程度**: 资深开发者 / 初学者友好
+*   **Emoji**: 启用 / 禁用
+
+## 3. 角色覆盖 (Role Overrides)
+
+在此定义特定角色的行为覆盖：
+
+*   **@Backend Developer**:
+    *   优先使用 FastAPI / Express / 其他
+*   **@Frontend Developer**:
+    *   优先使用 Next.js / Vite / 其他
+*   **@DevOps Engineer**:
+    *   K8s Manifest 必须包含 Resource Limits
+
+## 4. 禁令 (Constraints)
+
+定义项目中的禁止事项：
+
+*   严禁使用 `any` 类型
+*   严禁创建 `.env` 文件（使用 config map）
+*   严禁在代码中硬编码密钥
+
+## 5. 地区特定配置
+
+*   **时区**: Asia/Shanghai
+*   **外链库**: 需在中国可访问（使用国内镜像）

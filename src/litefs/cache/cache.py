@@ -276,82 +276,97 @@ class TreeCache(object):
         return len(self.data)
 
     def put(self, key, val):
-        conn = self.conn
-        data = self.data
-        if self.clean_time + self.clean_period < time.time():
+        current_time = time.time()
+        
+        # 检查是否需要清理
+        if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
-        timestamp = int(time.time())
-        if key not in data:
-            conn.execute(
+        
+        timestamp = int(current_time)
+        if key not in self.data:
+            self.conn.execute(
                 """
                 INSERT INTO cache (key, timestamp) VALUES (?, ?);
             """,
                 (key, timestamp),
             )
         else:
-            conn.execute(
+            self.conn.execute(
                 """
                 UPDATE cache SET timestamp=? WHERE key=?;
             """,
                 (timestamp, key),
             )
-        data[key] = [val, timestamp]
+        self.data[key] = [val, timestamp]
 
     def get(self, key):
-        data = self.data
-        if self.clean_time + self.clean_period < time.time():
+        current_time = time.time()
+        
+        # 检查是否需要清理
+        if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
-        ret = data.get(key)
+        
+        ret = self.data.get(key)
         if ret is None:
             return None
         val, timestamp = ret
-        if int(time.time() - timestamp) > self.expiration_time:
-            del data[key]
+        if int(current_time - timestamp) > self.expiration_time:
+            del self.data[key]
             return None
         return val
 
     def delete(self, key):
-        conn = self.conn
-        data = self.data
-        if self.clean_time + self.clean_period < time.time():
+        current_time = time.time()
+        
+        # 检查是否需要清理
+        if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
-        curr = conn.execute(
+        
+        curr = self.conn.execute(
             """\
             SELECT key FROM cache WHERE key=? OR key LIKE ?;
         """,
             (key, key + "/%"),
         )
         keys = curr.fetchall()
-        conn.executemany(
+        self.conn.executemany(
             """\
             DELETE FROM cache WHERE key=?;
         """,
             keys,
         )
         for item in keys:
-            key = item[0]
-            del data[key]
+            item_key = item[0]
+            if item_key in self.data:
+                del self.data[item_key]
 
     def auto_clean(self):
-        conn = self.conn
-        data = self.data
-        last_expiration_time = int(time.time() - self.expiration_time)
-        curr = conn.execute(
-            """
-            SELECT key FROM cache WHERE timestamp < ?;
-        """,
-            (last_expiration_time,),
+        """优化的清理机制
+        
+        避免每次清理都查询数据库，只在清理周期到达时执行清理
+        """
+        current_time = time.time()
+        
+        # 检查是否达到清理周期，避免频繁清理
+        if current_time - self.clean_time < self.clean_period:
+            return
+        
+        # 使用批量删除，避免先查询再删除
+        self.conn.execute(
+            "DELETE FROM cache WHERE timestamp < ?;",
+            (int(current_time - self.expiration_time),)
         )
-        keys = curr.fetchall()
-        conn.executemany(
-            """
-            DELETE FROM cache WHERE key=?;
-        """,
-            keys,
-        )
-        for item in keys:
-            key = item[0]
-            del data[key]
+        
+        # 清理内存缓存，使用列表推导式提高效率
+        expired_keys = [
+            k for k, v in self.data.items()
+            if current_time - v[1] > self.expiration_time
+        ]
+        for key in expired_keys:
+            del self.data[key]
+        
+        # 更新清理时间
+        self.clean_time = current_time
 
 
 class MemoryCache(object):

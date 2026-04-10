@@ -4,6 +4,7 @@ from .redis import RedisCache
 from .db import DatabaseCache
 from .memcache import MemcacheCache
 from .manager import CacheManager, get_global_cache
+from .form_cache import FormCache
 
 __all__ = [
     "TreeCache",
@@ -17,4 +18,5 @@ __all__ = [
     "CacheFactory",
     "CacheManager",
     "get_global_cache",
+    "FormCache",
 ]

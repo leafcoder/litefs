@@ -3,6 +3,7 @@ from .db import DatabaseSession
 from .redis import RedisSession
 from .memcache import MemcacheSession
 from .factory import SessionBackend, SessionFactory
+from .cache_session import CachedSessionStore
 
 __all__ = [
     "Session",
@@ -11,4 +12,5 @@ __all__ = [
     "MemcacheSession",
     "SessionBackend",
     "SessionFactory",
+    "CachedSessionStore",
 ]

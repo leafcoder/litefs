@@ -45,11 +45,15 @@ from ..exceptions import HttpError
 from ..session import Session
 from ..utils import gmt_date, log_debug, log_error, render_error
 from mako.lookup import TemplateLookup
+from ..cache import FormCache
 
 default_page = "index"
 default_404 = "not_found"
 # 会话配置默认值
 default_content_type = "application/json; charset=utf-8"
+
+# 创建表单数据缓存实例
+_form_cache = FormCache(max_size=1000, default_ttl=300)
 
 EOFS = ("", "\n", "\r\n")
 POSTS_HEADER_NAME = "litefs.posts"
@@ -191,6 +195,24 @@ def imap(func, iterable):
 
 
 def parse_form(query_string):
+    """
+    解析表单数据，支持缓存
+    
+    Args:
+        query_string: 查询字符串
+        
+    Returns:
+        解析后的表单数据字典
+    """
+    # 生成缓存键
+    cache_key = f"form:{query_string}"
+    
+    # 尝试从缓存获取
+    cached = _form_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    # 解析表单数据
     form = {}
     # 处理 bytes 类型输入
     if isinstance(query_string, bytes):
@@ -242,6 +264,10 @@ def parse_form(query_string):
                     result[prefix] = v
             else:
                 form[key] = {prefix: v}
+    
+    # 存入缓存
+    _form_cache.set(cache_key, form)
+    
     return form
 
 

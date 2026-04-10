@@ -1,0 +1,31 @@
+---
+name: {{skill_name}}
+description: [TODO: 完善 Skill 描述，说明功能和触发条件。包含 WHEN to use - 触发场景、文件类型或任务。]
+---
+
+# {{skill_title}}
+
+## Overview
+
+[TODO: 1-2 句话说明此 Skill 的功能]
+
+## Workflow
+
+1. [TODO: 步骤一]
+2. [TODO: 步骤二]
+3. [TODO: 步骤三]
+
+## Usage
+
+[TODO: 使用示例]
+
+## Resources
+
+### scripts/
+存放可执行脚本。
+
+### references/
+存放参考文档。
+
+### assets/
+存放资源文件（模板、图片等）。
