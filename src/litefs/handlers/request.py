@@ -184,6 +184,85 @@ class Response:
         headers = headers or []
         headers.insert(0, ("Content-Type", "text/html; charset=utf-8"))
         return cls(content, status_code, headers)
+    
+    @classmethod
+    def stream(cls, content, status_code=200, headers=None):
+        """
+        返回流式响应
+        
+        Args:
+            content: 可迭代对象，如生成器、迭代器，用于流式返回数据
+            status_code: HTTP 状态码
+            headers: 响应头列表
+            
+        Returns:
+            Response 对象
+        """
+        headers = headers or []
+        # 确保设置正确的 Content-Type
+        has_content_type = any(h[0].lower() == 'content-type' for h in headers)
+        if not has_content_type:
+            headers.insert(0, ("Content-Type", "text/plain; charset=utf-8"))
+        # 对于流式响应，不设置 Content-Length，使用 Transfer-Encoding: chunked
+        has_transfer_encoding = any(h[0].lower() == 'transfer-encoding' for h in headers)
+        if not has_transfer_encoding:
+            headers.append(("Transfer-Encoding", "chunked"))
+        return cls(content, status_code, headers)
+    
+    @classmethod
+    def sse(cls, content, status_code=200):
+        """
+        返回 Server-Sent Events 流式响应
+        
+        Args:
+            content: 可迭代对象，如生成器、迭代器，用于流式返回 SSE 数据
+            status_code: HTTP 状态码
+            
+        Returns:
+            Response 对象
+        """
+        headers = [
+            ("Content-Type", "text/event-stream"),
+            ("Cache-Control", "no-cache"),
+            ("Connection", "keep-alive")
+        ]
+        return cls.stream(content, status_code, headers)
+    
+    @classmethod
+    def file_stream(cls, file_path, status_code=200):
+        """
+        流式返回文件
+        
+        Args:
+            file_path: 文件路径
+            status_code: HTTP 状态码
+            
+        Returns:
+            Response 对象
+        """
+        import os
+        from mimetypes import guess_type
+        
+        if not os.path.exists(file_path):
+            return cls.error(404, "File not found")
+        
+        # 猜测文件的 MIME 类型
+        mime_type, encoding = guess_type(file_path)
+        mime_type = mime_type or "application/octet-stream"
+        
+        def generate_file():
+            with open(file_path, 'rb') as f:
+                while True:
+                    chunk = f.read(1024 * 8)  # 每次读取 8KB
+                    if not chunk:
+                        break
+                    yield chunk
+        
+        headers = [
+            ("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}"),
+            ("Content-Type", mime_type)
+        ]
+        return cls.stream(generate_file(), status_code, headers)
 
 
 def is_bytes(s):
@@ -1168,6 +1247,26 @@ class RequestHandler(BaseRequestHandler):
         content_type = response_headers.get("Content-Type", "")
         is_json_response = "application/json" in content_type
 
+        # 先检查是否是可迭代对象（但不是字符串、字节、元组或列表）
+        from collections.abc import Iterable
+        if not isinstance(s, (str, bytes, tuple, list, type(None))) and isinstance(s, Iterable):
+            try:
+                iter_s = iter(s)
+                first = next(iter_s)
+                while not first:
+                    first = next(iter_s)
+            except StopIteration:
+                return self._cast()
+            if is_bytes(first):
+                new_iter_s = itertools.chain([first], iter_s)
+            elif isinstance(first, str):
+                encoder = lambda item: str(item).encode("utf-8")
+                new_iter_s = itertools.chain([first], iter_s)
+                new_iter_s = imap(encoder, new_iter_s)
+            else:
+                raise TypeError("response type is not allowd: %s" % type(first))
+            return new_iter_s
+
         if isinstance(s, (tuple, list)):
             if is_json_response:
                 import json
@@ -1188,7 +1287,7 @@ class RequestHandler(BaseRequestHandler):
                 else:
                     s = [str(item) for item in s]
                     s = "".join(s)
-        elif not (isinstance(s, str) or is_bytes(s) or isinstance(s, (tuple, list))):
+        elif not (isinstance(s, str) or is_bytes(s)):
             if is_json_response:
                 import json
 
@@ -1205,22 +1304,7 @@ class RequestHandler(BaseRequestHandler):
             if "Content-Length" not in response_headers:
                 response_headers["Content-Length"] = len(s)
             return [s]
-        try:
-            iter_s = iter(s)
-            first = next(iter_s)
-            while not first:
-                first = next(iter_s)
-        except StopIteration:
-            return self._cast()
-        if is_bytes(first):
-            new_iter_s = itertools.chain([first], iter_s)
-        elif isinstance(first, str):
-            encoder = lambda item: str(item).encode("utf-8")
-            new_iter_s = itertools.chain([first], iter_s)
-            new_iter_s = imap(encoder, new_iter_s)
-        else:
-            raise TypeError("response type is not allowd: %s" % type(first))
-        return new_iter_s
+        return []
     
     def handle_response(self, result):
         """
@@ -1306,8 +1390,24 @@ class RequestHandler(BaseRequestHandler):
             if 300 <= status_code < 400:
                 rw.write(b"")
             else:
-                for _ in self._cast(content):
-                    rw.write(_)
+                # 检查是否使用 chunked 编码
+                if has_transfer_encoding and headers.get("Transfer-Encoding", "").lower() == "chunked":
+                    # 使用 chunked 编码格式写入数据
+                    for chunk in self._cast(content):
+                        # 计算 chunk 长度并转换为十六进制
+                        chunk_length = len(chunk)
+                        # 写入 chunk 长度（十六进制）+ 回车换行
+                        rw.write(f"{chunk_length:x}\r\n".encode("utf-8"))
+                        # 写入 chunk 数据
+                        rw.write(chunk)
+                        # 写入回车换行
+                        rw.write(b"\r\n")
+                    # 写入结束 chunk
+                    rw.write(b"0\r\n\r\n")
+                else:
+                    # 普通方式写入数据
+                    for _ in self._cast(content):
+                        rw.write(_)
             rw.close()
         except Exception:
             if not self._headers_responsed:
