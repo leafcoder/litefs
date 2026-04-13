@@ -455,27 +455,35 @@ class BaseRequestHandler(object):
         if headers:
             response_headers.extend(headers)
 
-        # 保存 Session 数据到 Session 存储（只有在会话被修改时）
+        # 保存 Session 数据到 Session 存储（只有在会话被修改且已加载时）
         app = self._app
-        session_key = self._session_id or self.session.id
-        if self._session_modified:
-            app.sessions.put(session_key, self.session)
+        session_key = None
+        if hasattr(self, '_session_loaded') and self._session_loaded:
+            session_key = self._session_id or self.session.id
+            if self._session_modified:
+                app.sessions.put(session_key, self.session)
+        elif self._session_id or self._session:
+            # 对于没有 _session_loaded 属性的旧版本，保持兼容
+            session_key = self._session_id or self.session.id
+            if self._session_modified:
+                app.sessions.put(session_key, self.session)
 
-        # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
-        session_name = self._app.config.session_name
-        session_secure = self._app.config.session_secure
-        session_http_only = self._app.config.session_http_only
-        session_same_site = self._app.config.session_same_site
-        cookie_header = SimpleCookie()
-        cookie_header[session_name] = session_key
-        cookie_header[session_name]['path'] = "/"
-        if session_secure:
-            cookie_header[session_name]['secure'] = True
-        if session_http_only:
-            cookie_header[session_name]['httponly'] = True
-        if session_same_site:
-            cookie_header[session_name]['samesite'] = session_same_site
-        response_headers.append(("Set-Cookie", str(cookie_header[session_name])))
+        # 设置 session cookie（只有在会话已加载时）
+        if session_key:
+            session_name = self._app.config.session_name
+            session_secure = self._app.config.session_secure
+            session_http_only = self._app.config.session_http_only
+            session_same_site = self._app.config.session_same_site
+            cookie_header = SimpleCookie()
+            cookie_header[session_name] = session_key
+            cookie_header[session_name]['path'] = "/"
+            if session_secure:
+                cookie_header[session_name]['secure'] = True
+            if session_http_only:
+                cookie_header[session_name]['httponly'] = True
+            if session_same_site:
+                cookie_header[session_name]['samesite'] = session_same_site
+            response_headers.append(("Set-Cookie", str(cookie_header[session_name])))
 
         # 检查是否已经有 Content-Type 响应头
         has_content_type = any(h[0].lower() == 'content-type' for h in response_headers)
@@ -1017,8 +1025,10 @@ class ASGIRequestHandler(BaseRequestHandler):
         else:
             self._params = {}
 
-        # 缓存会话信息，避免重复获取
-        self._session_id, self._session = self._get_session()
+        # 延迟加载会话，只在需要时获取
+        self._session_id = None
+        self._session = None
+        self._session_loaded = False
         # 缓存中间件实例，避免重复创建
         self._middlewares = app._get_middleware_instances()
     
@@ -1060,14 +1070,20 @@ class ASGIRequestHandler(BaseRequestHandler):
         """
         异步读取请求体
         """
-        body = b''
+        # 使用字节缓冲区，减少字符串拼接开销
+        import io
+        body_buffer = io.BytesIO()
+        
         while True:
             message = await self._receive()
             if message['type'] == 'http.request':
-                body += message.get('body', b'')
+                body = message.get('body', b'')
+                if body:
+                    body_buffer.write(body)
                 if not message.get('more_body', False):
                     break
-        return body
+        
+        return body_buffer.getvalue()
 
     def _parse_multipart(self, body, boundary):
         app = self._app
@@ -1320,26 +1336,35 @@ class ASGIRequestHandler(BaseRequestHandler):
                     
                     # 处理 Response 对象
                     if isinstance(result, Response):
-                        # 保存 Session 数据到 Session 存储（只有在会话被修改时）
-                        session_key = self._session_id or self.session.id
-                        if self._session_modified:
-                            app.sessions.put(session_key, self.session)
+                        # 确保会话已加载
+                        session_key = None
+                        if self._session_loaded:
+                            # 保存 Session 数据到 Session 存储（只有在会话被修改时）
+                            if self._session_modified:
+                                session_key = self._session_id or self.session.id
+                                app.sessions.put(session_key, self.session)
+                            else:
+                                session_key = self._session_id or self.session.id
+                        else:
+                            # 会话未加载，不需要设置 cookie
+                            pass
 
-                        # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
-                        session_name = app.config.session_name
-                        session_secure = app.config.session_secure
-                        session_http_only = app.config.session_http_only
-                        session_same_site = app.config.session_same_site
-                        cookie_header = SimpleCookie()
-                        cookie_header[session_name] = session_key
-                        cookie_header[session_name]['path'] = "/"
-                        if session_secure:
-                            cookie_header[session_name]['secure'] = True
-                        if session_http_only:
-                            cookie_header[session_name]['httponly'] = True
-                        if session_same_site:
-                            cookie_header[session_name]['samesite'] = session_same_site
-                        result.headers.append(("Set-Cookie", str(cookie_header[session_name])))
+                        # 设置 session cookie（只有在会话已加载时）
+                        if session_key:
+                            session_name = app.config.session_name
+                            session_secure = app.config.session_secure
+                            session_http_only = app.config.session_http_only
+                            session_same_site = app.config.session_same_site
+                            cookie_header = SimpleCookie()
+                            cookie_header[session_name] = session_key
+                            cookie_header[session_name]['path'] = "/"
+                            if session_secure:
+                                cookie_header[session_name]['secure'] = True
+                            if session_http_only:
+                                cookie_header[session_name]['httponly'] = True
+                            if session_same_site:
+                                cookie_header[session_name]['samesite'] = session_same_site
+                            result.headers.append(("Set-Cookie", str(cookie_header[session_name])))
                         
                         status_code = result.status_code
                         status_text = http_status_codes.get(status_code, "Unknown")
@@ -1349,16 +1374,23 @@ class ASGIRequestHandler(BaseRequestHandler):
                         )
                     
                     if self._headers_responsed:
-                        # 保存 Session 数据到 Session 存储
-                        session_key = self._session_id or self.session.id
-                        app.sessions.put(session_key, self.session)
+                        # 确保会话已加载
+                        session_key = None
+                        if self._session_loaded:
+                            # 保存 Session 数据到 Session 存储（只有在会话被修改时）
+                            if self._session_modified:
+                                session_key = self._session_id or self.session.id
+                                app.sessions.put(session_key, self.session)
+                            else:
+                                session_key = self._session_id or self.session.id
 
-                        # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
-                        session_name = app.config.session_name
-                        session_secure = app.config.session_secure
-                        session_http_only = app.config.session_http_only
-                        session_same_site = app.config.session_same_site
-                        self.set_cookie(session_name, session_key, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
+                        # 设置 session cookie（只有在会话已加载时）
+                        if session_key:
+                            session_name = app.config.session_name
+                            session_secure = app.config.session_secure
+                            session_http_only = app.config.session_http_only
+                            session_same_site = app.config.session_same_site
+                            self.set_cookie(session_name, session_key, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
 
                         status_code = int(self._status_code)
                         status_text = http_status_codes.get(status_code, "Unknown")
@@ -1371,16 +1403,23 @@ class ASGIRequestHandler(BaseRequestHandler):
                             self, (status, response_headers, result)
                         )
                     
-                    # 保存 Session 数据到 Session 存储
-                    session_key = self._session_id or self.session.id
-                    app.sessions.put(session_key, self.session)
+                    # 确保会话已加载
+                    session_key = None
+                    if self._session_loaded:
+                        # 保存 Session 数据到 Session 存储（只有在会话被修改时）
+                        if self._session_modified:
+                            session_key = self._session_id or self.session.id
+                            app.sessions.put(session_key, self.session)
+                        else:
+                            session_key = self._session_id or self.session.id
 
-                    # 设置 session cookie（每次都设置，确保 cookie 不会丢失）
-                    session_name = app.config.session_name
-                    session_secure = app.config.session_secure
-                    session_http_only = app.config.session_http_only
-                    session_same_site = app.config.session_same_site
-                    self.set_cookie(session_name, session_key, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
+                    # 设置 session cookie（只有在会话已加载时）
+                    if session_key:
+                        session_name = app.config.session_name
+                        session_secure = app.config.session_secure
+                        session_http_only = app.config.session_http_only
+                        session_same_site = app.config.session_same_site
+                        self.set_cookie(session_name, session_key, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
                     
                     return app.middleware_manager.process_response(
                         self, self._response(200, content=result)

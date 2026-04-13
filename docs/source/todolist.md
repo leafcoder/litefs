@@ -7,8 +7,8 @@
 
 | 任务 ID | 任务描述 | 技术方案 | 状态 |
 |--------|----------|----------|------|
-| asgi-support | 实现 ASGI 接口，兼容 Starlette | 实现 ASGI 接口，保持 WSGI 兼容 | 待处理 |
-| async-await-support | 引入 async/await 支持，改造核心请求处理 | 基于 asyncio 重构核心流程 | 待处理 |
+| asgi-support | 实现 ASGI 接口，兼容 Starlette | 实现 ASGI 接口，保持 WSGI 兼容 | 已完成 |
+| async-await-support | 引入 async/await 支持，改造核心请求处理 | 基于 asyncio 重构核心流程 | 部分完成 |
 | connection-pool | 实现 HTTP Keep-Alive 连接池优化 | 实现连接复用机制 | 待处理 |
 | https-support | 实现 HTTPS/TLS 原生支持 | 集成 TLS 证书管理 | 待处理 |
 | authentication | 实现完整的认证系统（OAuth、JWT） | 集成 OAuth 提供商，实现 JWT 认证 | 待处理 |
@@ -47,10 +47,20 @@
 - 支持 Starlette 等 ASGI 框架的集成
 
 ### 3.2 异步架构改造
-- 核心请求处理使用 async/await
-- 异步中间件系统
-- 异步数据库操作
-- 异步缓存操作
+**当前状态：部分完成**
+
+已实现：
+- ✅ ASGI 请求处理器（ASGIRequestHandler）完全基于 asyncio
+- ✅ 异步路由处理支持（async/await）
+- ✅ 异步请求体处理
+- ✅ 异步流式响应
+- ✅ ASGI 3.0 规范支持
+
+待实现：
+- ⏳ 传统 HTTP 服务器基于 asyncio 重构（当前使用 greenlet）
+- ⏳ 异步中间件系统
+- ⏳ 异步数据库操作
+- ⏳ 异步缓存操作
 
 ### 3.3 WebSocket 支持
 - 基于 websockets 库实现
