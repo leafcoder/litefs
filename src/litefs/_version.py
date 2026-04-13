@@ -7,8 +7,8 @@
 统一管理项目的版本号，避免在多个文件中重复定义
 """
 
-__version__ = "0.5.0"
-__version_info__ = (0, 5, 0)
+__version__ = "0.6.0"
+__version_info__ = (0, 6, 0)
 __license__ = "MIT"
 __author__ = "Leafcoder"
 __email__ = "leafcoder@gmail.com"

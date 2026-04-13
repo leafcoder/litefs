@@ -1,0 +1,176 @@
+{
+  "Own HTTP Server": {
+    "1": {
+      "/": {
+        "qps": 6896.29,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 5496.28,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 5121.2,
+        "latency": 0
+      }
+    },
+    "2": {
+      "/": {
+        "qps": 7731.27,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 7365.03,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 8531.56,
+        "latency": 0
+      }
+    },
+    "4": {
+      "/": {
+        "qps": 9859.65,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 9060.93,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 9497.95,
+        "latency": 0
+      }
+    },
+    "8": {
+      "/": {
+        "qps": 11263.17,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 11304.0,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 11235.91,
+        "latency": 0
+      }
+    }
+  },
+  "Gunicorn + WSGI": {
+    "1": {
+      "/": {
+        "qps": 3972.74,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 88.25,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 5452.16,
+        "latency": 0
+      }
+    },
+    "2": {
+      "/": {
+        "qps": 5281.25,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 174.76,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 6578.27,
+        "latency": 0
+      }
+    },
+    "4": {
+      "/": {
+        "qps": 9567.35,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 348.26,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 10843.28,
+        "latency": 0
+      }
+    },
+    "8": {
+      "/": {
+        "qps": 14908.71,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 696.02,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 13776.38,
+        "latency": 0
+      }
+    }
+  },
+  "Gunicorn + Uvicorn + ASGI": {
+    "1": {
+      "/": {
+        "qps": 4589.87,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 4450.24,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 5121.98,
+        "latency": 0
+      }
+    },
+    "2": {
+      "/": {
+        "qps": 9203.1,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 6607.39,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 3.63,
+        "latency": 0
+      }
+    },
+    "4": {
+      "/": {
+        "qps": 207.81,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 549.51,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 585.74,
+        "latency": 0
+      }
+    },
+    "8": {
+      "/": {
+        "qps": 229.33,
+        "latency": 0
+      },
+      "/async": {
+        "qps": 1330.28,
+        "latency": 0
+      },
+      "/user/123": {
+        "qps": 1309.04,
+        "latency": 0
+      }
+    }
+  }
+}
