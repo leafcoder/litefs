@@ -33,77 +33,127 @@ class AsyncHTTPRequestHandler:
     """异步 HTTP 请求处理器"""
     
     def __init__(self, app, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, 
-                 client_address: Tuple[str, int], server):
+                 client_address: Tuple[str, int], server, keep_alive_timeout: float = 5.0):
         self.app = app
         self.reader = reader
         self.writer = writer
         self.client_address = client_address
         self.server = server
+        self.keep_alive_timeout = keep_alive_timeout
+        self.keep_alive = False
     
     async def handle_request(self):
-        """处理请求"""
+        """处理请求（支持 keep-alive）"""
         try:
-            # 构建 ASGI scope
-            scope = await self._build_scope()
-            
-            # 创建 receive 和 send 函数
-            receive = self._create_receive()
-            send = self._create_send()
-            
-            # 使用 ASGIRequestHandler 处理请求
-            handler = ASGIRequestHandler(self.app, scope, receive, send)
-            result = await handler.handler()
-            
-            # 处理返回值 (status, headers, content)
-            if result and isinstance(result, (list, tuple)) and len(result) == 3:
-                status, headers, content = result
-                
-                # 发送响应头
-                status_code = int(status.split()[0])
-                status_text = ' '.join(status.split()[1:])
-                
-                status_line = f"HTTP/1.1 {status_code} {status_text}\r\n"
-                self.writer.write(status_line.encode('utf-8'))
-                
-                # 发送响应头
-                for key, value in headers:
-                    header_line = f"{key}: {value}\r\n"
-                    self.writer.write(header_line.encode('utf-8'))
-                
-                self.writer.write(b"\r\n")
-                
-                # 发送响应体
-                if isinstance(content, str):
-                    content = content.encode('utf-8')
-                elif isinstance(content, (list, tuple)):
-                    content = b''.join(
-                        chunk.encode('utf-8') if isinstance(chunk, str) else chunk
-                        for chunk in content
-                    )
-                elif isinstance(content, dict):
-                    # 将字典转换为 JSON
-                    import json
-                    content = json.dumps(content).encode('utf-8')
-                elif not isinstance(content, bytes):
-                    content = str(content).encode('utf-8')
-                
-                if content:
-                    self.writer.write(content)
-                
-                await self.writer.drain()
-            
-        except HttpError as e:
-            await self._send_error(e.status_code, e.message)
+            while True:
+                try:
+                    # 设置读取超时
+                    self.reader._timeout = self.keep_alive_timeout
+                    
+                    # 构建 ASGI scope
+                    scope = await self._build_scope()
+                    
+                    # 检查是否支持 keep-alive
+                    self._check_keep_alive(scope)
+                    
+                    # 创建 receive 和 send 函数
+                    receive = self._create_receive()
+                    send = self._create_send()
+                    
+                    # 使用 ASGIRequestHandler 处理请求
+                    handler = ASGIRequestHandler(self.app, scope, receive, send)
+                    result = await handler.handler()
+                    
+                    # 处理返回值 (status, headers, content)
+                    if result and isinstance(result, (list, tuple)) and len(result) == 3:
+                        status, headers, content = result
+                        
+                        # 发送响应头
+                        status_code = int(status.split()[0])
+                        status_text = ' '.join(status.split()[1:])
+                        
+                        status_line = f"HTTP/1.1 {status_code} {status_text}\r\n"
+                        self.writer.write(status_line.encode('utf-8'))
+                        
+                        # 发送响应头
+                        for key, value in headers:
+                            header_line = f"{key}: {value}\r\n"
+                            self.writer.write(header_line.encode('utf-8'))
+                        
+                        # 添加 Connection 头
+                        if self.keep_alive:
+                            self.writer.write(b"Connection: keep-alive\r\n")
+                            self.writer.write(f"Keep-Alive: timeout={int(self.keep_alive_timeout)}\r\n".encode('utf-8'))
+                        else:
+                            self.writer.write(b"Connection: close\r\n")
+                        
+                        self.writer.write(b"\r\n")
+                        
+                        # 发送响应体
+                        if isinstance(content, str):
+                            content = content.encode('utf-8')
+                        elif isinstance(content, (list, tuple)):
+                            content = b''.join(
+                                chunk.encode('utf-8') if isinstance(chunk, str) else chunk
+                                for chunk in content
+                            )
+                        elif isinstance(content, dict):
+                            import json
+                            content = json.dumps(content).encode('utf-8')
+                        elif not isinstance(content, bytes):
+                            content = str(content).encode('utf-8')
+                        
+                        if content:
+                            self.writer.write(content)
+                        
+                        # 确保响应完全发送
+                        await self.writer.drain()
+                        
+                        # 如果不支持 keep-alive，退出循环
+                        if not self.keep_alive:
+                            break
+                        
+                except asyncio.TimeoutError:
+                    # 超时，关闭连接
+                    logging.debug(f"Keep-alive timeout, closing connection")
+                    break
+                except HttpError as e:
+                    await self._send_error(e.status_code, e.message)
+                    break
+                except Exception as e:
+                    logging.error(f"Error handling request: {e}")
+                    traceback.print_exc()
+                    await self._send_error(500, f"Internal server error: {str(e)}")
+                    break
+                    
         except Exception as e:
-            logging.error(f"Error handling request: {e}")
-            traceback.print_exc()
-            await self._send_error(500, f"Internal server error: {str(e)}")
+            logging.error(f"Connection error: {e}")
         finally:
             try:
                 self.writer.close()
                 await self.writer.wait_closed()
             except:
                 pass
+    
+    def _check_keep_alive(self, scope: Dict[str, Any]):
+        """检查是否支持 keep-alive"""
+        # 默认 HTTP/1.1 支持 keep-alive
+        http_version = scope.get('http_version', '1.0')
+        
+        # 检查 Connection 头
+        connection_header = None
+        for name, value in scope.get('headers', []):
+            if name.decode('utf-8').lower() == 'connection':
+                connection_header = value.decode('utf-8').lower()
+                break
+        
+        # 判断是否保持连接
+        if http_version == '1.1':
+            # HTTP/1.1 默认 keep-alive
+            self.keep_alive = connection_header != 'close'
+        else:
+            # HTTP/1.0 默认不 keep-alive
+            self.keep_alive = connection_header == 'keep-alive'
     
     async def _build_scope(self) -> Dict[str, Any]:
         """构建 ASGI scope"""
@@ -229,11 +279,12 @@ class AsyncHTTPServer:
     """基于 asyncio 的 HTTP 服务器"""
     
     def __init__(self, app, host: str = '0.0.0.0', port: int = 8080, 
-                 processes: int = 1, **kwargs):
+                 processes: int = 1, keep_alive_timeout: float = 5.0, **kwargs):
         self.app = app
         self.host = host
         self.port = port
         self.processes = processes
+        self.keep_alive_timeout = keep_alive_timeout
         self.server_name = host
         self.server_port = str(port)
         
@@ -247,7 +298,7 @@ class AsyncHTTPServer:
         client_address = peername if peername else ('unknown', 0)
         
         handler = AsyncHTTPRequestHandler(
-            self.app, reader, writer, client_address, self
+            self.app, reader, writer, client_address, self, self.keep_alive_timeout
         )
         
         await handler.handle_request()
@@ -290,8 +341,17 @@ class AsyncHTTPServer:
             traceback.print_exc()
 
 
-def run_asyncio_server(app, host: str = '0.0.0.0', port: int = 8080, 
-                       processes: int = 1, **kwargs):
-    """运行基于 asyncio 的 HTTP 服务器"""
-    server = AsyncHTTPServer(app, host, port, processes, **kwargs)
+def run_asyncio(app, host: str = '0.0.0.0', port: int = 8080, 
+                       processes: int = 1, keep_alive_timeout: float = 5.0, **kwargs):
+    """运行基于 asyncio 的 HTTP 服务器
+    
+    Args:
+        app: Litefs 应用实例
+        host: 监听地址
+        port: 监听端口
+        processes: 进程数（asyncio 版本不支持多进程）
+        keep_alive_timeout: Keep-Alive 超时时间（秒）
+        **kwargs: 其他参数
+    """
+    server = AsyncHTTPServer(app, host, port, processes, keep_alive_timeout, **kwargs)
     server.run()

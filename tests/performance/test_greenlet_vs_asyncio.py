@@ -144,7 +144,7 @@ def start_greenlet_server(port: int, worker_count: int) -> subprocess.Popen:
     return process
 
 
-def start_asyncio_server(port: int) -> subprocess.Popen:
+def start_asyncio(port: int) -> subprocess.Popen:
     """启动 asyncio 版本的服务器"""
     # 创建临时目录
     subprocess.run('mkdir -p temp_asyncio_test', shell=True, capture_output=True)
@@ -154,8 +154,8 @@ def start_asyncio_server(port: int) -> subprocess.Popen:
     app_content += '''
 
 if __name__ == '__main__':
-    from litefs.server.asyncio_server import run_asyncio_server
-    run_asyncio_server(app, host='127.0.0.1', port={port}, processes=1)
+    from litefs.server.asyncio import run_asyncio
+    run_asyncio(app, host='127.0.0.1', port={port}, processes=1)
 '''
     app_content = app_content.replace('{port}', str(port))
     
@@ -193,7 +193,7 @@ def test_server_mode(mode_name: str, start_func, port_base: int, worker_count: i
     if mode_name == "Greenlet HTTP Server":
         process = start_greenlet_server(port, worker_count)
     else:
-        process = start_asyncio_server(port)
+        process = start_asyncio(port)
     
     try:
         # 测试每个端点
@@ -282,7 +282,7 @@ def main():
     print("=" * 80)
     asyncio_results = test_server_mode(
         "AsyncIO HTTP Server", 
-        start_asyncio_server, 
+        start_asyncio, 
         port_base=9100
     )
     

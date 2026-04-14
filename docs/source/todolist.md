@@ -1,7 +1,7 @@
 # Litefs 项目升级与新增功能规划
 
 **生成时间**: 2026-04-13
-**项目版本**: v0.6.0
+**项目版本**: v0.7.0
 
 ## 一、高优先级任务
 
@@ -10,7 +10,7 @@
 | asgi-support | 实现 ASGI 接口，兼容 Starlette | 实现 ASGI 接口，保持 WSGI 兼容 | 已完成 |
 | asyncio-server | 实现基于 asyncio 的 HTTP 服务器 | 使用 Python 原生 asyncio，对比 greenlet 性能 | 已完成 |
 | async-await-support | 引入 async/await 支持，改造核心请求处理 | 基于 asyncio 重构核心流程 | 部分完成 |
-| connection-pool | 实现 HTTP Keep-Alive 连接池优化 | 实现连接复用机制 | 待处理 |
+| connection-pool | 为自有服务器实现 HTTP Keep-Alive 连接池优化 | Greenlet/AsyncIO 服务器实现连接复用 | 已完成 |
 | https-support | 实现 HTTPS/TLS 原生支持 | 集成 TLS 证书管理 | 待处理 |
 | authentication | 实现完整的认证系统（OAuth、JWT） | 集成 OAuth 提供商，实现 JWT 认证 | 待处理 |
 

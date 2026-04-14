@@ -14,7 +14,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from litefs import Litefs
-from litefs.server.asyncio_server import run_asyncio_server
+from litefs.server.asyncio import run_asyncio
 
 # 创建应用
 app = Litefs(
@@ -62,4 +62,4 @@ if __name__ == '__main__':
     print("Server running on http://127.0.0.1:9998")
     print("=" * 60)
     
-    run_asyncio_server(app, host='127.0.0.1', port=9998, processes=1)
+    run_asyncio(app, host='127.0.0.1', port=9998, processes=1)

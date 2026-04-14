@@ -12,7 +12,7 @@ Submodules
 litefs.server.http\_server module
 ---------------------------------
 
-.. automodule:: litefs.server.http_server
+.. automodule:: litefs.server.greenlet
    :members:
    :show-inheritance:
    :undoc-members:

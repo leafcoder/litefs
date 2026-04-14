@@ -28,7 +28,7 @@ Litefs 现在提供了基于 asyncio 的 HTTP 服务器实现，与原有的 gre
 
 ```python
 from litefs import Litefs
-from litefs.server.asyncio_server import run_asyncio_server
+from litefs.server.asyncio import run_asyncio
 
 app = Litefs()
 
@@ -37,7 +37,7 @@ async def index_handler(request):
     return 'Hello from Litefs AsyncIO!'
 
 if __name__ == '__main__':
-    run_asyncio_server(app, host='0.0.0.0', port=8080)
+    run_asyncio(app, host='0.0.0.0', port=8080)
 ```
 
 ### 异步处理
