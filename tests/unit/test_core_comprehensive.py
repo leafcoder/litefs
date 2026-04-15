@@ -349,19 +349,20 @@ class TestLitefsPlugins:
         class TestPlugin(Plugin):
             name = "TestPlugin"
             
-            def initialize(self, app):
+            def initialize(self):
                 """实现抽象方法"""
                 pass
             
             def on_load(self, app):
                 self.loaded = True
         
-        plugin = TestPlugin(app)
-        
-        # 注册插件
+        # 注册插件类（不是实例）
         try:
-            app.register_plugin(plugin)
-            assert plugin.loaded == True
+            app.register_plugin(TestPlugin)
+            # 加载插件
+            app.load_plugins()
+            # 验证插件已加载
+            assert "TestPlugin" in app.plugin_manager.plugins
         except Exception as e:
             pytest.skip(f"插件注册失败：{e}")
 

@@ -185,24 +185,46 @@ class TestMemcacheSessionOperations:
 class TestMemcacheSessionExpiration:
     """MemcacheSession 过期测试"""
     
-    @pytest.mark.skip(reason="需要等待过期，耗时较长")
     def test_session_expiration(self, memcache_session):
         """测试 Session 过期"""
-        session_id = 'test_expire'
-        session_data = {'data': 'test'}
+        from litefs.session.session import Session
         
-        # 存储 1 秒后过期的 Session
-        memcache_session.put(session_id, session_data, expiration=1)
+        session_id = 'test_expire'
+        # 创建 Session 对象
+        session = Session(session_id=session_id)
+        session['data'] = 'test'
+        
+        # 存储 Session（MemcacheSession 使用固定的过期时间，不支持动态设置）
+        memcache_session.put(session_id, session)
         
         # 立即获取应该存在
         result = memcache_session.get(session_id)
         assert result is not None
+        assert isinstance(result, Session)
+        assert result['data'] == 'test'
         
-        # 等待 2 秒
+        # 等待过期（需要等待 memcache_session 的默认过期时间）
+        # 由于 fixture 中设置的过期时间是 3600 秒，这里无法测试过期
+        # 这个测试只是验证基本的存取功能
+        # 实际过期测试需要创建过期时间为 1 秒的实例
+        short_ttl_session = MemcacheSession(
+            servers=['localhost:11211'],
+            key_prefix='test:expire:',
+            expiration_time=1  # 1 秒过期
+        )
+        expire_session = Session(session_id='test_short')
+        expire_session['data'] = 'expire_test'
+        short_ttl_session.put('test_short', expire_session)
+        
+        # 立即获取应该存在
+        result = short_ttl_session.get('test_short')
+        assert result is not None
+        
+        # 等待过期
         time.sleep(2)
         
-        # 应该已过期
-        result = memcache_session.get(session_id)
+        # 过期后应该不存在
+        result = short_ttl_session.get('test_short')
         assert result is None
 
 

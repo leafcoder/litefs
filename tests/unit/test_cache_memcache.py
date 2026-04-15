@@ -57,9 +57,14 @@ class TestMemcacheCache:
     
     def test_init_without_client_pymemcache(self):
         """测试不使用现有客户端（pymemcache）"""
-        # 这个测试需要真实的 pymemcache 库
-        # 由于模拟复杂，暂时跳过
-        pytest.skip("需要真实的 pymemcache 库")
+        # 这个测试验证在没有 pymemcache 时的行为
+        from litefs.cache.memcache import MemcacheCache
+        
+        # 应该可以创建实例，但使用时会失败
+        cache = MemcacheCache(servers=['localhost:11211'])
+        assert cache is not None
+        # 验证缓存对象已创建（应该有_mc 属性）
+        assert hasattr(cache, '_mc')
     
     def test_make_key(self, cache):
         """测试生成带前缀的键"""
@@ -243,13 +248,17 @@ class TestMemcacheCache:
     def test_incr(self, cache, mock_memcache_client):
         """测试递增（Memcache 不支持）"""
         # MemcacheCache 没有 incr 方法
-        # 这个测试应该跳过
+        # 验证方法不存在
+        assert not hasattr(cache, 'incr')
+        # 跳过实际测试
         pytest.skip("incr 方法不存在")
     
     def test_decr(self, cache, mock_memcache_client):
         """测试递减（Memcache 不支持）"""
         # MemcacheCache 没有 decr 方法
-        # 这个测试应该跳过
+        # 验证方法不存在
+        assert not hasattr(cache, 'decr')
+        # 跳过实际测试
         pytest.skip("decr 方法不存在")
     
     def test_repr(self, cache):

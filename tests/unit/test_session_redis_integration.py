@@ -4,6 +4,7 @@
 Redis Session 测试（使用真实 Redis 服务）
 """
 
+import time
 import pytest
 from unittest.mock import Mock
 from litefs.session.redis import RedisSession
@@ -155,25 +156,43 @@ class TestRedisSessionOperations:
 class TestRedisSessionExpiration:
     """RedisSession 过期测试"""
     
-    @pytest.mark.skip(reason="需要等待过期，耗时较长，在 CI 中可能不稳定")
     def test_session_expiration(self, redis_session):
         """测试 Session 过期"""
-        session_id = 'test_expire'
-        session_data = {'data': 'test'}
+        from litefs.session.session import Session
         
-        # 存储 1 秒后过期的 Session
-        redis_session.put(session_id, session_data, expiration=1)
+        session_id = 'test_expire'
+        # 创建 Session 对象
+        session = Session(session_id=session_id)
+        session['data'] = 'test'
+        
+        # 存储 Session（RedisSession 使用固定的过期时间）
+        redis_session.put(session_id, session)
         
         # 立即获取应该存在
         result = redis_session.get(session_id)
         assert result is not None
+        assert isinstance(result, Session)
+        assert result['data'] == 'test'
         
-        # 等待 2 秒
-        import time
+        # 创建短过期的 Session 实例
+        short_ttl_session = RedisSession(
+            redis_client=redis_session._redis,
+            key_prefix='test:expire:',
+            expiration_time=1  # 1 秒过期
+        )
+        expire_session = Session(session_id='test_short')
+        expire_session['data'] = 'expire_test'
+        short_ttl_session.put('test_short', expire_session)
+        
+        # 立即获取应该存在
+        result = short_ttl_session.get('test_short')
+        assert result is not None
+        
+        # 等待过期
         time.sleep(2)
         
-        # 应该已过期
-        result = redis_session.get(session_id)
+        # 过期后应该不存在
+        result = short_ttl_session.get('test_short')
         assert result is None
 
 
