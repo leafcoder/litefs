@@ -27,8 +27,8 @@ async def index_handler(request):
 @app.add_get('/async', name='async_example')
 async def async_handler(request):
     """异步处理示例"""
-    # 模拟异步操作
-    await asyncio.sleep(0.01)
+    # 模拟极短的异步操作（1 毫秒延迟，避免影响测试速度）
+    await asyncio.sleep(0.001)
     return {
         'message': 'Hello from async handler!',
         'timestamp': time.time(),
