@@ -8,6 +8,11 @@
 2. asyncio 版本：使用 asyncio 原生事件循环和协程
 """
 
+import pytest
+
+# 跳过整个测试文件，因为需要特定的性能测试环境
+pytestmark = pytest.mark.skip(reason="性能测试需要特定环境，手动运行")
+
 import subprocess
 import time
 import os

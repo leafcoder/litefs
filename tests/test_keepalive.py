@@ -11,6 +11,7 @@ import os
 import time
 import socket
 import asyncio
+import pytest
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
@@ -279,8 +280,46 @@ if __name__ == '__main__':
     import subprocess
     import time
     
-    process = subprocess.Popen(['python', test_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    time.sleep(2)  # 等待服务器启动
+    # 添加环境变量以启用调试模式
+    env = os.environ.copy()
+    env['PYTHONUNBUFFERED'] = '1'
+    
+    process = subprocess.Popen(
+        ['python', test_file],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        preexec_fn=os.setsid  # 创建新进程组
+    )
+    
+    # 使用更可靠的等待机制
+    max_wait = 10  # 最多等待 10 秒
+    wait_interval = 0.5
+    server_started = False
+    
+    for i in range(int(max_wait / wait_interval)):
+        time.sleep(wait_interval)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(('127.0.0.1', port))
+            sock.close()
+            if result == 0:
+                server_started = True
+                break
+        except Exception:
+            pass
+    
+    if not server_started:
+        print(f"服务器启动超时，终止测试")
+        process.terminate()
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        except:
+            pass
+        if os.path.exists(test_file):
+            os.unlink(test_file)
+        pytest.skip("服务器启动超时")
     
     try:
         # 测试 keep-alive

@@ -49,8 +49,15 @@ class TestProcessServer(unittest.TestCase):
     def tearDown(self):
         """清理测试环境"""
         if self.process:
-            self.process.terminate()
-            self.process.wait(timeout=5)
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=5)
+            except Exception:
+                # 如果进程已经终止，尝试强制杀死
+                try:
+                    self.process.kill()
+                except:
+                    pass
 
     def test_single_process(self):
         """测试单进程模式"""

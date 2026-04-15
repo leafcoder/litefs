@@ -11,10 +11,14 @@
 测试不同核心数（1, 2, 4, 8）下的性能
 """
 
+import pytest
 import subprocess
 import time
 import json
 import os
+
+# 跳过整个测试文件，因为需要特定的性能测试环境
+pytestmark = pytest.mark.skip(reason="性能测试需要特定环境，手动运行")
 
 # 测试配置
 cores = [1, 2, 4, 8]
