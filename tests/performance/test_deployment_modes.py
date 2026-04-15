@@ -101,7 +101,6 @@ Litefs 服务器示例
 
 import sys
 import os
-import asyncio
 import time
 
 # 添加 src 目录到 Python 路径
@@ -117,27 +116,27 @@ app = Litefs(
     debug=True
 )
 
-# 定义首页处理函数
+# 定义首页处理函数（greenlet 服务器不支持 async，使用同步函数）
 @app.add_get('/', name='index')
-async def index_handler(request):
+def index_handler(request):
     """首页"""
     return 'Hello from Litefs!'
 
-# 定义异步处理函数
+# 定义同步处理函数（greenlet 服务器只支持同步）
 @app.add_get('/async', name='async_example')
-async def async_handler(request):
-    """异步处理示例"""
-    # 模拟异步操作
-    await asyncio.sleep(0.01)
+def sync_handler(request):
+    """同步处理示例"""
+    # 模拟同步操作
+    time.sleep(0.01)
     return {
-        'message': 'Hello from async handler!',
+        'message': 'Hello from sync handler!',
         'timestamp': time.time(),
-        'async': True
+        'async': False
     }
 
 # 定义用户详情处理函数
 @app.add_get('/user/{id}', name='user_detail')
-async def user_detail_handler(request, id):
+def user_detail_handler(request, id):
     """用户详情"""
     return {
         'user_id': id,
@@ -146,14 +145,16 @@ async def user_detail_handler(request, id):
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("Litefs Server Example")
+    print("Litefs Server Example (Greenlet)")
     print("=" * 60)
-    print(f"访问地址: http://localhost:{port}")
+    print(f"访问地址：http://localhost:{port}")
     print("=" * 60)
     print("可用路由:")
     print("  GET /         - 首页")
-    print("  GET /async    - 异步处理示例")
+    print("  GET /async    - 同步处理示例")
     print("  GET /user/{{id}} - 用户详情")
+    print("=" * 60)
+    print("注意：Greenlet 服务器不支持异步函数，所有处理器都是同步的")
     print("=" * 60)
     
     app.run(processes={worker_count})
@@ -183,7 +184,6 @@ def start_gunicorn_wsgi(worker_count):
         f.write('''
 import sys
 import os
-import asyncio
 import time
 
 # 添加 src 目录到 Python 路径
@@ -195,22 +195,22 @@ from litefs import Litefs
 # 创建应用实例
 app = Litefs()
 
-# 定义首页处理函数
+# 定义首页处理函数（WSGI 不支持异步，使用同步函数）
 @app.add_get('/', name='index')
 def index_handler(request):
     """首页"""
     return 'Hello from Litefs WSGI!'
 
-# 定义异步处理函数
+# 定义同步处理函数（WSGI 只支持同步）
 @app.add_get('/async', name='async_example')
-def async_handler(request):
-    """异步处理示例"""
-    # 模拟异步操作
+def sync_handler(request):
+    """同步处理示例"""
+    # 模拟同步操作
     time.sleep(0.01)
     return {
-        'message': 'Hello from async handler!',
+        'message': 'Hello from sync handler!',
         'timestamp': time.time(),
-        'async': True
+        'async': False
     }
 
 # 定义用户详情处理函数
