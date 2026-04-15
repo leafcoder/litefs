@@ -66,6 +66,46 @@ app.add_get('/user/{id}', user_detail_handler, name='user_detail')
 app.run()
 ```
 
+## 推荐示例
+
+Litefs 提供了丰富的示例代码，位于 [examples/](https://github.com/leafcoder/litefs/tree/main/examples) 目录：
+
+### 综合示例（推荐新手）
+
+`examples/comprehensive.py` 展示了 Litefs 的主要特性：
+
+- 路由系统（装饰器和方法链风格）
+- 中间件系统（日志、安全、CORS、限流）
+- 会话管理
+- 缓存系统
+- 请求验证
+- 静态文件服务
+- 错误处理
+- 健康检查
+
+运行方式：
+
+```bash
+python examples/comprehensive.py
+```
+
+### 经典示例目录
+
+- `01-hello-world/` - 快速入门示例
+- `02-routing/` - 路由系统示例
+- `03-blog/` - 博客应用示例
+- `04-api-service/` - API 服务示例
+- `05-fullstack/` - 完整应用示例
+- `06-sqlalchemy/` - SQLAlchemy 集成示例
+- `07-streaming/` - 流式响应示例
+
+运行方式：
+
+```bash
+cd examples/01-hello-world
+python app.py
+```
+
 ## WSGI 部署
 
 创建 `wsgi.py`：
