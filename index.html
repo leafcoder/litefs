@@ -24,7 +24,49 @@
   <script>
     window.$docsify = {
       name: 'litefs',
-      repo: 'https://github.com/leafcoder/litefs'
+      repo: 'https://github.com/leafcoder/litefs',
+      homepage: 'README.md',
+      loadSidebar: true,
+      loadNavbar: false,
+      subMaxLevel: 3,
+      auto2top: true,
+      search: {
+        maxAge: 86400000, // 过期时间，1 天
+        paths: [
+          '/README.md',
+          '/docs/README.md'
+        ],
+        depth: 3
+      },
+      pagination: {
+        previousText: '上一篇',
+        nextText: '下一篇',
+        crossChapter: true,
+        crossChapterText: true
+      },
+      plugins: [
+        function(hook, vm) {
+          hook.beforeEach(function(html) {
+            var url = 'https://github.com/leafcoder/litefs/blob/main/' + vm.route.file
+            var editHtml = '[:memo: 编辑此页](' + url + ')\n'
+            return editHtml + html
+          })
+          
+          hook.doneEach(function() {
+            // 添加文档更新时间
+            var date = new Date()
+            var time = date.toLocaleTimeString('zh-CN')
+            var dateStr = date.toLocaleDateString('zh-CN')
+            var div = document.createElement('div')
+            div.className = 'docs-update-time'
+            div.innerHTML = '最后更新：' + dateStr + ' ' + time
+            var article = document.querySelector('article')
+            if (article) {
+              article.appendChild(div)
+            }
+          })
+        }
+      ]
     }
   </script>
   <script src="//unpkg.com/docsify/lib/docsify.min.js" data-ga="UA-54353519-1"></script>

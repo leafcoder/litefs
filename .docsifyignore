@@ -1,0 +1,6 @@
+docs/source/conf.py
+docs/source/index.rst
+docs/Makefile
+docs/make.bat
+docs/quality-assurance-report.md
+docs/final-report.md
