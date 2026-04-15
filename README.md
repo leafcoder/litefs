@@ -25,40 +25,44 @@
 
 </div>
 
-Litefs is a lite python web framework.
+Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务器、现代路由系统、WSGI/ASGI 支持、中间件系统、缓存管理等功能。
 
-Build a web server framework using Python. Litefs was developed to implement
-a server framework that can quickly, securely, and flexibly build Web
-projects. Litefs is a high-performance HTTP server. Litefs has the
-characteristics of high stability, rich functions, and low system
-consumption.
+## 🌟 特性亮点
 
-## Features
+- **高性能 HTTP 服务器** - 支持 epoll、greenlet 和 asyncio
+- **现代路由系统** - 装饰器风格、方法链风格，支持路径参数
+- **WSGI/ASGI 兼容** - 支持 Gunicorn、Uvicorn、UWSGI 等服务器
+- **中间件系统** - 日志、安全、CORS、限流、健康检查
+- **多级缓存** - Memory、Tree、Redis、Database、Memcache 后端
+- **会话管理** - Database、Redis、Memcache 后端支持
+- **静态文件服务** - 自动 MIME 类型、安全防护、子路径访问
+- **健康检查** - 内置健康检查端点
+- **文件监控** - 热重载支持
+- **Python 3.7+ 支持** - 兼容多个 Python 版本
 
-- High-performance HTTP server with epoll and greenlet
-- WSGI 1.0 compliant (PEP 3333)
-- Support for Gunicorn, uWSGI, Waitress, and other WSGI servers
-- Static file serving with gzip/deflate compression
-- Mako template engine support
-- CGI script execution (.pl, .py, .php)
-- Session management
-- Multi-level caching system (Memory + Tree cache + Redis)
-- File monitoring and hot reload
-- Python 3.8-3.14 support
-- Enhanced request handling with separated query and post parameters
-- Comprehensive form validation system
-- Beautiful error pages with customization support
-- Flexible cache backend selection (Memory, Tree, Redis)
+## 📖 文档
 
-## Quick Start
+**完整文档已迁移至 Docsify：**
 
-### Installation
+- 🌐 [在线文档](https://leafcoder.github.io/litefs/) - 基于 Docsify 的完整文档
+- 📚 [文档目录](docs/README.md) - 本地文档导航
+- 📝 [快速开始](docs/source/getting-started.md) - 安装和基本使用
+- 🗺️ [路由系统](docs/source/routing-guide.md) - 装饰器和方法链风格路由
+- 🛠️ [中间件](docs/source/middleware-guide.md) - 内置和自定义中间件
+- 💾 [缓存系统](docs/source/cache-system.md) - 多级缓存管理
+- 🔐 [会话管理](docs/source/session-management.md) - Session 后端和使用
+- 🚀 [WSGI 部署](docs/source/wsgi-deployment.md) - Gunicorn、uWSGI 部署
+- ⚡ [ASGI 部署](docs/source/asgi-deployment.md) - Uvicorn、Daphne 部署
+
+## 🚀 快速开始
+
+### 安装
 
 ```bash
 pip install litefs
 ```
 
-Or install from source:
+或从源码安装：
 
 ```bash
 git clone https://github.com/leafcoder/litefs.git
@@ -67,271 +71,219 @@ pip install -r requirements.txt
 python setup.py install
 ```
 
-### Basic Usage
+### 基本示例
 
-#### CLI Tools
-
-Litefs provides powerful CLI tools for quick project creation and development.
-
-**Create a new project:**
-
-```bash
-litefs startproject myapp
-cd myapp
-```
-
-**Start development server:**
-
-```bash
-litefs runserver
-```
-
-**Show version:**
-
-```bash
-litefs version
-```
-
-For detailed CLI usage, see [CLI Tools Documentation](docs/build/html/cli-tools.html).
-
-#### Standalone Server
+#### 装饰器风格
 
 ```python
-import litefs
-litefs.test_server()
+from litefs import Litefs
+from litefs.routing import get, post
+
+app = Litefs(host='0.0.0.0', port=8080, debug=True)
+
+@get('/', name='index')
+def index_handler(request):
+    return 'Hello, World!'
+
+@get('/user/{id}', name='user_detail')
+def user_detail_handler(request, id):
+    return f'User ID: {id}'
+
+@post('/login', name='login')
+def login_handler(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    return {'status': 'success', 'username': username}
+
+app.register_routes(__name__)
+app.run()
 ```
 
-Or from command line:
-
-```bash
-litefs --host localhost --port 9090 --webroot ./site
-```
-
-#### WSGI Deployment
-
-Litefs now supports WSGI deployment with Gunicorn, uWSGI, and other
-WSGI servers.
-
-Create `wsgi_example.py`:
+#### 方法链风格
 
 ```python
-import litefs
-app = litefs.Litefs(webroot='./site')
+from litefs import Litefs
+
+app = Litefs()
+
+def index_handler(request):
+    return 'Hello, World!'
+
+def user_detail_handler(request, id):
+    return f'User ID: {id}'
+
+app.add_get('/', index_handler, name='index')
+app.add_get('/user/{id}', user_detail_handler, name='user_detail')
+
+app.run()
+```
+
+### WSGI 部署
+
+创建 `wsgi.py`：
+
+```python
+from litefs import Litefs
+
+app = Litefs()
+
+@get('/', name='index')
+def index_handler(request):
+    return 'Hello, World!'
+
 application = app.wsgi()
 ```
 
-Deploy with Gunicorn:
+使用 Gunicorn：
 
 ```bash
-gunicorn -w 4 -b :8000 wsgi_example:application
+gunicorn -w 4 -b :8000 wsgi:application
 ```
 
-Deploy with uWSGI:
+使用 Uvicorn (ASGI)：
 
 ```bash
-uwsgi --http :8000 --wsgi-file wsgi_example.py
+uvicorn asgi:application --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-Deploy with Waitress (Windows):
-
-```bash
-waitress-serve --port=8000 wsgi_example:application
-```
-
-For detailed deployment instructions, see [WSGI_DEPLOYMENT.md](WSGI_DEPLOYMENT.md).
-
-## New Features
-
-### Version Management
-
-Litefs now uses centralized version management with version control tools. Version information is stored in `src/litefs/_version.py` and can be automatically managed through Git tags and build tools.
-
-### Enhanced Request Handling
-
-Litefs provides enhanced request handling with separated query and post parameters:
-
-```python
-import litefs
-
-app = litefs.Litefs(webroot='./site')
-
-def handler(request):
-    # Access query parameters
-    query = request.query
-    page = query.get('page', 1)
-    
-    # Access post parameters
-    post = request.post
-    username = post.get('username')
-    
-    return {"page": page, "username": username}
-```
-
-### Form Validation
-
-Litefs includes a comprehensive form validation system with multiple validators:
-
-```python
-from litefs import (
-    required, string_type, number_type, email, url, choice, regex,
-    EnhancedRequestHandler, ValidationError
-)
-
-def handler(request):
-    enhanced = EnhancedRequestHandler(request)
-    
-    # Validate query parameters
-    query_rules = {
-        "page": [number_type(min_value=1, max_value=100)],
-        "sort": [choice(["asc", "desc"])],
-    }
-    
-    # Validate post parameters
-    post_rules = {
-        "username": [required(), string_type(min_length=3, max_length=20)],
-        "email": [required(), email()],
-        "age": [number_type(min_value=0, max_value=120)],
-    }
-    
-    is_valid, errors = enhanced.validate_all(query_rules, post_rules)
-    
-    if not is_valid:
-        return {"errors": errors}
-    
-    return {"success": True}
-```
-
-### Cache Backend Selection
-
-Litefs supports multiple cache backends that can be configured:
-
-```python
-import litefs
-
-# Memory cache (default)
-app = litefs.Litefs(
-    webroot='./site',
-    cache_backend='memory',
-    cache_max_size=10000
-)
-
-# Tree cache
-app = litefs.Litefs(
-    webroot='./site',
-    cache_backend='tree',
-    cache_expiration_time=3600,
-    cache_clean_period=60
-)
-
-# Redis cache
-app = litefs.Litefs(
-    webroot='./site',
-    cache_backend='redis',
-    redis_host='localhost',
-    redis_port=6379,
-    redis_db=0,
-    redis_key_prefix='litefs:',
-    cache_expiration_time=3600
-)
-```
-
-### Custom Error Pages
-
-Litefs provides beautiful default error pages and supports custom error pages:
-
-```python
-import litefs
-
-# Use default error pages
-app = litefs.Litefs(webroot='./site')
-
-# Use custom error pages
-app = litefs.Litefs(
-    webroot='./site',
-    error_pages_dir='./error_pages'
-)
-```
-
-Create custom error pages in `./error_pages/` directory:
-- `400.html` - Bad Request
-- `403.html` - Forbidden
-- `404.html` - Not Found
-- `500.html` - Internal Server Error
-- `502.html` - Bad Gateway
-- `503.html` - Service Unavailable
-- `504.html` - Gateway Timeout
-
-## Project Structure
+## 📁 项目结构
 
 ```
 litefs/
-├── litefs.py              # Core module
-├── setup.py              # Installation configuration
-├── requirements.txt       # Dependencies
-├── wsgi_example.py       # WSGI example
-├── demo/                 # Example code
-│   ├── site/            # Example website
-│   └── example.py       # Example startup script
-├── test/                # Test code
-└── docs/                # Documentation
+├── README.md              # 项目说明
+├── index.html             # Docsify 文档入口
+├── _sidebar.md            # Docsify 侧边栏
+├── CNAME                  # GitHub Pages 域名配置
+├── docs/                  # 文档目录
+│   ├── README.md         # 文档导航
+│   └── source/           # 文档源文件
+│       ├── getting-started.md
+│       ├── routing-guide.md
+│       ├── middleware-guide.md
+│       ├── cache-system.md
+│       ├── session-management.md
+│       ├── wsgi-deployment.md
+│       ├── asgi-deployment.md
+│       └── ...
+├── examples/              # 示例代码
+│   ├── 01-hello-world/
+│   ├── 02-routing/
+│   ├── 03-blog/
+│   ├── 04-api-service/
+│   ├── 05-fullstack/
+│   ├── 06-sqlalchemy/
+│   └── 07-streaming/
+├── src/litefs/            # 源代码
+│   ├── __init__.py
+│   ├── core.py
+│   ├── routing.py
+│   ├── middleware/
+│   ├── cache/
+│   ├── session/
+│   └── ...
+└── tests/                 # 测试代码
+    ├── unit/
+    ├── integration/
+    └── performance/
 ```
 
-## Documentation
+## 📚 示例代码
 
-Complete documentation is available at [docs/](docs/):
+Litefs 提供了丰富的示例，按照功能模块组织：
 
-- [在线文档](https://leafcoder.github.io/litefs/) - Online documentation (Sphinx)
-- [示例](examples/) - Complete examples with organized modules
-- [CLI 工具](docs/build/html/cli-tools.html) - Command line tools guide
-- [API 文档](docs/build/html/api.html) - Complete API reference
-- [配置管理](docs/build/html/config-management.html) - Configuration management guide
-- [健康检查](docs/build/html/health-check.html) - Health check features
-- [中间件指南](docs/build/html/middleware-guide.html) - Middleware development guide
-- [WSGI 部署](docs/build/html/wsgi-deployment.html) - WSGI deployment guide
-- [WSGI 实现](docs/build/html/wsgi-implementation.html) - WSGI implementation details
-- [单元测试](docs/build/html/unit-tests.html) - Unit testing documentation
-- [性能和压力测试](docs/build/html/performance-stress-tests.html) - Performance and stress testing
-- [改进分析](docs/build/html/improvement-analysis.html) - Project improvement analysis
-- [测试指南](tests/README.md) - Testing guide
-- [Linux 服务器指南](docs/build/html/linux-server-guide.html) - Linux deployment guide
-- [开发指南](docs/build/html/development.html) - Development guide
-- [项目结构](docs/build/html/project-structure.html) - Project structure
-- [待办事项](docs/build/html/todo.html) - Planned features
-- [Bug 修复](docs/build/html/bug-fixes.html) - Bug fixes record
-
-### 示例
-
-Litefs 提供了丰富的示例，按照功能模块组织，帮助您快速上手和深入学习：
-
-- [01-quickstart](examples/01-quickstart/) - 快速入门示例
-- [02-basic-handlers](examples/02-basic-handlers/) - 基础处理器示例
-- [03-configuration](examples/03-configuration/) - 配置管理示例
-- [04-middleware](examples/04-middleware/) - 中间件使用示例
-- [05-session](examples/05-session/) - 会话管理示例
-- [06-cache](examples/06-cache/) - 缓存使用示例
-- [07-health-check](examples/07-health-check/) - 健康检查示例
-- [08-wsgi-deployment](examples/08-wsgi-deployment/) - WSGI 部署示例
-- [09-fullstack](examples/09-fullstack/) - 完整应用示例
+- [01-hello-world](examples/01-hello-world/) - 快速入门示例
+- [02-routing](examples/02-routing/) - 路由系统示例
+- [03-blog](examples/03-blog/) - 博客应用示例
+- [04-api-service](examples/04-api-service/) - API 服务示例
+- [05-fullstack](examples/05-fullstack/) - 完整应用示例
+- [06-sqlalchemy](examples/06-sqlalchemy/) - SQLAlchemy 集成示例
+- [07-streaming](examples/07-streaming/) - 流式响应示例
 
 每个示例都包含详细的 README 文档和可运行的代码，请参考 [examples/README.md](examples/README.md) 了解更多。
 
-### 构建文档
+## 🧪 测试
 
-使用 Sphinx 构建文档：
+运行单元测试：
 
 ```bash
-make docs-build
+pytest tests/unit/ -v --cov=litefs --cov-report=html
 ```
 
-查看文档：
+运行性能测试：
 
 ```bash
+pytest tests/performance/ -v
+```
+
+查看测试覆盖率：
+
+```bash
+make coverage
+```
+
+## 📊 测试覆盖率
+
+当前测试覆盖率：**52%**
+
+目标：**80%+**
+
+详细测试报告见 [单元测试文档](docs/source/unit-tests.md)。
+
+## 🔧 开发指南
+
+### 本地开发
+
+```bash
+# 克隆仓库
+git clone https://github.com/leafcoder/litefs.git
+cd litefs
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装开发依赖
+pip install -r requirements-dev.txt
+
+# 运行测试
+pytest
+
+# 构建文档
+make docs-build
+
+# 运行文档服务器
 make docs-serve
 ```
 
-访问 http://localhost:8000 查看文档。
+### 代码规范
 
-## License
+- 遵循 PEP8 规范
+- 使用类型注解
+- 编写单元测试
+- 保持文档更新
 
-MIT License - see [LICENSE](LICENSE) for details.
+## 🤝 贡献
 
+欢迎贡献代码、文档和建议！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 📄 License
+
+MIT License - 详见 [LICENSE](LICENSE) 文件。
+
+## 🔗 相关链接
+
+- [GitHub 仓库](https://github.com/leafcoder/litefs)
+- [PyPI 包](https://pypi.org/project/litefs/)
+- [在线文档](https://leafcoder.github.io/litefs/)
+- [问题反馈](https://github.com/leafcoder/litefs/issues)
+
+---
+
+<div align="center">
+    <p>如果这个项目对你有帮助，请给一个 ⭐️ Star 支持！</p>
+</div>

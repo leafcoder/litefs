@@ -9,8 +9,7 @@ import os
 from typing import Dict, Optional, Type, Union
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import declarative_base, Session, sessionmaker
 
 from ..config import Config
 from ..utils import log_error, log_info

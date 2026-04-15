@@ -49,6 +49,15 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Documentation
+docs/build/
+docs/source/_build/
+*.log
+
+# Temporary files
+temp_*.py
+*.tmp
+
 # Translations
 *.mo
 *.pot
