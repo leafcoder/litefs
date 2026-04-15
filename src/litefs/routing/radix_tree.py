@@ -99,61 +99,60 @@ class RadixTree:
         node = self.root
         params = {}
         segments = self._parse_path(path)
+        segment_count = len(segments)
         
         for i, segment in enumerate(segments):
-            # 尝试匹配静态段
-            if segment in node.children and node.children[segment].is_static:
-                node = node.children[segment]
+            # 尝试匹配静态段（快速路径）
+            static_child = node.children.get(segment)
+            if static_child and static_child.is_static:
+                node = static_child
                 continue
             
             # 尝试匹配参数段
             found_param = False
+            
+            # 优先匹配普通参数
             for key, child in node.children.items():
-                if key.startswith(':'):
-                    # 匹配参数
-                    if not child.has_wildcard:
-                        # 普通参数，必须是非斜杠字符
-                        if '/' not in segment:
-                            param_name = key[1:]
-                            params[param_name] = segment
-                            node = child
-                            found_param = True
-                            break
-                    else:
+                if key.startswith(':') and not child.has_wildcard:
+                    # 普通参数，必须是非斜杠字符
+                    if '/' not in segment:
+                        param_name = key[1:]
+                        params[param_name] = segment
+                        node = child
+                        found_param = True
+                        break
+            
+            # 如果没有匹配普通参数，尝试匹配通配符
+            if not found_param:
+                for key, child in node.children.items():
+                    if key.startswith(':') and child.has_wildcard:
                         # 通配符参数，匹配剩余路径
                         remaining = '/'.join(segments[i:])
                         param_name = key[1:]
                         params[param_name] = remaining
                         node = child
-                        
-                        # 通配符匹配成功，直接检查是否有路由
-                        if node.routes:
-                            if method:
-                                # 过滤匹配的方法
-                                for route in node.routes:
-                                    if method.upper() in route.methods:
-                                        return route, params
-                                return None
-                            return node.routes[0], params
-                        return None
+                        found_param = True
+                        break
             
-            if found_param:
-                continue
-            
-            # 没有匹配
-            return None
+            if not found_param:
+                return None
         
         # 检查是否找到路由
-        if node.routes:
-            if method:
-                # 过滤匹配的方法
-                for route in node.routes:
-                    if method.upper() in route.methods:
-                        return route, params
-                return None
-            return node.routes[0], params
+        if not node.routes:
+            return None
         
-        return None
+        # 处理方法匹配
+        if method:
+            method = method.upper()
+            # 优先匹配精确方法
+            for route in node.routes:
+                if method in route.methods:
+                    return route, params
+            # 没有匹配的方法
+            return None
+        
+        # 没有指定方法，返回第一个路由
+        return node.routes[0], params
     
     def _parse_path(self, path: str):
         """

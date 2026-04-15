@@ -1,4 +1,4 @@
-from .http_server import (
+from .greenlet import (
     DEFAULT_BUFFER_SIZE,
     HAS_EPOLL,
     HAS_GREENLET,

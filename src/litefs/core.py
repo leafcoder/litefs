@@ -23,7 +23,7 @@ from .cache import (
 from .config import Config, load_config
 from .database import DatabaseManager
 from .error_pages import ErrorPageRenderer
-from .handlers import RequestHandler, WSGIRequestHandler
+from .handlers import RequestHandler, WSGIRequestHandler, ASGIRequestHandler
 from .middleware import MiddlewareManager
 from .routing import Router
 from .server import (
@@ -393,6 +393,287 @@ class Litefs(object):
                     headers = [("Content-Type", "text/plain; charset=utf-8")]
                     start_response(status, headers)
                     return [b"500 Internal Server Error"]
+
+        return application
+
+    def asgi(self):
+        """
+        返回符合 ASGI 3.0 规范的 ASGI application callable
+
+        用法:
+            import litefs
+            app = litefs.Litefs()
+            application = app.asgi()
+
+        在 uvicorn 中使用:
+            uvicorn asgi_example:application
+
+        在 daphne 中使用:
+            daphne asgi_example:application
+        """
+
+        async def application(scope, receive, send):
+            """
+            ASGI application callable
+
+            Args:
+                scope: 包含请求信息的字典
+                receive: 接收消息的异步函数
+                send: 发送消息的异步函数
+            """
+            # 只处理 HTTP 请求
+            if scope['type'] != 'http':
+                return
+
+            request_handler = None
+            try:
+                request_handler = ASGIRequestHandler(self, scope, receive, send)
+
+                middleware_result = self.middleware_manager.process_request(request_handler)
+                if middleware_result is not None:
+                    if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
+                        status, headers, content = middleware_result
+                    else:
+                        content = middleware_result
+                        status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+
+                    # 解析状态码
+                    status_code = int(status.split()[0])
+                    
+                    # 转换 headers 为 ASGI 格式（移除 Content-Length，由 ASGI 服务器处理）
+                    asgi_headers = []
+                    for k, v in headers:
+                        if k.lower() != 'content-length':
+                            asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
+                    
+                    # 处理 content
+                    if isinstance(content, (str, bytes, dict, list, tuple, type(None))):
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        elif isinstance(content, dict):
+                            import json
+                            content_bytes = json.dumps(content, ensure_ascii=False).encode("utf-8")
+                        elif isinstance(content, (list, tuple)):
+                            import json
+                            content_bytes = json.dumps(content, ensure_ascii=False, default=str).encode("utf-8")
+                        else:
+                            content_bytes = b""
+                        
+                        # 发送响应
+                        await send({
+                            'type': 'http.response.start',
+                            'status': status_code,
+                            'headers': asgi_headers,
+                        })
+                        await send({
+                            'type': 'http.response.body',
+                            'body': content_bytes,
+                        })
+                    else:
+                        # 处理可迭代对象
+                        await send({
+                            'type': 'http.response.start',
+                            'status': status_code,
+                            'headers': asgi_headers,
+                        })
+                        
+                        from collections.abc import Iterable
+                        if isinstance(content, Iterable):
+                            for item in content:
+                                if isinstance(item, str):
+                                    await send({
+                                        'type': 'http.response.body',
+                                        'body': item.encode("utf-8"),
+                                        'more_body': True,
+                                    })
+                                elif isinstance(item, bytes):
+                                    await send({
+                                        'type': 'http.response.body',
+                                        'body': item,
+                                        'more_body': True,
+                                    })
+                                else:
+                                    await send({
+                                        'type': 'http.response.body',
+                                        'body': str(item).encode("utf-8"),
+                                        'more_body': True,
+                                    })
+                        
+                        # 发送结束消息
+                        await send({
+                            'type': 'http.response.body',
+                            'body': b'',
+                        })
+
+                handler_result = await request_handler.handler()
+
+                if (
+                    isinstance(handler_result, (list, tuple))
+                    and len(handler_result) == 3
+                    and isinstance(handler_result[0], str)
+                    and isinstance(handler_result[1], list)
+                ):
+                    status, headers, content = handler_result
+                else:
+                    content = handler_result
+                    status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+
+                # 解析状态码
+                status_code = int(status.split()[0])
+                
+                # 转换 headers 为 ASGI 格式（移除 Content-Length，由 ASGI 服务器处理）
+                asgi_headers = []
+                for k, v in headers:
+                    if k.lower() != 'content-length':
+                        asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
+                
+                # 处理 content
+                from collections.abc import Iterable
+                if not isinstance(
+                    content, (str, bytes, dict, list, tuple, type(None))
+                ) and isinstance(content, Iterable):
+                    # 流式响应
+                    await send({
+                        'type': 'http.response.start',
+                        'status': status_code,
+                        'headers': asgi_headers,
+                    })
+                    
+                    for item in content:
+                        if isinstance(item, str):
+                            await send({
+                                'type': 'http.response.body',
+                                'body': item.encode("utf-8"),
+                                'more_body': True,
+                            })
+                        elif isinstance(item, bytes):
+                            await send({
+                                'type': 'http.response.body',
+                                'body': item,
+                                'more_body': True,
+                            })
+                        else:
+                            await send({
+                                'type': 'http.response.body',
+                                'body': str(item).encode("utf-8"),
+                                'more_body': True,
+                            })
+                    
+                    # 发送结束消息
+                    await send({
+                        'type': 'http.response.body',
+                        'body': b'',
+                    })
+                else:
+                    # 普通响应
+                    if isinstance(content, dict):
+                        import json
+                        content_bytes = json.dumps(content, ensure_ascii=False).encode("utf-8")
+                    elif isinstance(content, (list, tuple)):
+                        headers_dict = dict(headers)
+                        content_type = headers_dict.get("Content-Type", "")
+                        is_json = "application/json" in content_type
+                        if is_json:
+                            import json
+                            content_bytes = json.dumps(content, ensure_ascii=False, default=str).encode("utf-8")
+                        else:
+                            result = []
+                            for item in content:
+                                if isinstance(item, str):
+                                    result.append(item.encode("utf-8"))
+                                elif isinstance(item, bytes):
+                                    result.append(item)
+                                else:
+                                    result.append(str(item).encode("utf-8"))
+                            content_bytes = b''.join(result)
+                    elif isinstance(content, str):
+                        headers_dict = dict(headers)
+                        content_type = headers_dict.get("Content-Type", "")
+                        is_json = "application/json" in content_type
+                        if is_json:
+                            import json
+                            content_bytes = json.dumps(content, ensure_ascii=False).encode("utf-8")
+                        else:
+                            content_bytes = content.encode("utf-8")
+                    elif isinstance(content, bytes):
+                        content_bytes = content
+                    else:
+                        content_bytes = str(content).encode("utf-8")
+                    
+                    # 发送响应
+                    await send({
+                        'type': 'http.response.start',
+                        'status': status_code,
+                        'headers': asgi_headers,
+                    })
+                    await send({
+                        'type': 'http.response.body',
+                        'body': content_bytes,
+                    })
+            except Exception as e:
+                # 确保 request_handler 存在
+                if request_handler:
+                    middleware_result = self.middleware_manager.process_exception(request_handler, e)
+                    if middleware_result is not None:
+                        if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
+                            status, headers, content = middleware_result
+                        else:
+                            content = middleware_result
+                            status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+
+                        # 解析状态码
+                        status_code = int(status.split()[0])
+                        
+                        # 转换 headers 为 ASGI 格式（移除 Content-Length）
+                        asgi_headers = []
+                        for k, v in headers:
+                            if k.lower() != 'content-length':
+                                asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
+                        
+                        # 处理 content
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        else:
+                            content_bytes = str(content).encode("utf-8")
+                        
+                        # 发送响应
+                        await send({
+                            'type': 'http.response.start',
+                            'status': status_code,
+                            'headers': asgi_headers,
+                        })
+                        await send({
+                            'type': 'http.response.body',
+                            'body': content_bytes,
+                        })
+                        return
+
+                from .exceptions import HttpError
+
+                if isinstance(e, HttpError):
+                    status_code = e.status_code
+                    message = e.message
+                else:
+                    log_error(self.logger, str(e))
+                    status_code = 500
+                    message = "Internal Server Error"
+                
+                # 发送错误响应
+                await send({
+                    'type': 'http.response.start',
+                    'status': status_code,
+                    'headers': [
+                        (b'content-type', b'text/plain; charset=utf-8'),
+                    ],
+                })
+                await send({
+                    'type': 'http.response.body',
+                    'body': message.encode('utf-8'),
+                })
 
         return application
 

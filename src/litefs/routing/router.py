@@ -271,13 +271,27 @@ class Router:
         if self._tree_dirty:
             self._build_route_tree()
         
+        # 尝试直接匹配（快速路径）
         result = self._route_tree.find(path, method)
-        if result is None:
-            return None
+        if result is not None:
+            route, params = result
+            return route.handler, params
         
-        route, params = result
+        # 尝试不带末尾斜杠的匹配
+        if path != '/' and path.endswith('/'):
+            result = self._route_tree.find(path[:-1], method)
+            if result is not None:
+                route, params = result
+                return route.handler, params
         
-        return route.handler, params
+        # 尝试带末尾斜杠的匹配
+        elif path != '/' and not path.endswith('/'):
+            result = self._route_tree.find(path + '/', method)
+            if result is not None:
+                route, params = result
+                return route.handler, params
+        
+        return None
     
     def _build_route_tree(self):
         """

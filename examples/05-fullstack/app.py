@@ -16,22 +16,19 @@
 
 import sys
 import os
-import json
-from datetime import datetime
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))  # noqa: E402
 
-from litefs import Litefs
-from litefs.routing import get, post
-from litefs.middleware import (
+from litefs import Litefs  # noqa: E402
+from litefs.middleware import (  # noqa: E402
     LoggingMiddleware,
     SecurityMiddleware,
     CORSMiddleware,
     RateLimitMiddleware,
     HealthCheck
 )
-from litefs.cache import MemoryCache
+from litefs.cache import MemoryCache  # noqa: E402
 
 # 创建应用实例
 app = Litefs(

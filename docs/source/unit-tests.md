@@ -232,7 +232,7 @@ python -m unittest tests.unit.test_core.TestMakeConfig.test_default_config
 - ✅ 会话管理 (session/)
 - ✅ 中间件系统 (middleware/)
 - ✅ 请求处理 (handlers/request.py)
-- ✅ HTTP 服务器 (server/http_server.py)
+- ✅ HTTP 服务器 (server/greenlet.py)
 
 ## 待补充测试
 

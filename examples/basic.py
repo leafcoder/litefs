@@ -11,9 +11,9 @@ import os
 
 # 添加 src 目录到 Python 路径
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))  # noqa: E402
 
-from litefs import Litefs
+from litefs import Litefs  # noqa: E402
 
 # 创建应用实例
 app = Litefs(

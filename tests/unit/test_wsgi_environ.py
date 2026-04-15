@@ -17,7 +17,7 @@ def test_wsgi_environ():
     app.add_middleware(LoggingMiddleware)
     
     print('1. 检查 make_environ 函数...')
-    from litefs.server.http_server import make_environ
+    from litefs.server.greenlet import make_environ
     import inspect
     
     source = inspect.getsource(make_environ)

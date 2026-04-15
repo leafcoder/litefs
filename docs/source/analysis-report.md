@@ -26,7 +26,7 @@ litefs/
 │   ├── config.py            # 配置管理系统
 │   ├── cli.py               # 命令行工具
 │   ├── server/              # HTTP 服务器实现
-│   │   └── http_server.py   # epoll + greenlet 高性能服务器
+│   │   └── greenlet.py   # epoll + greenlet 高性能服务器
 │   ├── handlers/            # 请求处理器
 │   │   ├── request.py       # 核心请求处理、Response 对象
 │   │   └── request_enhanced.py
@@ -261,7 +261,7 @@ litefs/
 |------|--------|------|----------|
 | greenlet 4.0 兼容 | 高 | ✅ 已完成 | 更新依赖，移除版本限制，测试 greenlet >= 4.0 |
 | 修复测试失败 | 高 | ✅ 已完成 | 修复 Mako 模板测试，创建缺失模板文件 |
-| 类型注解完善 | 中 | ✅ 已完成 | 为核心文件添加类型注解，包括 http_server.py |
+| 类型注解完善 | 中 | ✅ 已完成 | 为核心文件添加类型注解，包括 greenlet.py |
 | 错误处理强化 | 中 | ✅ 已完成 | 统一异常处理，改进 HttpError 异常使用 |
 
 #### **里程碑 2：异步架构升级（v0.6.0）**
