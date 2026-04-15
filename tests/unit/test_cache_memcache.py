@@ -270,28 +270,45 @@ class TestMemcacheCache:
 class TestMemcacheCacheIntegration:
     """Memcache 缓存集成测试"""
     
-    @pytest.mark.skip(reason="需要真实的 Memcache 服务器")
     def test_real_memcache_connection(self):
         """测试真实的 Memcache 连接"""
         from litefs.cache.memcache import MemcacheCache
         
-        # 这需要真实的 Memcache 服务器
-        # cache = MemcacheCache(servers=['localhost:11211'])
-        # cache.put('test', 'value')
-        # assert cache.get('test') == 'value'
-        pass
+        # 使用真实的 Memcache 服务器
+        cache = MemcacheCache(servers=['localhost:11211'])
+        
+        # 测试存储和获取
+        cache.put('test', 'value')
+        result = cache.get('test')
+        assert result == 'value'
+        
+        # 清理测试数据
+        cache.delete('test')
     
-    @pytest.mark.skip(reason="需要真实的 Memcache 服务器")
     def test_real_memcache_expiration(self):
         """测试真实的 Memcache 过期"""
         from litefs.cache.memcache import MemcacheCache
         import time
         
-        # cache = MemcacheCache(servers=['localhost:11211'])
-        # cache.put('test', 'value', expiration=1)
-        # time.sleep(2)
-        # assert cache.get('test') is None
-        pass
+        # 使用真实的 Memcache 服务器测试过期
+        cache = MemcacheCache(servers=['localhost:11211'])
+        
+        # 存储 1 秒后过期的数据
+        cache.put('test_expire', 'value', expiration=1)
+        
+        # 立即获取应该存在
+        result = cache.get('test_expire')
+        assert result == 'value'
+        
+        # 等待过期
+        time.sleep(2)
+        
+        # 过期后应该不存在
+        result = cache.get('test_expire')
+        assert result is None
+        
+        # 清理测试数据
+        cache.delete('test_expire')
 
 
 if __name__ == '__main__':

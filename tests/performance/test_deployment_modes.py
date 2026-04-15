@@ -126,8 +126,8 @@ def index_handler(request):
 @app.add_get('/sync', name='sync_example')
 def sync_handler(request):
     """同步处理示例"""
-    # 模拟同步操作
-    time.sleep(0.01)
+    # 模拟极短的同步操作（1 毫秒延迟，避免影响测试速度）
+    time.sleep(0.001)
     return {
         'message': 'Hello from sync handler!',
         'timestamp': time.time(),
@@ -205,8 +205,8 @@ def index_handler(request):
 @app.add_get('/sync', name='sync_example')
 def sync_handler(request):
     """同步处理示例"""
-    # 模拟同步操作
-    time.sleep(0.01)
+    # 模拟极短的同步操作（1 毫秒延迟，避免影响测试速度）
+    time.sleep(0.001)
     return {
         'message': 'Hello from sync handler!',
         'timestamp': time.time(),
