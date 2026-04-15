@@ -295,28 +295,6 @@ def delete_user_handler(request, id):
     })
 
 
-# ==================== 错误处理示例 ====================
-
-@app.add_error(404)
-def not_found_handler(request, exception):
-    """404 错误处理"""
-    return Response.json({
-        'error': 'Not Found',
-        'message': f'请求的资源不存在: {request.path}',
-        'timestamp': time.time()
-    }, status=404)
-
-
-@app.add_error(500)
-def internal_error_handler(request, exception):
-    """500 错误处理"""
-    return Response.json({
-        'error': 'Internal Server Error',
-        'message': '服务器内部错误，请稍后重试',
-        'timestamp': time.time()
-    }, status=500)
-
-
 # ==================== 运行服务器 ====================
 
 if __name__ == '__main__':
@@ -345,6 +323,10 @@ if __name__ == '__main__':
     print("  - CORSMiddleware     (CORS)")
     print("  - RateLimitMiddleware(限流)")
     print("  - HealthCheck        (健康检查)")
+    print("=" * 60)
+    print("错误处理:")
+    print("  - 自动处理 404 和 500 错误")
+    print("  - 支持自定义错误页面（通过配置 error_pages_dir）")
     print("=" * 60)
     
     app.run()
