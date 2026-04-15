@@ -19,7 +19,7 @@ import os
 import time
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))  # noqa: E402
 
 from litefs import Litefs, Response
 from litefs.routing import get, post
@@ -37,7 +37,7 @@ from litefs.validators import required, string_type, number_type, email
 
 app = Litefs(
     host='0.0.0.0',
-    port=9090,
+    port=8080,
     debug=True,
     session_backend='memory',
     session_expiration_time=3600,
@@ -323,7 +323,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print("Litefs 综合示例")
     print("=" * 60)
-    print("访问地址: http://localhost:9090")
+    print("访问地址: http://localhost:8080")
     print("=" * 60)
     print("可用路由:")
     print("  GET  /              - 首页")

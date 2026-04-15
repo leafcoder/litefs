@@ -52,6 +52,18 @@
 
 展示 Litefs 框架的流式响应功能。
 
+#### 8. 综合示例 (`08-comprehensive/`)
+
+展示 Litefs 框架的核心功能，包括：
+- 路由系统（装饰器和方法链风格）
+- 中间件系统（日志、安全、CORS、限流）
+- 会话管理
+- 缓存系统（MemoryCache + TreeCache）
+- 请求验证
+- 静态文件服务
+- 错误处理（404 + 500）
+- 健康检查
+
 ### 独立示例文件
 
 #### ASGI 示例 (`asgi_example.py`)
@@ -131,6 +143,15 @@ python app.py
 
 ```bash
 cd examples/07-streaming
+python app.py
+```
+
+然后访问：http://localhost:8080
+
+#### 综合示例
+
+```bash
+cd examples/08-comprehensive
 python app.py
 ```
 

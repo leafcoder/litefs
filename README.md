@@ -200,18 +200,11 @@ Litefs 提供了丰富的示例，按照功能模块组织：
 - [05-fullstack](examples/05-fullstack/) - 完整应用示例
 - [06-sqlalchemy](examples/06-sqlalchemy/) - SQLAlchemy 集成示例
 - [07-streaming](examples/07-streaming/) - 流式响应示例
+- [08-comprehensive](examples/08-comprehensive/) - **综合示例**（推荐新手阅读）
 
-### 综合示例
+### 独立示例文件
 
-- [comprehensive.py](examples/comprehensive.py) - **综合示例**（推荐新手阅读）
-  - 路由系统（装饰器和方法链风格）
-  - 中间件系统（日志、安全、CORS、限流）
-  - 会话管理
-  - 缓存系统
-  - 请求验证
-  - 静态文件服务
-  - 错误处理
-  - 健康检查
+- [asgi_example.py](examples/asgi_example.py) - ASGI 示例
 
 每个示例都包含详细的 README 文档和可运行的代码，请参考 [examples/README.md](examples/README.md) 了解更多。
 
