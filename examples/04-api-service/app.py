@@ -14,16 +14,13 @@ RESTful API 服务示例
 
 import sys
 import os
-import json
-import hashlib
 import secrets
 from datetime import datetime, timedelta
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))  # noqa: E402
 
-from litefs import Litefs
-from litefs.routing import get, post, put, delete
+from litefs import Litefs  # noqa: E402
 
 # 创建应用实例
 app = Litefs(

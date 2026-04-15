@@ -19,6 +19,32 @@ from litefs import Litefs
 from litefs.server.asyncio import run_asyncio
 
 
+def find_free_port():
+    """查找可用端口"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
+
+
+def wait_for_server(host, port, timeout=10):
+    """等待服务器启动"""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception:
+            pass
+        time.sleep(0.1)
+    return False
+
+
 def create_test_app(port: int) -> Litefs:
     """创建测试应用"""
     app = Litefs(
@@ -49,7 +75,7 @@ def test_keep_alive_asyncio():
     print("测试 AsyncIO 服务器的 Keep-Alive 功能")
     print("=" * 60)
     
-    port = 9997
+    port = find_free_port()
     app = create_test_app(port)
     
     # 启动服务器（在后台）
@@ -221,7 +247,7 @@ def test_keep_alive_greenlet():
     print("测试 Greenlet 服务器的 Keep-Alive 功能")
     print("=" * 60)
     
-    port = 9996
+    port = find_free_port()
     
     # 创建临时测试文件
     test_file = 'temp_greenlet_keepalive_test.py'

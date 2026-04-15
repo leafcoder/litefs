@@ -1,0 +1,37 @@
+# Litefs 核心依赖
+argh>=0.26.2
+greenlet>=0.4.13
+Mako>=1.0.6
+MarkupSafe>=1.1.1
+pathtools>=0.1.2
+PyYAML>=5.1
+watchdog>=0.8.3
+SQLAlchemy>=2.0.0
+
+# WSGI 服务器（可选）
+# gunicorn>=20.1.0
+# uwsgi>=2.0.20
+# waitress>=2.1.0
+
+# 开发工具（可选）
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
+# black>=23.0.0
+# isort>=5.12.0
+# mypy>=1.0.0
+# ruff>=0.1.0
+
+# 文档工具（可选）
+# sphinx>=9.0.0
+# sphinx-rtd-theme>=3.0.0
+# myst-parser>=3.0.0
+# sphinx-autodoc-typehints>=3.0.0
+
+# 性能测试工具（可选）
+# memory-profiler>=0.60.0
+# line-profiler>=3.5.0
+# locust>=2.15.0
+# pytest-benchmark>=4.0.0
+# psutil>=5.9.0
+# py-spy>=0.3.14
+# pytest-xdist>=3.0.0

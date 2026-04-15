@@ -12,14 +12,14 @@ import sys
 from datetime import datetime
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))  # noqa: E402
 
-from litefs import Litefs
-from litefs.routing import get, post
-from litefs.middleware import LoggingMiddleware
-from litefs.database import Base
+from litefs import Litefs  # noqa: E402
+from litefs.routing import get, post  # noqa: E402
+from litefs.middleware import LoggingMiddleware  # noqa: E402
+from litefs.database import Base  # noqa: E402
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, func  # noqa: E402
 
 # 创建应用实例
 app = Litefs(
