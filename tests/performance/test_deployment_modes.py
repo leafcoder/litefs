@@ -28,7 +28,7 @@ test_duration = "10s"  # 测试时长
 results = {}
 
 # 测试端点
-endpoints = ["/", "/async", "/user/123"]
+endpoints = ["/", "/sync", "/user/123"]
 
 
 def check_url_health(url, max_retries=5, retry_interval=1):
@@ -123,7 +123,7 @@ def index_handler(request):
     return 'Hello from Litefs!'
 
 # 定义同步处理函数（greenlet 服务器只支持同步）
-@app.add_get('/async', name='async_example')
+@app.add_get('/sync', name='sync_example')
 def sync_handler(request):
     """同步处理示例"""
     # 模拟同步操作
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print("可用路由:")
     print("  GET /         - 首页")
-    print("  GET /async    - 同步处理示例")
+    print("  GET /sync     - 同步处理示例")
     print("  GET /user/{{id}} - 用户详情")
     print("=" * 60)
     print("注意：Greenlet 服务器不支持异步函数，所有处理器都是同步的")
@@ -202,7 +202,7 @@ def index_handler(request):
     return 'Hello from Litefs WSGI!'
 
 # 定义同步处理函数（WSGI 只支持同步）
-@app.add_get('/async', name='async_example')
+@app.add_get('/sync', name='sync_example')
 def sync_handler(request):
     """同步处理示例"""
     # 模拟同步操作
@@ -302,7 +302,7 @@ def generate_report():
     # 打印表格
     print("\nQPS Results:")
     print("-" * 100)
-    print(f"{'Mode':<25} {'Cores':<10} {'/':<15} {'/async':<15} {'/user/123':<15}")
+    print(f"{'Mode':<25} {'Cores':<10} {'/':<15} {'/sync':<15} {'/user/123':<15}")
     print("-" * 100)
     
     for mode in results:
@@ -317,7 +317,7 @@ def generate_report():
     
     print("\nLatency Results (ms):")
     print("-" * 100)
-    print(f"{'Mode':<25} {'Cores':<10} {'/':<15} {'/async':<15} {'/user/123':<15}")
+    print(f"{'Mode':<25} {'Cores':<10} {'/':<15} {'/sync':<15} {'/user/123':<15}")
     print("-" * 100)
     
     for mode in results:
