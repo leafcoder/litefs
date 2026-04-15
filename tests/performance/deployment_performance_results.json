@@ -2,174 +2,174 @@
   "Own HTTP Server": {
     "1": {
       "/": {
-        "qps": 6896.29,
-        "latency": 0
+        "qps": 12104.53,
+        "latency": 0.083
       },
       "/async": {
-        "qps": 5496.28,
-        "latency": 0
+        "qps": 91.5,
+        "latency": 10.929
       },
       "/user/123": {
-        "qps": 5121.2,
-        "latency": 0
+        "qps": 12485.33,
+        "latency": 0.08
       }
     },
     "2": {
       "/": {
-        "qps": 7731.27,
-        "latency": 0
+        "qps": 17485.24,
+        "latency": 0.057
       },
       "/async": {
-        "qps": 7365.03,
-        "latency": 0
+        "qps": 184.11,
+        "latency": 5.432
       },
       "/user/123": {
-        "qps": 8531.56,
-        "latency": 0
+        "qps": 16976.34,
+        "latency": 0.059
       }
     },
     "4": {
       "/": {
-        "qps": 9859.65,
-        "latency": 0
+        "qps": 20280.36,
+        "latency": 0.049
       },
       "/async": {
-        "qps": 9060.93,
-        "latency": 0
+        "qps": 361.87,
+        "latency": 2.763
       },
       "/user/123": {
-        "qps": 9497.95,
-        "latency": 0
+        "qps": 15891.61,
+        "latency": 0.063
       }
     },
     "8": {
       "/": {
-        "qps": 11263.17,
-        "latency": 0
+        "qps": 23737.46,
+        "latency": 0.042
       },
       "/async": {
-        "qps": 11304.0,
-        "latency": 0
+        "qps": 731.0,
+        "latency": 1.368
       },
       "/user/123": {
-        "qps": 11235.91,
-        "latency": 0
+        "qps": 19913.18,
+        "latency": 0.05
       }
     }
   },
   "Gunicorn + WSGI": {
     "1": {
       "/": {
-        "qps": 3972.74,
-        "latency": 0
+        "qps": 6030.21,
+        "latency": 0.166
       },
       "/async": {
-        "qps": 88.25,
-        "latency": 0
+        "qps": 88.81,
+        "latency": 11.26
       },
       "/user/123": {
-        "qps": 5452.16,
-        "latency": 0
+        "qps": 7277.15,
+        "latency": 0.137
       }
     },
     "2": {
       "/": {
-        "qps": 5281.25,
-        "latency": 0
+        "qps": 10557.48,
+        "latency": 0.095
       },
       "/async": {
-        "qps": 174.76,
-        "latency": 0
+        "qps": 176.04,
+        "latency": 5.68
       },
       "/user/123": {
-        "qps": 6578.27,
-        "latency": 0
+        "qps": 13237.11,
+        "latency": 0.076
       }
     },
     "4": {
       "/": {
-        "qps": 9567.35,
-        "latency": 0
+        "qps": 18649.51,
+        "latency": 0.054
       },
       "/async": {
-        "qps": 348.26,
-        "latency": 0
+        "qps": 353.59,
+        "latency": 2.828
       },
       "/user/123": {
-        "qps": 10843.28,
-        "latency": 0
+        "qps": 20205.41,
+        "latency": 0.049
       }
     },
     "8": {
       "/": {
-        "qps": 14908.71,
-        "latency": 0
+        "qps": 19294.25,
+        "latency": 0.052
       },
       "/async": {
-        "qps": 696.02,
-        "latency": 0
+        "qps": 705.95,
+        "latency": 1.417
       },
       "/user/123": {
-        "qps": 13776.38,
-        "latency": 0
+        "qps": 17821.66,
+        "latency": 0.056
       }
     }
   },
   "Gunicorn + Uvicorn + ASGI": {
     "1": {
       "/": {
-        "qps": 4589.87,
-        "latency": 0
+        "qps": 4263.24,
+        "latency": 0.235
       },
       "/async": {
-        "qps": 4450.24,
-        "latency": 0
+        "qps": 3728.19,
+        "latency": 0.268
       },
       "/user/123": {
-        "qps": 5121.98,
-        "latency": 0
+        "qps": 3709.37,
+        "latency": 0.27
       }
     },
     "2": {
       "/": {
-        "qps": 9203.1,
-        "latency": 0
+        "qps": 8594.4,
+        "latency": 0.116
       },
       "/async": {
-        "qps": 6607.39,
-        "latency": 0
+        "qps": 5421.38,
+        "latency": 0.184
       },
       "/user/123": {
-        "qps": 3.63,
-        "latency": 0
+        "qps": 8367.65,
+        "latency": 0.12
       }
     },
     "4": {
       "/": {
-        "qps": 207.81,
-        "latency": 0
+        "qps": 12129.34,
+        "latency": 0.082
       },
       "/async": {
-        "qps": 549.51,
-        "latency": 0
+        "qps": 6082.56,
+        "latency": 0.164
       },
       "/user/123": {
-        "qps": 585.74,
-        "latency": 0
+        "qps": 6247.42,
+        "latency": 0.16
       }
     },
     "8": {
       "/": {
-        "qps": 229.33,
-        "latency": 0
+        "qps": 9034.94,
+        "latency": 0.111
       },
       "/async": {
-        "qps": 1330.28,
-        "latency": 0
+        "qps": 6318.84,
+        "latency": 0.158
       },
       "/user/123": {
-        "qps": 1309.04,
-        "latency": 0
+        "qps": 8248.98,
+        "latency": 0.121
       }
     }
   }

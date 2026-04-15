@@ -1,7 +1,6 @@
 - **首页**
   - [项目介绍](README.md)
   - [Litefs 文档](docs/README.md)
-  - [文档更新记录](docs/DOCUMENTATION_UPDATE.md)
 
 - **快速开始**
   - [安装与使用](docs/source/getting-started.md)

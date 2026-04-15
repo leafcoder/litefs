@@ -1,4 +1,4 @@
-.PHONY: docs-serve docs-build docs-test docs-clean docs-check
+.PHONY: docs-serve docs-build docs-check docs-clean docs-stats
 
 # 文档相关命令
 
@@ -17,11 +17,6 @@ docs-build:
 	@echo "Building Sphinx API documentation..."
 	cd docs && make html
 	@echo "Sphinx documentation built in docs/build/html/"
-
-# 测试文档结构
-docs-test:
-	@echo "Testing documentation structure..."
-	./test_docs_structure.sh
 
 # 检查文档链接
 docs-check:
@@ -48,19 +43,12 @@ docs-stats:
 	@echo "文档目录结构:"
 	@tree -L 2 docs/source 2>/dev/null || find docs/source -maxdepth 2 -type f -name "*.md" | sort
 
-# 验证文档完整性
-docs-validate: docs-test docs-check
-	@echo ""
-	@echo "✓ 文档验证完成"
-
 # 帮助信息
 docs-help:
 	@echo "文档管理命令:"
 	@echo "  make docs-serve    - 本地运行文档服务器"
 	@echo "  make docs-build    - 构建 Sphinx API 文档"
-	@echo "  make docs-test     - 测试文档结构"
 	@echo "  make docs-check    - 检查文档链接"
 	@echo "  make docs-clean    - 清理构建文件"
 	@echo "  make docs-stats    - 显示文档统计"
-	@echo "  make docs-validate - 验证文档完整性"
 	@echo "  make docs-help     - 显示帮助信息"
