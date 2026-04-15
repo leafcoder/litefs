@@ -6,7 +6,7 @@
 """
 
 from sqlalchemy import Column, DateTime, func
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 
 # 创建基础模型类
