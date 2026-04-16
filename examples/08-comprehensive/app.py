@@ -61,7 +61,7 @@ app.add_middleware(CORSMiddleware)
 app.add_middleware(RateLimitMiddleware, max_requests=10, window_seconds=60)
 
 # 健康检查中间件
-app.add_middleware(HealthCheck, path='/health', status=200)
+app.add_middleware(HealthCheck, path='/health')
 
 # ==================== 静态文件服务 ====================
 

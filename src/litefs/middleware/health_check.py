@@ -7,10 +7,7 @@ import sys
 import os
 from typing import Any, Dict, List, Optional, Callable
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from middleware.base import Middleware
-from exceptions import HttpError
+from .base import Middleware
 
 
 class HealthCheck(Middleware):
