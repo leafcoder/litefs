@@ -90,7 +90,7 @@ if __name__ == '__main__':
     print("  POST /api/data      - POST 请求示例")
     print("  GET  /stream        - 流式响应示例")
     print("\nRunning on http://127.0.0.1:8000")
-    uvicorn.run('examples.asgi_example:application', 
+    uvicorn.run('app:application', 
                 host='127.0.0.1', 
                 port=8000, 
                 reload=True)

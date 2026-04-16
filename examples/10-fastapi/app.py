@@ -54,8 +54,7 @@ if __name__ == '__main__':
     print("  GET  /user/{id}     - 路径参数示例")
     print("  GET  /query?name=...&age=... - 查询参数示例")
     print("\nRunning on http://127.0.0.1:8001")
-    uvicorn.run('fastapi_example:app', 
+    uvicorn.run('app:app', 
                 host='127.0.0.1', 
                 port=8001, 
-                reload=True, 
-                app_dir='examples')
+                reload=True)

@@ -64,9 +64,9 @@
 - 错误处理（404 + 500）
 - 健康检查
 
-### 独立示例文件
+### 独立示例目录
 
-#### ASGI 示例 (`asgi_example.py`)
+#### 9. ASGI 示例 (`09-asgi/`)
 
 展示如何使用 Litefs 的 ASGI 功能，包括：
 - 基本路由
@@ -162,10 +162,18 @@ python app.py
 #### ASGI 示例
 
 ```bash
-python examples/asgi_example.py
+python examples/09-asgi/app.py
 ```
 
-然后访问：http://localhost:9090
+然后访问：http://localhost:8000
+
+#### FastAPI 示例
+
+```bash
+python examples/10-fastapi/app.py
+```
+
+然后访问：http://localhost:8001
 
 ## 功能说明
 
