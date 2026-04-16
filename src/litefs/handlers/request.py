@@ -396,7 +396,6 @@ class BaseRequestHandler(object):
             self._template_lookup = TemplateLookup(
                 directories=[template_dir],
                 input_encoding='utf-8',
-                output_encoding='utf-8',
                 default_filters=['decode.utf8']
             )
 

@@ -1,0 +1,77 @@
+<%inherit file="base.html"/>
+
+<%block name="title">投票列表 - 投票系统</%block>
+
+<%block name="content">
+<div class="page-container">
+    <div class="page-header">
+        <div class="header-text">
+            <h2>投票活动</h2>
+            <p class="header-desc">参与投票，表达您的观点</p>
+        </div>
+        <a href="/poll/create" class="btn-create">
+            <span class="btn-icon">+</span>
+            <span>创建新投票</span>
+        </a>
+    </div>
+
+    % if polls:
+    <div class="polls-grid">
+        % for poll in polls:
+        <article class="poll-card">
+            <div class="card-header">
+                <div class="card-meta">
+                    <span class="meta-date">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <rect x="1" y="2" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M1 5h12M4 1v2M10 1v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        ${poll.created_at.strftime('%Y-%m-%d')}
+                    </span>
+                    <span class="meta-votes">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        ${poll.total_votes} 票
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <h3 class="card-title">${poll.title}</h3>
+                % if poll.description:
+                <p class="card-desc">${poll.description}</p>
+                % endif
+            </div>
+            <div class="card-footer">
+                <a href="/poll/${poll.id}" class="card-action card-action-primary">
+                    <span>参与投票</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
+                <a href="/poll/${poll.id}/result" class="card-action card-action-secondary">
+                    <span>查看结果</span>
+                </a>
+            </div>
+        </article>
+        % endfor
+    </div>
+    % else:
+    <div class="empty-state">
+        <div class="empty-icon">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+                <circle cx="40" cy="40" r="38" stroke="currentColor" stroke-width="2" opacity="0.2"/>
+                <circle cx="40" cy="40" r="28" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+                <path d="M40 25v15l10 8" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+            </svg>
+        </div>
+        <h3 class="empty-title">暂无投票活动</h3>
+        <p class="empty-desc">创建第一个投票，开始收集意见</p>
+        <a href="/poll/create" class="btn-create btn-create-large">
+            <span class="btn-icon">+</span>
+            <span>创建投票</span>
+        </a>
+    </div>
+    % endif
+</div>
+</%block>

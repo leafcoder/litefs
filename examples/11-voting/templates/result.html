@@ -1,0 +1,73 @@
+<%inherit file="base.html"/>
+
+<%block name="title">投票结果 - ${poll.title}</%block>
+
+<%block name="content">
+<div class="page-container">
+    <div class="result-container">
+        <div class="result-header">
+            <a href="/" class="back-link">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M15 10H5M5 10l4-4M5 10l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>返回列表</span>
+            </a>
+            <div class="poll-info">
+                <h1 class="poll-title">${poll.title}</h1>
+                % if poll.description:
+                <p class="poll-description">${poll.description}</p>
+                % endif
+            </div>
+        </div>
+
+        <div class="result-summary">
+            <div class="summary-card">
+                <div class="summary-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <path d="M16 4v24M4 16h24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="summary-content">
+                    <span class="summary-label">总投票数</span>
+                    <span class="summary-value">${total_votes}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-section">
+            <h3 class="section-title">投票结果</h3>
+            <div class="results-list">
+                % for item in option_votes:
+                <div class="result-item">
+                    <div class="result-header-row">
+                        <div class="result-label">
+                            <span class="result-option">${item['option'].text}</span>
+                            <span class="result-percentage">${round(item['percentage'], 1)}%</span>
+                        </div>
+                        <span class="result-count">${item['count']} 票</span>
+                    </div>
+                    <div class="result-bar">
+                        <div class="result-bar-fill" style="width: ${item['percentage']}%"></div>
+                    </div>
+                </div>
+                % endfor
+            </div>
+        </div>
+
+        <div class="result-actions">
+            <a href="/poll/${poll.id}" class="btn-action btn-action-primary">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>继续投票</span>
+            </a>
+            <a href="/" class="btn-action btn-action-secondary">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M15 10H5M5 10l4-4M5 10l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>返回首页</span>
+            </a>
+        </div>
+    </div>
+</div>
+</%block>

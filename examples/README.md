@@ -157,6 +157,15 @@ python app.py
 
 然后访问：http://localhost:8080
 
+#### 投票系统示例
+
+```bash
+cd examples/11-voting
+python app.py
+```
+
+然后访问：http://localhost:8080
+
 ### 运行独立示例
 
 #### ASGI 示例
@@ -174,6 +183,14 @@ python examples/10-fastapi/app.py
 ```
 
 然后访问：http://localhost:8001
+
+#### 投票系统示例
+
+```bash
+python examples/11-voting/app.py
+```
+
+然后访问：http://localhost:8080
 
 ## 功能说明
 

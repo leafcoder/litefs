@@ -1,0 +1,73 @@
+<%inherit file="base.html"/>
+
+<%block name="title">${poll.title} - 投票系统</%block>
+
+<%block name="content">
+<div class="page-container">
+    <div class="poll-detail-container">
+        <div class="detail-header">
+            <a href="/" class="back-link">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M15 10H5M5 10l4-4M5 10l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>返回列表</span>
+            </a>
+            <div class="poll-info">
+                <h1 class="poll-title">${poll.title}</h1>
+                % if poll.description:
+                <p class="poll-description">${poll.description}</p>
+                % endif
+                <div class="poll-stats">
+                    <span class="stat-item">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        ${poll.total_votes} 票
+                    </span>
+                    <span class="stat-item">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M2 6h12M5 1v2M11 1v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        ${poll.created_at.strftime('%Y-%m-%d')}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <form class="vote-form" action="/poll/${poll.id}/vote" method="POST">
+            <div class="options-section">
+                <h3 class="section-title">选择您的选项</h3>
+                <div class="options-list">
+                    % for option in poll.options:
+                    <label class="option-item">
+                        <input type="radio" name="option_id" value="${option.id}" required>
+                        <div class="option-content">
+                            <div class="option-radio">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                    <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
+                                    <circle cx="10" cy="10" r="4" fill="currentColor" class="radio-dot"/>
+                                </svg>
+                            </div>
+                            <span class="option-text">${option.text}</span>
+                        </div>
+                    </label>
+                    % endfor
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-submit">
+                    <span>提交投票</span>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M4 10h12M12 6l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <a href="/poll/${poll.id}/result" class="btn-result">
+                    <span>查看结果</span>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+</%block>

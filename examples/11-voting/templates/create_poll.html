@@ -1,0 +1,155 @@
+<%inherit file="base.html"/>
+
+<%block name="title">创建投票 - 投票系统</%block>
+
+<%block name="content">
+<div class="page-container">
+    <div class="create-container">
+        <div class="create-header">
+            <a href="/" class="back-link">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M15 10H5M5 10l4-4M5 10l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>返回列表</span>
+            </a>
+            <h2 class="page-title">创建新投票</h2>
+            <p class="page-desc">创建一个投票活动，收集大家的意见</p>
+        </div>
+
+        <form class="create-form" action="/poll/create" method="POST">
+            <div class="form-section">
+                <div class="form-group">
+                    <label class="form-label">
+                        <span class="label-text">投票标题</span>
+                        <span class="label-required">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="title" 
+                        name="title" 
+                        class="form-input"
+                        required 
+                        placeholder="请输入投票标题"
+                        maxlength="200"
+                    >
+                    <span class="form-hint">标题长度不超过200个字符</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <span class="label-text">投票描述</span>
+                        <span class="label-optional">（可选）</span>
+                    </label>
+                    <textarea 
+                        id="description" 
+                        name="description" 
+                        class="form-textarea"
+                        rows="3" 
+                        placeholder="请输入投票描述（可选）"
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <span class="label-text">投票选项</span>
+                        <span class="label-required">*</span>
+                    </label>
+                    <div class="options-container" id="options-container">
+                        <div class="option-input-group">
+                            <span class="option-number">1</span>
+                            <input 
+                                type="text" 
+                                name="options[]" 
+                                class="option-input"
+                                required 
+                                placeholder="选项 1"
+                            >
+                            <button type="button" class="option-remove" onclick="removeOption(this)">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="option-input-group">
+                            <span class="option-number">2</span>
+                            <input 
+                                type="text" 
+                                name="options[]" 
+                                class="option-input"
+                                required 
+                                placeholder="选项 2"
+                            >
+                            <button type="button" class="option-remove" onclick="removeOption(this)">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-option" onclick="addOption()">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span>添加选项</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-submit">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M4 10h12M12 6l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>创建投票</span>
+                </button>
+                <a href="/" class="btn-cancel">
+                    <span>取消</span>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<%text>
+<script>
+function addOption() {
+    const container = document.getElementById('options-container');
+    const count = container.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'option-input-group';
+    div.innerHTML = `
+        <span class="option-number">${count}</span>
+        <input type="text" name="options[]" class="option-input" required placeholder="选项 ${count}">
+        <button type="button" class="option-remove" onclick="removeOption(this)">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+    `;
+    container.appendChild(div);
+    updateOptionNumbers();
+}
+
+function removeOption(btn) {
+    const container = document.getElementById('options-container');
+    if (container.children.length > 2) {
+        btn.parentElement.remove();
+        updateOptionNumbers();
+    } else {
+        btn.previousElementSibling.value = '';
+    }
+}
+
+function updateOptionNumbers() {
+    const container = document.getElementById('options-container');
+    const groups = container.querySelectorAll('.option-input-group');
+    groups.forEach((group, index) => {
+        const number = group.querySelector('.option-number');
+        const input = group.querySelector('.option-input');
+        number.textContent = index + 1;
+        input.placeholder = `选项 ${index + 1}`;
+    });
+}
+</script>
+</%text>
+</%block>

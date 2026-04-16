@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%block name="title">投票系统</%block></title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+                            <path d="M16 8v8l6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <h1>投票系统</h1>
+                        <p class="brand-slogan">专业 · 高效 · 可靠</p>
+                    </div>
+                </div>
+                <nav class="main-nav">
+                    <a href="/" class="nav-link">
+                        <span class="nav-icon">📊</span>
+                        <span>投票列表</span>
+                    </a>
+                    <a href="/poll/create" class="nav-link nav-link-primary">
+                        <span class="nav-icon">✨</span>
+                        <span>创建投票</span>
+                    </a>
+                </nav>
+            </div>
+        </header>
+
+        % if message:
+        <div class="notification notification-${message_type}">
+            <div class="notification-content">
+                <span class="notification-icon">${'✓' if message_type == 'success' else '✗' if message_type == 'error' else 'ℹ'}</span>
+                <span class="notification-text">${message}</span>
+            </div>
+        </div>
+        % endif
+
+        <main class="main-content">
+            <%block name="content">
+            </%block>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p>© 2024 投票系统 · 专业投票解决方案</p>
+                </div>
+                <div class="footer-tech">
+                    <span class="tech-badge">Litefs Framework</span>
+                    <span class="tech-badge">Python</span>
+                    <span class="tech-badge">SQLAlchemy</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>
