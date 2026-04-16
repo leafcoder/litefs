@@ -495,10 +495,19 @@ class BaseRequestHandler(object):
             else:
                 from collections.abc import Iterable
 
-                if not isinstance(
-                    content, (str, bytes, dict, list, tuple, type(None))
-                ) and isinstance(content, Iterable):
+                # 优先检查字符串和字节类型，设置为 text/plain
+                if isinstance(content, (str, bytes)):
                     response_headers.append(("Content-Type", "text/plain; charset=utf-8"))
+                # 检查可迭代对象（如生成器）
+                elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+                    response_headers.append(("Content-Type", "text/plain; charset=utf-8"))
+                # dict 类型设置为 application/json
+                elif isinstance(content, dict):
+                    response_headers.append(("Content-Type", "application/json; charset=utf-8"))
+                # list/tuple 类型设置为 application/json
+                elif isinstance(content, (list, tuple)):
+                    response_headers.append(("Content-Type", "application/json; charset=utf-8"))
+                # 其他类型使用默认的 application/json
                 else:
                     response_headers.append(("Content-Type", default_content_type))
 
