@@ -112,14 +112,18 @@ class RateLimitMiddleware(Middleware):
         Returns:
             429 响应
         """
-        status = "429 Too Many Requests"
-        headers = [
-            ("Content-Type", "application/json; charset=utf-8"),
-            ("Retry-After", str(retry_after)),
-        ]
-        content = f'{{"error": "{message}", "retry_after": {retry_after}}}'.encode("utf-8")
-
-        return status, headers, content
+        from ..handlers.request import Response
+        
+        response = Response(
+            content={
+                'error': message,
+                'retry_after': retry_after
+            },
+            status_code=429
+        )
+        response.headers.append(('Retry-After', str(retry_after)))
+        
+        return response
 
 
 class ThrottleMiddleware(Middleware):
@@ -198,11 +202,15 @@ class ThrottleMiddleware(Middleware):
         Returns:
             429 响应
         """
-        status = "429 Too Many Requests"
-        headers = [
-            ("Content-Type", "application/json; charset=utf-8"),
-            ("Retry-After", str(retry_after)),
-        ]
-        content = f'{{"error": "{message}", "retry_after": {retry_after}}}'.encode("utf-8")
-
-        return status, headers, content
+        from ..handlers.request import Response
+        
+        response = Response(
+            content={
+                'error': message,
+                'retry_after': retry_after
+            },
+            status_code=429
+        )
+        response.headers.append(('Retry-After', str(retry_after)))
+        
+        return response

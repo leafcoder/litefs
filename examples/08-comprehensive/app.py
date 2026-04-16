@@ -58,7 +58,7 @@ app.add_middleware(SecurityMiddleware)
 app.add_middleware(CORSMiddleware)
 
 # 限流中间件
-app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+app.add_middleware(RateLimitMiddleware, max_requests=10, window_seconds=60)
 
 # 健康检查中间件
 app.add_middleware(HealthCheck, path='/health', status=200)

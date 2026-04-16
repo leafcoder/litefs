@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs.middleware import HealthCheck
+from litefs.handlers.request import Response
 
 
 class MockRequestHandler:
@@ -17,11 +18,25 @@ class MockRequestHandler:
         self._environ = {}
         self._status_code = 200
         self._headers = []
+        self._response_headers = []
     
     def start_response(self, status_code, headers):
         """模拟 start_response"""
         self._status_code = status_code
         self._headers = headers
+    
+    def handle_response(self, result):
+        """模拟 handle_response"""
+        if isinstance(result, Response):
+            self._status_code = result.status_code
+            for header, value in result.headers:
+                self._add_header(header, value)
+            return result.content
+        return result
+    
+    def _add_header(self, key, value):
+        """模拟 _add_header"""
+        self._response_headers.append((key, value))
 
 
 class TestHealthCheck(unittest.TestCase):
@@ -112,7 +127,8 @@ class TestHealthCheck(unittest.TestCase):
         response = self.health_check.process_request(request_handler)
         
         self.assertIsNotNone(response)
-        response_data = json.loads(response.decode('utf-8'))
+        response_content = request_handler.handle_response(response)
+        response_data = json.loads(response_content)
         
         self.assertEqual(response_data['status'], 'healthy')
         self.assertIn('timestamp', response_data)
@@ -140,7 +156,7 @@ class TestHealthCheck(unittest.TestCase):
         response = self.health_check.process_request(request_handler)
         
         self.assertIsNotNone(response)
-        response_data = json.loads(response.decode('utf-8'))
+        response_data = json.loads(request_handler.handle_response(response))
         
         self.assertEqual(response_data['status'], 'unhealthy')
         self.assertEqual(response_data['checks']['database']['status'], 'pass')
@@ -166,7 +182,7 @@ class TestHealthCheck(unittest.TestCase):
         response = self.health_check.process_request(request_handler)
         
         self.assertIsNotNone(response)
-        response_data = json.loads(response.decode('utf-8'))
+        response_data = json.loads(request_handler.handle_response(response))
         
         self.assertEqual(response_data['status'], 'unhealthy')
         self.assertEqual(response_data['checks']['database']['status'], 'pass')
@@ -193,7 +209,7 @@ class TestHealthCheck(unittest.TestCase):
         response = self.health_check.process_request(request_handler)
         
         self.assertIsNotNone(response)
-        response_data = json.loads(response.decode('utf-8'))
+        response_data = json.loads(request_handler.handle_response(response))
         
         self.assertEqual(response_data['status'], 'ready')
         self.assertIn('timestamp', response_data)
@@ -221,7 +237,7 @@ class TestHealthCheck(unittest.TestCase):
         response = self.health_check.process_request(request_handler)
         
         self.assertIsNotNone(response)
-        response_data = json.loads(response.decode('utf-8'))
+        response_data = json.loads(request_handler.handle_response(response))
         
         self.assertEqual(response_data['status'], 'not_ready')
         self.assertEqual(response_data['checks']['migrations']['status'], 'pass')
@@ -238,7 +254,7 @@ class TestHealthCheck(unittest.TestCase):
         response = self.health_check.process_request(request_handler)
         
         self.assertIsNotNone(response)
-        response_data = json.loads(response.decode('utf-8'))
+        response_data = json.loads(request_handler.handle_response(response))
         
         self.assertEqual(response_data['status'], 'healthy')
         self.assertEqual(response_data['checks'], {})

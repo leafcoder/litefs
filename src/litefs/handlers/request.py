@@ -878,6 +878,8 @@ class WSGIRequestHandler(BaseRequestHandler):
 
         middleware_result = app.middleware_manager.process_request(self)
         if middleware_result is not None:
+            if isinstance(middleware_result, Response):
+                return self.handle_response(middleware_result)
             return middleware_result
 
         try:
