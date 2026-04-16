@@ -41,7 +41,7 @@ from .exceptions import HttpError, HTTPException, NotFound, BadRequest, Unauthor
 from .handlers import RequestHandler, WSGIRequestHandler, EnhancedRequestHandler, parse_form, Response
 from .middleware import MiddlewareManager
 from .context import g, has_request_context, get_current_request, RequestContext
-from .forms import Form, Field, Email as EmailValidator, Length, Required, URL as URLValidator, Number, Regex, Choice
+from .forms import Form, Field, Email as EmailFieldValidator, Length, Required, URL as URLFieldValidator, Number, Regex, Choice
 
 from .server import HTTPServer, TCPServer, WSGIServer, mainloop, make_environ, make_headers
 from .session import Session
@@ -124,10 +124,10 @@ __all__ = [
     "RequestContext",
     "Form",
     "Field",
-    "EmailValidator",
+    "EmailFieldValidator",
     "Length",
     "Required",
-    "URLValidator",
+    "URLFieldValidator",
     "Number",
     "Regex",
     "Choice",
