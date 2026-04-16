@@ -113,7 +113,7 @@ class RateLimitMiddleware(Middleware):
             429 响应
         """
         from ..handlers.request import Response
-        
+
         response = Response(
             content={
                 'error': message,
@@ -121,8 +121,9 @@ class RateLimitMiddleware(Middleware):
             },
             status_code=429
         )
+        response.headers.insert(0, ('Content-Type', 'application/json; charset=utf-8'))
         response.headers.append(('Retry-After', str(retry_after)))
-        
+
         return response
 
 
@@ -211,6 +212,7 @@ class ThrottleMiddleware(Middleware):
             },
             status_code=429
         )
+        response.headers.insert(0, ('Content-Type', 'application/json; charset=utf-8'))
         response.headers.append(('Retry-After', str(retry_after)))
-        
+
         return response

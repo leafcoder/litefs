@@ -1797,13 +1797,14 @@ class RequestHandler(BaseRequestHandler):
         处理响应结果，支持 Response 对象
         """
         if isinstance(result, Response):
-            # 设置状态码
             self._status_code = result.status_code
-            # 添加响应头
             for header, value in result.headers:
                 self._add_header(header, value)
-            # 返回响应内容
-            return result.content
+            content = result.content
+            if isinstance(content, dict):
+                import json
+                return json.dumps(content, ensure_ascii=False)
+            return content
         return result
 
     def finish(self, content):
@@ -2034,7 +2035,8 @@ class RequestHandler(BaseRequestHandler):
 
         middleware_result = app.middleware_manager.process_request(self)
         if middleware_result is not None:
-            return middleware_result
+            content = self.handle_response(middleware_result)
+            return app.middleware_manager.process_response(self, content)
 
         try:
             environ = self.environ
