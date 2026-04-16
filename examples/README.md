@@ -75,6 +75,29 @@
 - 路径参数
 - 查询参数
 
+#### 10. FastAPI 示例 (`10-fastapi/`)
+
+展示如何将 Litefs 与 FastAPI 集成。
+
+#### 11. 投票系统示例 (`11-voting/`)
+
+展示完整的投票系统应用，包括：
+- 数据库模型
+- 表单处理
+- 模板渲染
+- 静态文件服务
+- 专业商务风格 UI
+
+#### 12. 增强日志中间件示例 (`12-enhanced-logging/`)
+
+展示 Litefs 的增强日志中间件功能，包括：
+- 请求追踪（Request ID）
+- 结构化日志输出
+- 性能监控
+- 敏感信息过滤
+- 智能日志级别
+- 灵活配置
+
 ## 运行示例
 
 ### 安装依赖
@@ -188,6 +211,14 @@ python examples/10-fastapi/app.py
 
 ```bash
 python examples/11-voting/app.py
+```
+
+然后访问：http://localhost:8080
+
+#### 增强日志中间件示例
+
+```bash
+python examples/12-enhanced-logging/app.py
 ```
 
 然后访问：http://localhost:8080
