@@ -1044,56 +1044,186 @@ class Litefs(object):
         result = request_handler.handler()
         return request_handler.finish(result)
 
-    def run(self, poll_interval=0.2, processes=1):
+    def run(self, poll_interval=0.2, processes=1, reload=False):
         import os
         import sys
         import signal
+        import subprocess
+        import time
         
-        def signal_handler(signum, frame):
-            if hasattr(self, 'server') and self.server:
-                try:
-                    if hasattr(self.server, 'shutdown'):
-                        self.server.shutdown()
-                except Exception:
-                    pass
-            sys.exit(0)
+        main_file = getattr(sys.modules['__main__'], '__file__', None)
+        if main_file:
+            main_file = os.path.abspath(main_file)
         
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+        is_child_process = os.environ.get('LITEFS_CHILD_PROCESS', '0') == '1'
         
-        self.load_plugins()
-        
-        log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
-        
-        try:
-            if processes > 1:
-                self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
-                self.server.max_request_size = self.config.max_request_size
-                self.server.server_forever(poll_interval=poll_interval)
-            else:
-                self.server = HTTPServer((self.host, self.port), self.handler)
-                self.server.max_request_size = self.config.max_request_size
-                self.server.start()
-                mainloop(poll_interval=poll_interval)
-        except KeyboardInterrupt:
-            log_info(self.logger, "Server stopped by user")
-        except SystemExit:
-            log_info(self.logger, "Server stopped by signal")
-        except Exception as e:
-            log_error(self.logger, "Server error: %s" % str(e))
-        finally:
-            if hasattr(self, 'server') and self.server:
-                try:
-                    if hasattr(self.server, 'shutdown'):
-                        self.server.shutdown()
-                    self.server.server_close()
-                except Exception:
-                    pass
+        if not reload or is_child_process:
+            def signal_handler(signum, frame):
+                if hasattr(self, 'server') and self.server:
+                    try:
+                        if hasattr(self.server, 'shutdown'):
+                            self.server.shutdown()
+                    except Exception:
+                        pass
+                sys.exit(0)
+            
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+            
+            self.load_plugins()
+            
+            log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
+            
             try:
-                from .database import DatabaseManager
-                DatabaseManager.close_all()
-            except Exception:
-                pass
+                if processes > 1:
+                    self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
+                    self.server.max_request_size = self.config.max_request_size
+                    self.server.server_forever(poll_interval=poll_interval)
+                else:
+                    self.server = HTTPServer((self.host, self.port), self.handler)
+                    self.server.max_request_size = self.config.max_request_size
+                    self.server.start()
+                    mainloop(poll_interval=poll_interval)
+            except KeyboardInterrupt:
+                log_info(self.logger, "Server stopped by user")
+            except SystemExit:
+                log_info(self.logger, "Server stopped by signal")
+            except Exception as e:
+                log_error(self.logger, "Server error: %s" % str(e))
+            finally:
+                if hasattr(self, 'server') and self.server:
+                    try:
+                        if hasattr(self.server, 'shutdown'):
+                            self.server.shutdown()
+                        self.server.server_close()
+                    except Exception:
+                        pass
+                try:
+                    from .database import DatabaseManager
+                    DatabaseManager.close_all()
+                except Exception:
+                    pass
+        else:
+            child_proc = None
+            
+            def parent_signal_handler(signum, frame):
+                if child_proc and child_proc.poll() is None:
+                    try:
+                        child_proc.terminate()
+                        child_proc.wait(timeout=5)
+                    except Exception:
+                        try:
+                            child_proc.kill()
+                            child_proc.wait()
+                        except Exception:
+                            pass
+                sys.exit(0)
+            
+            signal.signal(signal.SIGINT, parent_signal_handler)
+            signal.signal(signal.SIGTERM, parent_signal_handler)
+            
+            log_info(self.logger, "Starting server with hot reload on %s:%d" % (self.host, self.port))
+            
+            if main_file:
+                project_dir = os.path.dirname(main_file)
+                watch_dirs = [project_dir]
+                
+                src_dir = os.path.join(os.path.dirname(project_dir), 'src')
+                if os.path.exists(src_dir):
+                    watch_dirs.append(src_dir)
+            else:
+                watch_dirs = []
+            
+            file_mod_times = {}
+            
+            def scan_files():
+                """扫描所有 Python 文件的修改时间"""
+                mod_times = {}
+                for watch_dir in watch_dirs:
+                    if not os.path.exists(watch_dir):
+                        continue
+                    for root, dirs, files in os.walk(watch_dir):
+                        dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
+                        for file in files:
+                            if file.endswith('.py'):
+                                file_path = os.path.join(root, file)
+                                try:
+                                    mod_times[file_path] = os.path.getmtime(file_path)
+                                except OSError:
+                                    pass
+                return mod_times
+            
+            def check_file_changes():
+                """检查文件是否有变化"""
+                nonlocal file_mod_times
+                current_mod_times = scan_files()
+                
+                for file_path, mtime in current_mod_times.items():
+                    if file_path not in file_mod_times:
+                        return True
+                    if mtime != file_mod_times[file_path]:
+                        return True
+                
+                for file_path in file_mod_times:
+                    if file_path not in current_mod_times:
+                        return True
+                
+                return False
+            
+            file_mod_times = scan_files()
+            
+            while True:
+                try:
+                    env = os.environ.copy()
+                    env['LITEFS_CHILD_PROCESS'] = '1'
+                    
+                    child_proc = subprocess.Popen(
+                        [sys.executable] + sys.argv,
+                        env=env,
+                        close_fds=True
+                    )
+                    
+                    while child_proc.poll() is None:
+                        time.sleep(1)
+                        
+                        if check_file_changes():
+                            log_info(self.logger, "File changed, restarting server...")
+                            file_mod_times = scan_files()
+                            
+                            try:
+                                child_proc.terminate()
+                                child_proc.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                child_proc.kill()
+                                child_proc.wait()
+                            except Exception:
+                                pass
+                            break
+                    
+                    exit_code = child_proc.returncode
+                    
+                    if exit_code == 0 or exit_code is None:
+                        continue
+                    
+                    if exit_code not in (0, -2, -15):
+                        log_error(self.logger, "Server exited with code %d" % exit_code)
+                    
+                    break
+                    
+                except Exception as e:
+                    log_error(self.logger, "Error starting server: %s" % str(e))
+                    time.sleep(1)
+                finally:
+                    if child_proc and child_proc.poll() is None:
+                        try:
+                            child_proc.terminate()
+                            child_proc.wait(timeout=5)
+                        except Exception:
+                            try:
+                                child_proc.kill()
+                                child_proc.wait()
+                            except Exception:
+                                pass
 
 
 def _cmd_args(args):

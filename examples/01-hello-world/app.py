@@ -26,7 +26,8 @@ app = Litefs(
 @app.add_get('/', name='index')
 def index_handler(request):
     """首页处理函数 - 返回简单的问候语"""
-    return {"Hello": "World"}
+    return "Hello World"
+
 
 # 定义关于页面处理函数
 @app.add_get('/about', name='about')
@@ -55,4 +56,4 @@ if __name__ == '__main__':
     print("  GET /about  - 关于页面")
     print("=" * 60)
     
-    app.run(processes=6)
+    app.run(processes=6, reload=True)
