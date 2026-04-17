@@ -120,8 +120,8 @@ def index(request):
             '/task/email': 'POST - 发送邮件任务',
             '/task/file': 'POST - 处理文件任务',
             '/task/urgent': 'POST - 紧急任务',
-            '/task/status/<task_id>': 'GET - 查询任务状态',
-            '/task/result/<task_id>': 'GET - 获取任务结果',
+            '/task/status/{task_id}': 'GET - 查询任务状态',
+            '/task/result/{task_id}': 'GET - 获取任务结果',
             '/task/active': 'GET - 获取活跃任务',
             '/task/health': 'GET - 健康检查',
         }
@@ -136,7 +136,8 @@ def send_email_task(request):
     subject = data.get('subject', 'Test Email')
     body = data.get('body', 'This is a test email.')
     
-    task_id = send_email.delay(to, subject, body)
+    result = send_email.delay(to, subject, body)
+    task_id = result.id
     
     return {
         'message': '邮件任务已提交',
@@ -151,7 +152,8 @@ def process_file_task(request):
     data = request.json or {}
     filepath = data.get('filepath', '/tmp/test.txt')
     
-    task_id = process_file.delay(filepath)
+    result = process_file.delay(filepath)
+    task_id = result.id
     
     return {
         'message': '文件处理任务已提交',
@@ -166,7 +168,8 @@ def urgent_task_endpoint(request):
     data = request.json or {}
     task_data = data.get('data', 'urgent data')
     
-    task_id = urgent_task.delay(task_data)
+    result = urgent_task.delay(task_data)
+    task_id = result.id
     
     return {
         'message': '紧急任务已提交',
@@ -175,7 +178,7 @@ def urgent_task_endpoint(request):
     }
 
 
-@route('/task/status/<task_id>', name='task_status')
+@route('/task/status/{task_id}', name='task_status')
 def task_status(request, task_id):
     """查询任务状态"""
     status = celery.get_task_status(task_id)
@@ -186,7 +189,7 @@ def task_status(request, task_id):
     }
 
 
-@route('/task/result/<task_id>', name='task_result')
+@route('/task/result/{task_id}', name='task_result')
 def task_result(request, task_id):
     """获取任务结果"""
     try:
