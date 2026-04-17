@@ -39,7 +39,8 @@ def send_email(to, subject, body):
 
 ```python
 # 提交任务
-task_id = send_email.delay('user@example.com', 'Hello', 'World')
+result = send_email.delay('user@example.com', 'Hello', 'World')
+task_id = result.id
 
 # 查询状态
 status = celery.get_task_status(task_id)
