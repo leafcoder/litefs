@@ -161,6 +161,9 @@ class Litefs(object):
 
         self.middleware_manager = MiddlewareManager()
         self._middleware_instances = []
+        
+        self._init_debug_middleware()
+        
         error_pages_dir = getattr(config, "error_pages_dir", None)
         self.error_page_renderer = ErrorPageRenderer(error_pages_dir)
         
@@ -178,6 +181,13 @@ class Litefs(object):
         # 添加默认插件目录
         self.plugin_loader.add_plugin_dir('./plugins')
         self.plugin_loader.add_plugin_dir('./litefs/plugins')
+
+    def _init_debug_middleware(self):
+        """初始化调试中间件"""
+        import os
+        if os.environ.get('LITEFS_DEBUG', '0') == '1':
+            from .debug.middleware import DebugMiddleware
+            self.add_middleware(DebugMiddleware)
 
     def database(self, name: str = 'default') -> Any:
         """

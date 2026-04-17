@@ -414,12 +414,8 @@ class TCPServer(object):
                 # Flush the buffer to ensure the response is sent
                 if hasattr(rw, 'flush'):
                     rw.flush()
-            except Exception:
-                pass
             finally:
                 self.shutdown_request(request)
-        except Exception as e:
-            raise
         finally:
             # 确保在所有情况下都清理 greenlet 和关闭连接
             try:
