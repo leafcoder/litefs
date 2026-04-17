@@ -50,7 +50,8 @@ from ..cache import FormCache
 default_page = "index"
 default_404 = "not_found"
 # 会话配置默认值
-default_content_type = "application/json; charset=utf-8"
+default_content_type = "text/html; charset=utf-8"
+json_content_type = "application/json; charset=utf-8"
 
 # 创建表单数据缓存实例
 _form_cache = FormCache(max_size=1000, default_ttl=300)
@@ -494,19 +495,19 @@ class BaseRequestHandler(object):
             else:
                 from collections.abc import Iterable
 
-                # 优先检查字符串和字节类型，设置为 text/plain
-                if isinstance(content, (str, bytes)):
+                # dict、list、tuple 类型设置为 application/json
+                if isinstance(content, (dict, list, tuple)):
+                    response_headers.append(("Content-Type", json_content_type))
+                # HTML 字符串设置为 text/html
+                elif isinstance(content, str) and content.startswith('<'):
+                    response_headers.append(("Content-Type", "text/html; charset=utf-8"))
+                # 字节类型设置为 application/octet-stream
+                elif isinstance(content, bytes):
+                    response_headers.append(("Content-Type", "application/octet-stream"))
+                # 其他可迭代对象设置为 text/plain
+                elif not isinstance(content, (str, bytes, type(None))) and isinstance(content, Iterable):
                     response_headers.append(("Content-Type", "text/plain; charset=utf-8"))
-                # 检查可迭代对象（如生成器）
-                elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
-                    response_headers.append(("Content-Type", "text/plain; charset=utf-8"))
-                # dict 类型设置为 application/json
-                elif isinstance(content, dict):
-                    response_headers.append(("Content-Type", "application/json; charset=utf-8"))
-                # list/tuple 类型设置为 application/json
-                elif isinstance(content, (list, tuple)):
-                    response_headers.append(("Content-Type", "application/json; charset=utf-8"))
-                # 其他类型使用默认的 application/json
+                # 其他类型使用默认的 text/html
                 else:
                     response_headers.append(("Content-Type", default_content_type))
 
@@ -1875,17 +1876,23 @@ class RequestHandler(BaseRequestHandler):
                 if header not in headers:
                     headers[header] = value
             
-            # 如果没有 Content-Type 头部，添加默认值
+            # 如果没有 Content-Type 头部，根据内容类型设置
             if "Content-Type" not in headers:
                 # 对于 3xx 重定向响应，设置 Content-Type 为 text/html; charset=utf-8
                 if 300 <= status_code < 400:
                     content_type_value = "text/html; charset=utf-8"
+                elif isinstance(content, (dict, list, tuple)):
+                    # dict、list、tuple 返回 JSON
+                    content_type_value = json_content_type
+                elif isinstance(content, str) and content.startswith('<'):
+                    # HTML 内容
+                    content_type_value = "text/html; charset=utf-8"
+                elif isinstance(content, bytes):
+                    # 字节内容，默认为二进制流
+                    content_type_value = "application/octet-stream"
                 else:
-                    # 对于其他响应，检查是否是 HTML 内容
-                    if isinstance(content, str) and content.startswith('<'):
-                        content_type_value = "text/html; charset=utf-8"
-                    else:
-                        content_type_value = default_content_type
+                    # 其他类型默认为 text/html
+                    content_type_value = default_content_type
                 headers["Content-Type"] = content_type_value
                 self._response_headers["Content-Type"] = content_type_value
             
@@ -2025,12 +2032,21 @@ class RequestHandler(BaseRequestHandler):
                 headers = html_headers + list(headers)
         elif not has_content_type:
             from collections.abc import Iterable
-
-            if not isinstance(content, (str, bytes, dict, list, tuple, type(None))) and isinstance(
-                content, Iterable
-            ):
+            
+            if isinstance(content, (dict, list, tuple)):
+                # dict、list、tuple 返回 JSON
+                headers = [("Content-Type", json_content_type)] + list(headers)
+            elif isinstance(content, str) and content.startswith('<'):
+                # HTML 内容
+                headers = [("Content-Type", "text/html; charset=utf-8")] + list(headers)
+            elif isinstance(content, bytes):
+                # 字节内容，默认为二进制流
+                headers = [("Content-Type", "application/octet-stream")] + list(headers)
+            elif not isinstance(content, (str, bytes, type(None))) and isinstance(content, Iterable):
+                # 其他可迭代对象
                 headers = [("Content-Type", "text/plain; charset=utf-8")] + list(headers)
             else:
+                # 其他类型默认为 text/html
                 headers = [("Content-Type", default_content_type)] + list(headers)
 
         # 设置 session cookie

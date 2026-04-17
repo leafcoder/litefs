@@ -47,6 +47,45 @@ app.register_routes(__name__)
 app.run()
 ```
 
+### 响应处理
+
+Litefs 会根据返回值类型自动设置 `Content-Type` 响应头：
+
+| 返回值类型 | Content-Type |
+|-----------|--------------|
+| `dict` / `list` / `tuple` | `application/json; charset=utf-8` |
+| HTML 字符串（以 `<` 开头） | `text/html; charset=utf-8` |
+| `bytes` | `application/octet-stream` |
+| 其他类型 | `text/html; charset=utf-8`（默认） |
+
+示例：
+
+```python
+@get('/api/user')
+def get_user(request):
+    # 自动设置 Content-Type: application/json
+    return {'id': 1, 'name': 'Alice'}
+
+@get('/page')
+def get_page(request):
+    # 自动设置 Content-Type: text/html
+    return '<html><body>Hello</body></html>'
+
+@get('/download')
+def download(request):
+    # 自动设置 Content-Type: application/octet-stream
+    return b'\x00\x01\x02\x03'
+```
+
+也可以手动设置响应头：
+
+```python
+@get('/custom')
+def custom_response(request):
+    request.start_response(200, [('Content-Type', 'text/plain; charset=utf-8')])
+    return 'Custom content type'
+```
+
 ### 使用方法链风格
 
 ```python

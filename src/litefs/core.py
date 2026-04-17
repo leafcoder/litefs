@@ -272,7 +272,14 @@ class Litefs(object):
                         start_response(status, headers)
                     else:
                         content = middleware_result
-                        status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                        if isinstance(content, (dict, list, tuple)):
+                            status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
+                        elif isinstance(content, str) and content.startswith('<'):
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
+                        elif isinstance(content, bytes):
+                            status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
+                        else:
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
                         start_response(status, headers)
 
                     if isinstance(content, (str, bytes, dict, list, tuple, type(None))):
@@ -307,7 +314,14 @@ class Litefs(object):
                     start_response(status, headers)
                 else:
                     content = handler_result
-                    status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                    if isinstance(content, (dict, list, tuple)):
+                        status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
+                    elif isinstance(content, str) and content.startswith('<'):
+                        status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
+                    elif isinstance(content, bytes):
+                        status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
+                    else:
+                        status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
                     start_response(status, headers)
 
                 headers_dict = dict(headers)
@@ -370,7 +384,14 @@ class Litefs(object):
                         start_response(status, headers)
                     else:
                         content = middleware_result
-                        status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                        if isinstance(content, (dict, list, tuple)):
+                            status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
+                        elif isinstance(content, str) and content.startswith('<'):
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
+                        elif isinstance(content, bytes):
+                            status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
+                        else:
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
                         start_response(status, headers)
 
                     if isinstance(content, str):
@@ -384,13 +405,13 @@ class Litefs(object):
 
                 if isinstance(e, HttpError):
                     status = f"{e.status_code} {e.message}"
-                    headers = [("Content-Type", "text/plain; charset=utf-8")]
+                    headers = [("Content-Type", "text/html; charset=utf-8")]
                     start_response(status, headers)
                     return [e.message.encode("utf-8")]
                 else:
                     log_error(self.logger, str(e))
                     status = "500 Internal Server Error"
-                    headers = [("Content-Type", "text/plain; charset=utf-8")]
+                    headers = [("Content-Type", "text/html; charset=utf-8")]
                     start_response(status, headers)
                     return [b"500 Internal Server Error"]
 

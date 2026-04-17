@@ -445,6 +445,159 @@ def test_404_page():
     print("OK: 404 page test passed")
     return True
 
+def test_auto_content_type_dict():
+    """测试 dict 返回值自动设置 Content-Type 为 application/json"""
+    print("Testing auto Content-Type for dict...")
+    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    
+    @app.add_get('/auto_dict', name='auto_dict')
+    def auto_dict_handler(request):
+        return {"message": "auto json"}
+    
+    application = app.wsgi()
+    
+    environ = create_environ('/auto_dict')
+    response_started = []
+    
+    def start_response(status, headers):
+        response_started.append((status, headers))
+    
+    result = application(environ, start_response)
+    content = b''.join(result)
+    
+    status, headers = response_started[0]
+    assert '200' in status, f"Expected 200, got {status}"
+    
+    headers_dict = dict(headers)
+    assert 'application/json' in headers_dict.get('Content-Type', ''), f"Expected application/json for dict, got {headers_dict.get('Content-Type')}"
+    
+    data = json.loads(content)
+    assert data == {"message": "auto json"}, f"Expected JSON data, got {data}"
+    
+    print("OK: auto Content-Type for dict test passed")
+    return True
+
+def test_auto_content_type_list():
+    """测试 list 返回值自动设置 Content-Type 为 application/json"""
+    print("Testing auto Content-Type for list...")
+    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    
+    @app.add_get('/auto_list', name='auto_list')
+    def auto_list_handler(request):
+        return [1, 2, 3]
+    
+    application = app.wsgi()
+    
+    environ = create_environ('/auto_list')
+    response_started = []
+    
+    def start_response(status, headers):
+        response_started.append((status, headers))
+    
+    result = application(environ, start_response)
+    content = b''.join(result)
+    
+    status, headers = response_started[0]
+    assert '200' in status, f"Expected 200, got {status}"
+    
+    headers_dict = dict(headers)
+    assert 'application/json' in headers_dict.get('Content-Type', ''), f"Expected application/json for list, got {headers_dict.get('Content-Type')}"
+    
+    data = json.loads(content)
+    assert data == [1, 2, 3], f"Expected JSON list, got {data}"
+    
+    print("OK: auto Content-Type for list test passed")
+    return True
+
+def test_auto_content_type_html():
+    """测试 HTML 字符串自动设置 Content-Type 为 text/html"""
+    print("Testing auto Content-Type for HTML...")
+    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    
+    @app.add_get('/auto_html', name='auto_html')
+    def auto_html_handler(request):
+        return '<html><body>Hello</body></html>'
+    
+    application = app.wsgi()
+    
+    environ = create_environ('/auto_html')
+    response_started = []
+    
+    def start_response(status, headers):
+        response_started.append((status, headers))
+    
+    result = application(environ, start_response)
+    content = b''.join(result)
+    
+    status, headers = response_started[0]
+    assert '200' in status, f"Expected 200, got {status}"
+    
+    headers_dict = dict(headers)
+    assert 'text/html' in headers_dict.get('Content-Type', ''), f"Expected text/html for HTML string, got {headers_dict.get('Content-Type')}"
+    
+    assert b'<html>' in content, f"Expected HTML content, got {content}"
+    
+    print("OK: auto Content-Type for HTML test passed")
+    return True
+
+def test_auto_content_type_plain_string():
+    """测试普通字符串默认设置 Content-Type 为 text/html"""
+    print("Testing auto Content-Type for plain string...")
+    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    
+    @app.add_get('/auto_plain', name='auto_plain')
+    def auto_plain_handler(request):
+        return 'Hello World'
+    
+    application = app.wsgi()
+    
+    environ = create_environ('/auto_plain')
+    response_started = []
+    
+    def start_response(status, headers):
+        response_started.append((status, headers))
+    
+    result = application(environ, start_response)
+    content = b''.join(result)
+    
+    status, headers = response_started[0]
+    assert '200' in status, f"Expected 200, got {status}"
+    
+    headers_dict = dict(headers)
+    assert 'text/html' in headers_dict.get('Content-Type', ''), f"Expected text/html for plain string, got {headers_dict.get('Content-Type')}"
+    
+    print("OK: auto Content-Type for plain string test passed")
+    return True
+
+def test_auto_content_type_bytes():
+    """测试 bytes 返回值自动设置 Content-Type 为 application/octet-stream"""
+    print("Testing auto Content-Type for bytes...")
+    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    
+    @app.add_get('/auto_bytes', name='auto_bytes')
+    def auto_bytes_handler(request):
+        return b'\x00\x01\x02\x03'
+    
+    application = app.wsgi()
+    
+    environ = create_environ('/auto_bytes')
+    response_started = []
+    
+    def start_response(status, headers):
+        response_started.append((status, headers))
+    
+    result = application(environ, start_response)
+    content = b''.join(result)
+    
+    status, headers = response_started[0]
+    assert '200' in status, f"Expected 200, got {status}"
+    
+    headers_dict = dict(headers)
+    assert 'application/octet-stream' in headers_dict.get('Content-Type', ''), f"Expected application/octet-stream for bytes, got {headers_dict.get('Content-Type')}"
+    
+    print("OK: auto Content-Type for bytes test passed")
+    return True
+
 def run_all_tests():
     tests = [
         test_index_page,
@@ -460,6 +613,11 @@ def run_all_tests():
         test_html_response,
         test_text_mode,
         test_404_page,
+        test_auto_content_type_dict,
+        test_auto_content_type_list,
+        test_auto_content_type_html,
+        test_auto_content_type_plain_string,
+        test_auto_content_type_bytes,
     ]
     
     passed = 0
