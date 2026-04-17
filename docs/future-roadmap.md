@@ -192,12 +192,14 @@ litefs runserver --reload --watch-templates --watch-static
 #### 7. 认证授权系统
 **目标**: 提供完整的认证授权解决方案
 
+**状态**: ✅ 已完成
+
 **功能特性**:
-- 用户认证（Session、JWT、OAuth）
+- 用户认证（JWT）
 - 权限管理
 - 角色管理
 - 密码加密
-- 登录限制
+- Token 刷新和撤销
 
 **实现方案**:
 ```python
