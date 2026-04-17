@@ -171,6 +171,10 @@ def security_headers(request):
     }
 
 
+# 注册路由
+app.register_routes(__name__)
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("Litefs 安全增强功能综合示例")

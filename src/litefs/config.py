@@ -65,6 +65,10 @@ class Config:
         'database_url': None,             # 数据库连接 URL
         'database_session_table': 'sessions', # 会话表名
         'database_cache_table': 'cache',  # 缓存表名
+        'database_pool_size': 10,         # 连接池大小
+        'database_max_overflow': 20,      # 连接池最大溢出数
+        'database_pool_timeout': 30,      # 连接池超时时间（秒）
+        'database_pool_recycle': 3600,    # 连接回收时间（秒）
         
         # Memcache 配置
         'memcache_servers': 'localhost:11211', # Memcache 服务器列表

@@ -1727,6 +1727,7 @@ class RequestHandler(BaseRequestHandler):
 
     def _cast(self, s=None):
         response_headers = self._response_headers
+        
         if not s:
             if "Content-Length" not in response_headers:
                 response_headers["Content-Length"] = 0
@@ -1741,9 +1742,20 @@ class RequestHandler(BaseRequestHandler):
         content_type = response_headers.get("Content-Type", "")
         is_json_response = "application/json" in content_type
 
-        # 先检查是否是可迭代对象（但不是字符串、字节、元组或列表）
+        # 先处理 dict 类型（dict 是 Iterable 但需要特殊处理）
+        if isinstance(s, dict):
+            if is_json_response:
+                import json
+                try:
+                    s = json.dumps(s, ensure_ascii=False)
+                except (TypeError, ValueError) as e:
+                    raise TypeError("Response data cannot be JSON serialized: %s" % e)
+            else:
+                s = str(s)
+        
+        # 先检查是否是可迭代对象（但不是字符串、字节、元组、列表或字典）
         from collections.abc import Iterable
-        if not isinstance(s, (str, bytes, tuple, list, type(None))) and isinstance(s, Iterable):
+        if not isinstance(s, (str, bytes, tuple, list, dict, type(None))) and isinstance(s, Iterable):
             try:
                 iter_s = iter(s)
                 first = next(iter_s)
@@ -1818,12 +1830,37 @@ class RequestHandler(BaseRequestHandler):
     def finish(self, content):
         try:
             rw = self._rw
-            status_code = self._status_code
-            status_text = http_status_codes[status_code]
+            
+            if (
+                isinstance(content, (list, tuple))
+                and len(content) == 3
+                and isinstance(content[0], str)
+                and isinstance(content[1], list)
+            ):
+                status_line, response_headers, response_content = content
+                status_code = int(status_line.split()[0])
+                status_text = http_status_codes.get(status_code, "Unknown")
+                
+                for header_name, header_value in response_headers:
+                    if header_name.lower() == 'set-cookie':
+                        if self._cookies is None:
+                            self._cookies = {}
+                        from http.cookies import SimpleCookie
+                        cookie = SimpleCookie()
+                        cookie.load(header_value)
+                        for key, morsel in cookie.items():
+                            self._cookies[key] = morsel
+                    else:
+                        self._response_headers[header_name] = header_value
+                
+                content = response_content
+            else:
+                status_code = self._status_code
+                status_text = http_status_codes[status_code]
+            
             line = "HTTP/1.1 %d %s\r\n" % (status_code, status_text)
             line = line.encode("utf-8")
             rw.write(line)
-            # 获取当前头部
             headers = self._response_headers.copy()
             
             # 添加标准头部（如果不存在）
@@ -1842,13 +1879,15 @@ class RequestHandler(BaseRequestHandler):
             if "Content-Type" not in headers:
                 # 对于 3xx 重定向响应，设置 Content-Type 为 text/html; charset=utf-8
                 if 300 <= status_code < 400:
-                    headers["Content-Type"] = "text/html; charset=utf-8"
+                    content_type_value = "text/html; charset=utf-8"
                 else:
                     # 对于其他响应，检查是否是 HTML 内容
                     if isinstance(content, str) and content.startswith('<'):
-                        headers["Content-Type"] = "text/html; charset=utf-8"
+                        content_type_value = "text/html; charset=utf-8"
                     else:
-                        headers["Content-Type"] = default_content_type
+                        content_type_value = default_content_type
+                headers["Content-Type"] = content_type_value
+                self._response_headers["Content-Type"] = content_type_value
             
             # 检查是否已经有 Content-Length 或 Transfer-Encoding 头
             has_content_length = "Content-Length" in headers
@@ -1956,10 +1995,6 @@ class RequestHandler(BaseRequestHandler):
 
         if headers is None:
             headers = []
-
-        # 直接设置 Content-Type 为 text/html; charset=utf-8
-        # 这样可以确保无论 _response_headers 字典中是否有 Content-Type 响应头，Content-Type 都会被正确设置
-        headers.insert(0, ("Content-Type", "text/html; charset=utf-8"))
 
         # 添加 self._response_headers 中的响应头
         existing_header_names = [h[0].lower() for h in headers]
