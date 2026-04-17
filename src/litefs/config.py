@@ -75,6 +75,11 @@ class Config:
         'memcache_key_prefix': 'litefs:', # Memcache 缓存键前缀
         'memcache_session_key_prefix': 'litefs:session:', # Memcache 会话键前缀
         
+        # Celery 任务队列配置
+        'celery_broker': None,            # Celery Broker URL (如 redis://localhost:6379/0)
+        'celery_backend': None,           # Celery Result Backend URL
+        'celery_config': None,            # Celery 额外配置字典
+        
         # 配置管理
         'config_encrypted_keys': [],      # 需要加密的配置键
         'config_secret_key': None,        # 配置加密密钥

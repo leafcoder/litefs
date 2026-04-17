@@ -43,29 +43,31 @@ async def chat_room(websocket):
 ---
 
 #### 2. 异步任务队列
-**目标**: 支持异步任务处理，提高响应速度
+**目标**: 支持 Celery 集成，实现异步任务处理
+
+**状态**: ✅ 已完成
 
 **功能特性**:
-- 任务队列管理
-- 后台任务执行
+- Celery 集成封装
+- 简化的任务装饰器
 - 任务状态追踪
-- 重试机制
-- 支持多种后端（Redis、RabbitMQ）
+- 定时任务支持
+- 健康检查 API
 
 **实现方案**:
 ```python
-from litefs.tasks import task
+from litefs.tasks import Celery, task
+
+celery = Celery(app, broker='redis://localhost:6379/0')
 
 @task
 def send_email(to, subject, body):
-    # 异步发送邮件
     pass
 
-# 在视图中调用
 send_email.delay('user@example.com', 'Hello', 'World')
 ```
 
-**工作量**: 5-7 天  
+**工作量**: 2-3 天  
 **优先级**: ⭐⭐⭐⭐  
 **影响范围**: 新增模块
 
@@ -407,8 +409,9 @@ async def async_view(request):
 1. ✅ 数据库连接池优化（3-4 天）
 2. ✅ CSRF 保护（2-3 天）
 3. ✅ 安全头部（2-3 天）
-4. ✅ 异步任务队列（5-7 天）
-5. ✅ WebSocket 支持（7-10 天）
+4. ✅ 异步任务队列 / Celery 集成（2-3 天）
+5. ✅ 热重载功能（2-3 天）
+6. WebSocket 支持（7-10 天）
 
 **总工作量**: 约 20-27 天
 
