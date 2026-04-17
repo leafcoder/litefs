@@ -1044,208 +1044,56 @@ class Litefs(object):
         result = request_handler.handler()
         return request_handler.finish(result)
 
-    def run(self, poll_interval=0.2, processes=1, no_reload=False):
+    def run(self, poll_interval=0.2, processes=1):
         import os
         import sys
-        import subprocess
-        import time
         import signal
-        from pathlib import Path
-        from watchdog.events import FileSystemEventHandler
-        from watchdog.observers import Observer
         
-        # 获取启动脚本路径
-        main_file = getattr(sys.modules['__main__'], '__file__', None)
-        if main_file:
-            main_file = os.path.abspath(main_file)
-        
-        # 检查是否是子进程
-        is_child_process = os.environ.get('LITEFS_CHILD_PROCESS', '0') == '1'
-        
-        # 子进程 PID 存储，用于信号处理
-        child_proc = None
-        
-        def parent_signal_handler(signum, frame):
-            """父进程信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
-            if child_proc:
-                try:
-                    # 发送 SIGTERM 信号给子进程
-                    child_proc.terminate()
-                    # 等待子进程关闭，最多等待 15 秒
-                    try:
-                        child_proc.wait(timeout=15)
-                    except subprocess.TimeoutExpired:
-                        child_proc.kill()
-                        child_proc.wait()
-                except Exception:
-                    pass
-            sys.exit(0)
-        
-        def child_signal_handler(signum, frame):
-            """子进程信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
-            # 关闭服务器
+        def signal_handler(signum, frame):
             if hasattr(self, 'server') and self.server:
                 try:
                     if hasattr(self.server, 'shutdown'):
                         self.server.shutdown()
                 except Exception:
                     pass
-            # 退出进程
             sys.exit(0)
         
-        # 如果禁用热重载或已经是子进程，直接运行服务器
-        if no_reload or is_child_process:
-            # 子进程：实际运行服务器
-            # 设置环境变量
-            os.environ['LITEFS_CHILD_PROCESS'] = '1'
-            
-            # 注册信号处理函数
-            signal.signal(signal.SIGINT, child_signal_handler)
-            signal.signal(signal.SIGTERM, child_signal_handler)
-            
-            # 加载插件
-            self.load_plugins()
-            
-            log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
-            
-            try:
-                if processes > 1:
-                    self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
-                    self.server.max_request_size = self.config.max_request_size
-                    self.server.server_forever(poll_interval=poll_interval)
-                else:
-                    self.server = HTTPServer((self.host, self.port), self.handler)
-                    self.server.max_request_size = self.config.max_request_size
-                    self.server.start()
-                    mainloop(poll_interval=poll_interval)
-            except KeyboardInterrupt:
-                log_info(self.logger, "Server stopped by user")
-            except SystemExit:
-                log_info(self.logger, "Server stopped by signal")
-            except Exception as e:
-                log_error(self.logger, "Server error: %s" % str(e))
-            finally:
-                # 关闭服务器
-                if hasattr(self, 'server') and self.server:
-                    try:
-                        # 先关闭所有工作进程
-                        if hasattr(self.server, 'shutdown'):
-                            self.server.shutdown()
-                            # 给工作进程足够的时间关闭
-                            time.sleep(2)
-                        # 再关闭服务器套接字
-                        self.server.server_close()
-                    except Exception:
-                        pass
-                # 关闭数据库连接
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        self.load_plugins()
+        
+        log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
+        
+        try:
+            if processes > 1:
+                self.server = ProcessHTTPServer((self.host, self.port), self.handler, processes=processes)
+                self.server.max_request_size = self.config.max_request_size
+                self.server.server_forever(poll_interval=poll_interval)
+            else:
+                self.server = HTTPServer((self.host, self.port), self.handler)
+                self.server.max_request_size = self.config.max_request_size
+                self.server.start()
+                mainloop(poll_interval=poll_interval)
+        except KeyboardInterrupt:
+            log_info(self.logger, "Server stopped by user")
+        except SystemExit:
+            log_info(self.logger, "Server stopped by signal")
+        except Exception as e:
+            log_error(self.logger, "Server error: %s" % str(e))
+        finally:
+            if hasattr(self, 'server') and self.server:
                 try:
-                    from .database import DatabaseManager
-                    DatabaseManager.close_all()
+                    if hasattr(self.server, 'shutdown'):
+                        self.server.shutdown()
+                    self.server.server_close()
                 except Exception:
                     pass
-        else:
-            # 父进程，启动子进程监控
-            
-            # 注册信号处理
-            signal.signal(signal.SIGINT, parent_signal_handler)
-            signal.signal(signal.SIGTERM, parent_signal_handler)
-            
-            # 启动子进程循环
-            while True:
-                
-                # 启动子进程
-                try:
-                    # 准备环境变量
-                    env = os.environ.copy()
-                    env['LITEFS_CHILD_PROCESS'] = '1'
-                    
-                    # 启动子进程
-                    child_proc = subprocess.Popen(
-                        [sys.executable] + sys.argv,
-                        env=env,
-                        close_fds=True
-                    )
-                    
-                    # 简单的文件监控（暂时跳过 watchdog 避免复杂问题）
-                    if main_file:
-                        project_dir = os.path.dirname(main_file)
-                        
-                        # 监控文件变化
-                        file_mod_times = {}
-                        for root, dirs, files in os.walk(project_dir):
-                            for file in files:
-                                if file.endswith('.py'):
-                                    file_path = os.path.join(root, file)
-                                    file_mod_times[file_path] = os.path.getmtime(file_path)
-                        
-                        # 等待子进程或文件变化
-                        while child_proc.poll() is None:
-                            # 检查文件变化
-                            should_restart = False
-                            try:
-                                for root, dirs, files in os.walk(project_dir):
-                                    for file in files:
-                                        if file.endswith('.py'):
-                                            file_path = os.path.join(root, file)
-                                            if file_path in file_mod_times:
-                                                try:
-                                                    current_mtime = os.path.getmtime(file_path)
-                                                    if current_mtime != file_mod_times[file_path]:
-                                                        should_restart = True
-                                                        break
-                                                except FileNotFoundError:
-                                                    # 文件被删除
-                                                    should_restart = True
-                                                    break
-                                    if should_restart:
-                                        break
-                            except Exception:
-                                pass
-                            
-                            if should_restart:
-                                child_proc.terminate()
-                                try:
-                                    child_proc.wait(timeout=15)
-                                except subprocess.TimeoutExpired:
-                                    child_proc.kill()
-                                    child_proc.wait()
-                                break
-                            
-                            time.sleep(1)
-                    else:
-                        # 没有主文件，直接等待子进程退出
-                        child_proc.wait()
-                    
-                    # 子进程已退出
-                    exit_code = child_proc.returncode
-                    
-                    # 如果是文件变化导致的重启，继续循环
-                    if 'should_restart' in locals() and should_restart:
-                        # 等待一段时间，确保所有旧的工作进程都已经完全关闭
-                        # 检查端口是否已经释放
-                        start_time = time.time()
-                        while time.time() - start_time < 30:  # 最多等待 30 秒
-                            if is_port_available(self.host, self.port):
-                                break
-                            time.sleep(1)
-                        continue
-                    else:
-                        break
-                        
-                except Exception:
-                    time.sleep(1)
-                finally:
-                    # 确保子进程被关闭
-                    if child_proc and child_proc.poll() is None:
-                        try:
-                            child_proc.terminate()
-                            child_proc.wait(timeout=15)
-                        except Exception:
-                            try:
-                                child_proc.kill()
-                                child_proc.wait()
-                            except Exception:
-                                pass
+            try:
+                from .database import DatabaseManager
+                DatabaseManager.close_all()
+            except Exception:
+                pass
 
 
 def _cmd_args(args):
