@@ -898,6 +898,50 @@ class Litefs(object):
         self.router.add_static(prefix, directory, name)
         return self
     
+    def websocket(self, path: str = '/ws', auth_required: bool = False, 
+                  auth_handler: Callable = None, port: int = None):
+        """
+        WebSocket 路由装饰器
+        
+        Args:
+            path: WebSocket 路径
+            auth_required: 是否需要认证
+            auth_handler: 认证处理函数
+            port: WebSocket 服务器端口（默认 HTTP 端口 + 1）
+            
+        Returns:
+            装饰器函数
+            
+        使用示例:
+            @app.websocket('/ws')
+            def ws_handler(ws):
+                ws.send('欢迎连接!')
+                for message in ws:
+                    ws.broadcast(message)
+        """
+        from .websocket import WebSocket
+        
+        if not hasattr(self, '_websocket_instance'):
+            ws_port = port or (self.port + 1)
+            self._websocket_instance = WebSocket(
+                app=self,
+                path=path,
+                port=ws_port,
+                auth_required=auth_required,
+                auth_handler=auth_handler,
+            )
+        
+        return self._websocket_instance.handler(path)
+    
+    def get_websocket(self) -> Optional['WebSocket']:
+        """
+        获取 WebSocket 实例
+        
+        Returns:
+            WebSocket 实例或 None
+        """
+        return getattr(self, '_websocket_instance', None)
+    
     def register_routes(self, module):
         """
         注册模块中的路由
@@ -1072,6 +1116,11 @@ class Litefs(object):
             
             self.load_plugins()
             
+            ws_instance = self.get_websocket()
+            if ws_instance:
+                ws_instance.start()
+                log_info(self.logger, "WebSocket server started on port %d" % (self.port + 1))
+            
             log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
             
             try:
@@ -1091,6 +1140,12 @@ class Litefs(object):
             except Exception as e:
                 log_error(self.logger, "Server error: %s" % str(e))
             finally:
+                ws_instance = self.get_websocket()
+                if ws_instance:
+                    try:
+                        ws_instance.stop()
+                    except Exception:
+                        pass
                 if hasattr(self, 'server') and self.server:
                     try:
                         if hasattr(self.server, 'shutdown'):
