@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>用户中心</h1>
+            <nav>
+                <a href="/">首页</a>
+                <a href="/logout">退出登录</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="profile">
+                <h2>用户信息</h2>
+                <div class="user-info">
+                    <p><strong>用户名:</strong> ${user['username']}</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Litefs</p>
+        </footer>
+    </div>
+</body>
+</html>

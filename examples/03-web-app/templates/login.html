@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>${title}</h1>
+        
+        <form method="POST" action="/login" class="login-form">
+            <input type="hidden" name="csrf_token" value="${csrf_token}">
+            
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" name="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" name="password" required>
+            </div>
+            
+            <button type="submit">登录</button>
+        </form>
+        
+        <p class="hint">测试账号: admin / admin123</p>
+    </div>
+</body>
+</html>

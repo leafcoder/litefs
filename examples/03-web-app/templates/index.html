@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/">首页</a>
+        % if user:
+        <a href="/profile">用户中心</a>
+        <a href="/logout">登出</a>
+        % else:
+        <a href="/login">登录</a>
+        % endif
+    </nav>
+    
+    <div class="container">
+        <h1>${title}</h1>
+        
+        <div class="posts">
+            % for post in posts:
+            <article class="post-card">
+                <h2><a href="/post/${post['id']}">${post['title']}</a></h2>
+                <p class="meta">${post['created_at']}</p>
+                <p>${post['content'][:100]}...</p>
+            </article>
+            % endfor
+        </div>
+    </div>
+</body>
+</html>

@@ -903,6 +903,7 @@ class WSGIRequestHandler(BaseRequestHandler):
                 try:
                     # 将路由参数添加到请求对象
                     setattr(self, 'route_params', params)
+                    setattr(self, 'path_params', params)
                     result = handler(self, **params)
                     
                     # 处理 Response 对象
@@ -1337,6 +1338,7 @@ class ASGIRequestHandler(BaseRequestHandler):
                 try:
                     # 将路由参数添加到请求对象
                     setattr(self, 'route_params', params)
+                    setattr(self, 'path_params', params)
                     
                     # 处理同步和异步处理器
                     import asyncio
