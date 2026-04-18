@@ -44,6 +44,8 @@ class User:
     bio: str = ""
     created_at: str = ""
     is_admin: bool = False
+    oauth_provider: str = ""
+    oauth_user_id: str = ""
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -264,6 +266,57 @@ class Database:
         if verify_password(password, user.password_hash, user.password_salt):
             return user
         return None
+    
+    def get_user_by_oauth(self, provider: str, oauth_user_id: str) -> Optional[User]:
+        """通过 OAuth 获取用户"""
+        for user in self.users.values():
+            if user.oauth_provider == provider and user.oauth_user_id == oauth_user_id:
+                return user
+        return None
+    
+    def create_oauth_user(
+        self,
+        provider: str,
+        oauth_user_id: str,
+        username: str,
+        email: str = "",
+        nickname: str = "",
+        avatar: str = ""
+    ) -> User:
+        """创建 OAuth 用户"""
+        base_username = username
+        counter = 1
+        while self.get_user_by_username(username):
+            username = f"{base_username}_{counter}"
+            counter += 1
+        
+        user = User(
+            id=self._next_user_id,
+            username=username,
+            password_hash="",
+            password_salt="",
+            email=email,
+            nickname=nickname or username,
+            avatar=avatar,
+            oauth_provider=provider,
+            oauth_user_id=oauth_user_id,
+            created_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        )
+        self.users[user.id] = user
+        self._next_user_id += 1
+        self._save_data()
+        return user
+    
+    def link_oauth(self, user_id: int, provider: str, oauth_user_id: str) -> bool:
+        """关联 OAuth 账号"""
+        user = self.users.get(user_id)
+        if not user:
+            return False
+        
+        user.oauth_provider = provider
+        user.oauth_user_id = oauth_user_id
+        self._save_data()
+        return True
     
     # 文章操作
     def create_post(self, title: str, content: str, author_id: int, author_name: str, 

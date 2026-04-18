@@ -6,6 +6,7 @@ Litefs 博客系统
 
 完整的博客系统示例，展示：
 - 用户注册与登录
+- OAuth2 社交登录（GitHub、Google）
 - 密码管理
 - 文章发布与管理
 - 评论系统
@@ -26,6 +27,7 @@ from litefs import Litefs, Response
 from litefs.routing import get, post
 from litefs.middleware.csrf import CSRFMiddleware
 from litefs.middleware.logging import LoggingMiddleware
+from litefs.auth import OAuth2, OAuth2UserInfo
 
 from models import db
 from urllib.parse import parse_qs
@@ -55,6 +57,32 @@ app.add_middleware(LoggingMiddleware)
 
 SECRET_KEY = 'blog-secret-key-change-in-production'
 
+oauth = OAuth2(app)
+
+GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
+GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
+
+if GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET:
+    oauth.register(
+        name='github',
+        client_id=GITHUB_CLIENT_ID,
+        client_secret=GITHUB_CLIENT_SECRET,
+        redirect_uri='http://localhost:8083/auth/github/callback',
+        scope='user:email'
+    )
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    oauth.register(
+        name='google',
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        redirect_uri='http://localhost:8083/auth/google/callback',
+        scope='openid email profile'
+    )
+
 
 def generate_token(user_id: int, username: str) -> str:
     """生成登录令牌"""
@@ -69,22 +97,26 @@ def verify_token(token: str) -> dict:
 
 def get_current_user(request) -> dict:
     """获取当前登录用户"""
-    session = request.cookie.get('session') if request.cookie else None
-    if not session:
-        return None
-    
-    token = session.value if hasattr(session, 'value') else None
-    if not token:
-        return None
-    
-    parts = token.split(':')
-    if len(parts) < 2:
-        return None
-    
     try:
+        session = request.cookie.get('session') if request.cookie else None
+        if not session:
+            return None
+        
+        token = session.value if hasattr(session, 'value') else None
+        if not token:
+            return None
+        
+        parts = token.split(':')
+        if len(parts) < 2:
+            return None
+        
         user_id = int(parts[0])
-        return db.get_user(user_id)
-    except (ValueError, TypeError):
+        user = db.get_user(user_id)
+        if not user:
+            return None
+        return user
+    except Exception as e:
+        print(f"get_current_user exception: {e}")
         return None
 
 
@@ -92,7 +124,12 @@ def login_required(f):
     """登录验证装饰器"""
     @wraps(f)
     def decorated(request, *args, **kwargs):
-        user = get_current_user(request)
+        try:
+            user = get_current_user(request)
+        except Exception as e:
+            print(f"get_current_user error: {e}")
+            user = None
+        
         if not user:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return Response.json({'error': '请先登录'}, status_code=401)
@@ -127,14 +164,16 @@ def index(request):
     
     categories = list(set(p.category for p in db.posts.values()))
     
-    return request.render_template('index.html', **{
-        'posts': [p.to_dict() for p in posts],
-        'stats': stats,
-        'categories': categories,
-        'current_category': category,
-        'page': page,
-        'user': user.to_dict() if user else None
-    })
+    user_dict = user.to_dict() if user and hasattr(user, 'to_dict') else None
+    
+    return request.render_template('index.html',
+        posts=[p.to_dict() for p in posts],
+        stats=stats,
+        categories=categories,
+        current_category=category,
+        page=page,
+        user=user_dict
+    )
 
 
 @get('/post/{id}', name='post_detail')
@@ -184,14 +223,19 @@ def register_page(request):
 @login_required
 def profile_page(request, user):
     """用户中心"""
+    if not user or not hasattr(user, 'id'):
+        return Response.redirect('/login')
+    
     user_posts = [p.to_dict() for p in db.posts.values() if p.author_id == user.id]
     user_posts.sort(key=lambda x: x['created_at'], reverse=True)
     
-    return request.render_template('profile.html', **{
-        'user': user.to_dict(),
-        'posts': user_posts[:10],
-        'post_count': len(user_posts)
-    })
+    user_dict = user.to_dict() if hasattr(user, 'to_dict') else user
+    return request.render_template('profile.html',
+        title='用户中心',
+        user=user_dict,
+        posts=user_posts[:10],
+        post_count=len(user_posts)
+    )
 
 
 @get('/settings', name='settings')
@@ -236,7 +280,13 @@ def editor_page(request, user):
     
     return request.render_template('editor.html', **{
         'user': user.to_dict(),
-        'post': post.to_dict() if post else None
+        'title': '编辑文章' if post else '写新文章',
+        'post_id': post.id if post else None,
+        'post_title': post.title if post else '',
+        'post_content': post.content if post else '',
+        'post_summary': post.summary if post else '',
+        'post_category': post.category if post else '默认',
+        'post_status': post.status if post else 'published',
     })
 
 
@@ -437,6 +487,107 @@ def api_stats(request):
     return Response.json(db.get_stats())
 
 
+# ==================== OAuth2 路由 ====================
+
+@get('/auth/github', name='auth_github')
+def auth_github(request):
+    """GitHub OAuth 登录"""
+    if not oauth.get_provider('github'):
+        return Response.json({'error': 'GitHub OAuth 未配置'}, status_code=400)
+    return oauth.authorize_redirect(request, 'github')
+
+
+@get('/auth/github/callback', name='auth_github_callback')
+def auth_github_callback(request):
+    """GitHub OAuth 回调"""
+    user_info = oauth.authorize_user(request, 'github')
+    if not user_info:
+        return Response.redirect('/login?error=oauth_failed')
+    
+    user = db.get_user_by_oauth('github', user_info.provider_user_id)
+    
+    if not user:
+        user = db.create_oauth_user(
+            provider='github',
+            oauth_user_id=user_info.provider_user_id,
+            username=user_info.username,
+            email=user_info.email or '',
+            nickname=user_info.name or user_info.username,
+            avatar=user_info.avatar_url or ''
+        )
+    
+    token = f"{user.id}:{user.username}:{generate_token(user.id, user.username)}"
+    
+    response = Response.redirect('/profile')
+    response.set_cookie('session', token, max_age=7 * 24 * 3600, httponly=True)
+    return response
+
+
+@get('/auth/google', name='auth_google')
+def auth_google(request):
+    """Google OAuth 登录"""
+    if not oauth.get_provider('google'):
+        return Response.json({'error': 'Google OAuth 未配置'}, status_code=400)
+    return oauth.authorize_redirect(request, 'google')
+
+
+@get('/auth/google/callback', name='auth_google_callback')
+def auth_google_callback(request):
+    """Google OAuth 回调"""
+    user_info = oauth.authorize_user(request, 'google')
+    if not user_info:
+        return Response.redirect('/login?error=oauth_failed')
+    
+    user = db.get_user_by_oauth('google', user_info.provider_user_id)
+    
+    if not user:
+        user = db.create_oauth_user(
+            provider='google',
+            oauth_user_id=user_info.provider_user_id,
+            username=user_info.username,
+            email=user_info.email or '',
+            nickname=user_info.name or user_info.username,
+            avatar=user_info.avatar_url or ''
+        )
+    
+    token = f"{user.id}:{user.username}:{generate_token(user.id, user.username)}"
+    
+    response = Response.redirect('/profile')
+    response.set_cookie('session', token, max_age=7 * 24 * 3600, httponly=True)
+    return response
+
+
+@get('/auth/link/github', name='auth_link_github')
+@login_required
+def auth_link_github(request, user):
+    """关联 GitHub 账号"""
+    if not oauth.get_provider('github'):
+        return Response.json({'error': 'GitHub OAuth 未配置'}, status_code=400)
+    
+    request._oauth_link_user_id = user.id
+    return oauth.authorize_redirect(request, 'github', callback_url='/auth/link/github/callback')
+
+
+@get('/auth/link/github/callback', name='auth_link_github_callback')
+@login_required
+def auth_link_github_callback(request, user):
+    """关联 GitHub 账号回调"""
+    user_info = oauth.authorize_user(request, 'github')
+    if not user_info:
+        return Response.redirect('/settings?error=link_failed')
+    
+    existing_user = db.get_user_by_oauth('github', user_info.provider_user_id)
+    if existing_user and existing_user.id != user.id:
+        return Response.redirect('/settings?error=already_linked')
+    
+    db.link_oauth(user.id, 'github', user_info.provider_user_id)
+    
+    if user_info.avatar_url and not user.avatar:
+        db.update_user(user.id, avatar=user_info.avatar_url)
+    
+    return Response.redirect('/settings?success=github_linked')
+
+
 app.register_routes(__name__)
 
 
@@ -447,12 +598,23 @@ if __name__ == '__main__':
     print()
     print("功能:")
     print("  - 用户注册与登录")
+    print("  - OAuth2 社交登录 (GitHub/Google)")
     print("  - 密码管理")
     print("  - 文章发布与管理")
     print("  - 访问统计")
     print()
     print("默认管理员: admin / admin123")
     print("访问地址: http://localhost:8083")
+    print()
+    print("OAuth2 配置:")
+    if GITHUB_CLIENT_ID:
+        print("  - GitHub: 已配置")
+    else:
+        print("  - GitHub: 未配置 (设置 GITHUB_CLIENT_ID 和 GITHUB_CLIENT_SECRET)")
+    if GOOGLE_CLIENT_ID:
+        print("  - Google: 已配置")
+    else:
+        print("  - Google: 未配置 (设置 GOOGLE_CLIENT_ID 和 GOOGLE_CLIENT_SECRET)")
     print("=" * 60)
     
     app.run()

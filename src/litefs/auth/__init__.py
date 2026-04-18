@@ -6,6 +6,7 @@
 
 提供完整的用户认证和授权解决方案：
 - JWT Token 认证
+- OAuth2 社交登录
 - 用户注册/登录
 - 密码加密
 - 权限控制
@@ -26,6 +27,26 @@
     @role_required('admin')
     def admin_only(request):
         return {'message': 'Admin access'}
+
+OAuth2 示例：
+    from litefs.auth import OAuth2
+    
+    oauth = OAuth2(app)
+    oauth.register(
+        name='github',
+        client_id='your-client-id',
+        client_secret='your-client-secret',
+        redirect_uri='http://localhost:8080/auth/github/callback'
+    )
+    
+    @route('/login/github')
+    def github_login(request):
+        return oauth.authorize_redirect(request, 'github')
+    
+    @route('/auth/github/callback')
+    def github_callback(request):
+        user_info = oauth.authorize_user(request, 'github')
+        return {'user': user_info.to_dict()}
 """
 
 from .jwt import JWTManager, create_token, decode_token
@@ -33,6 +54,16 @@ from .password import hash_password, verify_password
 from .middleware import AuthMiddleware, login_required, role_required
 from .decorators import permission_required, current_user
 from .models import User, Role, Permission, init_default_roles_and_permissions
+from .oauth2 import OAuth2, OAuth2State, create_oauth2_blueprint
+from .providers import (
+    OAuth2Provider,
+    OAuth2UserInfo,
+    GitHubProvider,
+    GoogleProvider,
+    WeChatProvider,
+    WeComProvider,
+    get_provider,
+)
 
 __all__ = [
     'Auth',
@@ -50,6 +81,16 @@ __all__ = [
     'Role',
     'Permission',
     'init_default_roles_and_permissions',
+    'OAuth2',
+    'OAuth2State',
+    'OAuth2Provider',
+    'OAuth2UserInfo',
+    'GitHubProvider',
+    'GoogleProvider',
+    'WeChatProvider',
+    'WeComProvider',
+    'get_provider',
+    'create_oauth2_blueprint',
 ]
 
 

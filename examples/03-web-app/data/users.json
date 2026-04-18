@@ -10,8 +10,24 @@
       "avatar": "",
       "bio": "",
       "created_at": "2026-04-18 14:19:37",
-      "is_admin": true
+      "is_admin": true,
+      "oauth_provider": "",
+      "oauth_user_id": ""
+    },
+    "2": {
+      "id": 2,
+      "username": "test",
+      "password_hash": "d80b3bf7e84cd535c2c535f41c0ecb0925dcfefd7429c062d3fa9747eb00fbe5",
+      "password_salt": "d02c669121e5e0e9860212e446f1bd58",
+      "email": "",
+      "nickname": "test",
+      "avatar": "",
+      "bio": "",
+      "created_at": "2026-04-18 18:00:35",
+      "is_admin": false,
+      "oauth_provider": "",
+      "oauth_user_id": ""
     }
   },
-  "next_user_id": 2
+  "next_user_id": 3
 }
