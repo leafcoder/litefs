@@ -1,0 +1,17 @@
+{
+  "users": {
+    "1": {
+      "id": 1,
+      "username": "admin",
+      "password_hash": "f7bd63a97002f69d0fbdce86678f613fa6d717c2554a16a4189a80d011f8ed86",
+      "password_salt": "97b1a494218a4eddb3f86b13ce4bb2fd",
+      "email": "admin@example.com",
+      "nickname": "管理员",
+      "avatar": "",
+      "bio": "",
+      "created_at": "2026-04-18 14:19:37",
+      "is_admin": true
+    }
+  },
+  "next_user_id": 2
+}

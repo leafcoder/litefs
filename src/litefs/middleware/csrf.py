@@ -72,6 +72,11 @@ class CSRFMiddleware(Middleware):
         if request_method in self.exempt_methods:
             return None
         
+        # 对于 API 路由，跳过 CSRF 保护
+        path = request_handler.environ.get("PATH_INFO", "/")
+        if path.startswith("/api/"):
+            return None
+        
         # 获取 CSRF 令牌
         csrf_token = self._get_csrf_token(request_handler)
         if not csrf_token:
@@ -129,7 +134,11 @@ class CSRFMiddleware(Middleware):
         """
         # 从 cookie 中获取现有令牌
         cookie = request_handler.cookie
-        csrf_token = cookie.get(self.cookie_name, {}).value if cookie else None
+        csrf_token = None
+        if cookie:
+            cookie_item = cookie.get(self.cookie_name)
+            if cookie_item:
+                csrf_token = cookie_item.value
         
         # 如果没有现有令牌，生成新的
         if not csrf_token:
@@ -163,9 +172,11 @@ class CSRFMiddleware(Middleware):
         # 从 cookie 中获取
         cookie = request_handler.cookie
         if cookie:
-            cookie_token = cookie.get(self.cookie_name, {}).value
-            if cookie_token:
-                return cookie_token
+            cookie_item = cookie.get(self.cookie_name)
+            if cookie_item:
+                cookie_token = cookie_item.value
+                if cookie_token:
+                    return cookie_token
         
         return None
     

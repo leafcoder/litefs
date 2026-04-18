@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/login">登录</a>
+            <a href="/register">注册</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1>注册</h1>
+                <form id="register-form" onsubmit="return handleRegister(event)">
+                    <div class="form-group">
+                        <label for="username">用户名</label>
+                        <input type="text" id="username" name="username" required minlength="3" placeholder="至少3个字符">
+                    </div>
+                    <div class="form-group">
+                        <label for="nickname">昵称</label>
+                        <input type="text" id="nickname" name="nickname" placeholder="显示名称（可选）">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">邮箱</label>
+                        <input type="email" id="email" name="email" placeholder="邮箱地址（可选）">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">密码</label>
+                        <input type="password" id="password" name="password" required minlength="6" placeholder="至少6个字符">
+                    </div>
+                    <div class="form-group">
+                        <label for="password2">确认密码</label>
+                        <input type="password" id="password2" name="password2" required placeholder="再次输入密码">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">注册</button>
+                    </div>
+                    <div id="error-message" class="error-message"></div>
+                </form>
+                <div class="auth-footer">
+                    <p>已有账号？<a href="/login">立即登录</a></p>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        async function handleRegister(e) {
+            e.preventDefault();
+            const errorEl = document.getElementById('error-message');
+            errorEl.textContent = '';
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const password2 = document.getElementById('password2').value;
+            const nickname = document.getElementById('nickname').value;
+            const email = document.getElementById('email').value;
+            
+            if (password !== password2) {
+                errorEl.textContent = '两次密码不一致';
+                return false;
+            }
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, nickname, email })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('注册成功，请登录');
+                    window.location.href = '/login';
+                } else {
+                    errorEl.textContent = data.error || '注册失败';
+                }
+            } catch (e) {
+                errorEl.textContent = '网络错误，请重试';
+            }
+            
+            return false;
+        }
+    </script>
+</body>
+</html>

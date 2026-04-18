@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写文章 - Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/profile">个人中心</a>
+            <a href="#" onclick="logout(); return false;">退出</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="container">
+            <div class="editor-container">
+                <h1>${'编辑文章' if post else '写新文章'}</h1>
+                
+                <form id="post-form" onsubmit="return savePost(event)">
+                    <div class="form-group">
+                        <label for="title">标题</label>
+                        <input type="text" id="title" required placeholder="文章标题" value="${post['title'] if post else ''}">
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="category">分类</label>
+                            <select id="category">
+                                <option value="默认" ${'selected' if post and post['category'] == '默认' else ''}>默认</option>
+                                <option value="技术" ${'selected' if post and post['category'] == '技术' else ''}>技术</option>
+                                <option value="教程" ${'selected' if post and post['category'] == '教程' else ''}>教程</option>
+                                <option value="生活" ${'selected' if post and post['category'] == '生活' else ''}>生活</option>
+                                <option value="公告" ${'selected' if post and post['category'] == '公告' else ''}>公告</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="status">状态</label>
+                            <select id="status">
+                                <option value="published" ${'selected' if post and post['status'] == 'published' else ''}>发布</option>
+                                <option value="draft" ${'selected' if post and post['status'] == 'draft' else ''}>草稿</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="summary">摘要</label>
+                        <textarea id="summary" rows="2" placeholder="文章摘要（可选）">${post['summary'] if post else ''}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="content">内容（支持 Markdown）</label>
+                        <textarea id="content" rows="20" required placeholder="支持 Markdown 格式...">${post['content'] if post else ''}</textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">保存</button>
+                        <a href="/profile" class="btn btn-secondary">取消</a>
+                    </div>
+                    <div id="message" class="message"></div>
+                </form>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        const postId = ${post['id'] if post else 'null'};
+        
+        async function savePost(e) {
+            e.preventDefault();
+            const msgEl = document.getElementById('message');
+            msgEl.className = 'message';
+            msgEl.textContent = '';
+            
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            const category = document.getElementById('category').value;
+            const summary = document.getElementById('summary').value;
+            const status = document.getElementById('status').value;
+            
+            const url = postId ? `/api/posts/${postId}` : '/api/posts';
+            const method = 'POST';
+            
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content, category, summary, status, tags: [] })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    msgEl.className = 'message success';
+                    msgEl.textContent = '保存成功';
+                    setTimeout(() => {
+                        window.location.href = '/post/' + data.post.id;
+                    }, 1000);
+                } else {
+                    msgEl.className = 'message error';
+                    msgEl.textContent = data.error || '保存失败';
+                }
+            } catch (e) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '网络错误';
+            }
+            
+            return false;
+        }
+        
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '/';
+                }
+            } catch (e) {
+                console.error('Logout failed:', e);
+            }
+        }
+    </script>
+</body>
+</html>

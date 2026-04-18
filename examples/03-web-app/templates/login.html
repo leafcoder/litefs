@@ -2,30 +2,78 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>${title}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - Litefs 博客</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>${title}</h1>
-        
-        <form method="POST" action="/login" class="login-form">
-            <input type="hidden" name="csrf_token" value="${csrf_token}">
-            
-            <div class="form-group">
-                <label>用户名</label>
-                <input type="text" name="username" required>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/login">登录</a>
+            <a href="/register">注册</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1>登录</h1>
+                <form id="login-form" onsubmit="return handleLogin(event)">
+                    <div class="form-group">
+                        <label for="username">用户名</label>
+                        <input type="text" id="username" name="username" required placeholder="请输入用户名">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">密码</label>
+                        <input type="password" id="password" name="password" required placeholder="请输入密码">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">登录</button>
+                    </div>
+                    <div id="error-message" class="error-message"></div>
+                </form>
+                <div class="auth-footer">
+                    <p>还没有账号？<a href="/register">立即注册</a></p>
+                    <p class="hint">默认管理员: admin / admin123</p>
+                </div>
             </div>
+        </div>
+    </main>
+    
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const form = document.getElementById('login-form');
+            const errorEl = document.getElementById('error-message');
+            errorEl.textContent = '';
             
-            <div class="form-group">
-                <label>密码</label>
-                <input type="password" name="password" required>
-            </div>
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
             
-            <button type="submit">登录</button>
-        </form>
-        
-        <p class="hint">测试账号: admin / admin123</p>
-    </div>
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    errorEl.textContent = data.error || '登录失败';
+                }
+            } catch (e) {
+                errorEl.textContent = '网络错误，请重试';
+            }
+            
+            return false;
+        }
+    </script>
 </body>
 </html>

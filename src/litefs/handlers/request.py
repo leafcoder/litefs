@@ -264,6 +264,67 @@ class Response:
             ("Content-Type", mime_type)
         ]
         return cls.stream(generate_file(), status_code, headers)
+    
+    def set_cookie(self, key, value, max_age=None, expires=None, path='/', 
+                   domain=None, secure=False, httponly=False, samesite='Lax'):
+        """
+        设置 Cookie
+        
+        Args:
+            key: Cookie 名称
+            value: Cookie 值
+            max_age: 最大存活时间（秒）
+            expires: 过期时间
+            path: Cookie 路径
+            domain: Cookie 域名
+            secure: 是否仅 HTTPS
+            httponly: 是否禁止 JavaScript 访问
+            samesite: SameSite 属性 (Strict, Lax, None)
+        """
+        from http.cookies import SimpleCookie
+        
+        cookie = SimpleCookie()
+        cookie[key] = value
+        
+        if max_age is not None:
+            cookie[key]['max-age'] = str(max_age)
+        if expires is not None:
+            cookie[key]['expires'] = expires
+        if path:
+            cookie[key]['path'] = path
+        if domain:
+            cookie[key]['domain'] = domain
+        if secure:
+            cookie[key]['secure'] = True
+        if httponly:
+            cookie[key]['httponly'] = True
+        if samesite:
+            cookie[key]['samesite'] = samesite
+        
+        self.headers.append(("Set-Cookie", cookie[key].OutputString()))
+        return self
+    
+    def delete_cookie(self, key, path='/', domain=None):
+        """
+        删除 Cookie
+        
+        Args:
+            key: Cookie 名称
+            path: Cookie 路径
+            domain: Cookie 域名
+        """
+        from http.cookies import SimpleCookie
+        from datetime import datetime, timedelta
+        
+        cookie = SimpleCookie()
+        cookie[key] = ''
+        cookie[key]['path'] = path
+        cookie[key]['expires'] = 'Thu, 01 Jan 1970 00:00:00 GMT'
+        if domain:
+            cookie[key]['domain'] = domain
+        
+        self.headers.append(("Set-Cookie", cookie[key].OutputString()))
+        return self
 
 
 def is_bytes(s):
@@ -397,7 +458,8 @@ class BaseRequestHandler(object):
             self._template_lookup = TemplateLookup(
                 directories=[template_dir],
                 input_encoding='utf-8',
-                default_filters=['decode.utf8']
+                output_encoding='utf-8',
+                encoding_errors='replace'
             )
 
         try:
@@ -411,7 +473,9 @@ class BaseRequestHandler(object):
             return content
         except Exception as e:
             # 模板渲染失败，返回错误信息
-            error_content = f"<h1>Template Error</h1><p>Failed to render template '{template_name}': {str(e)}</p>"
+            import traceback
+            error_detail = traceback.format_exc()
+            error_content = f"<h1>Template Error</h1><p>Failed to render template '{template_name}': {str(e)}</p><pre>{error_detail}</pre>"
             
             # 直接返回错误内容，不设置 Content-Type
             # Content-Type 会在 _response 方法中设置
@@ -439,6 +503,10 @@ class BaseRequestHandler(object):
         status_code = int(status_code)
         status_text = http_status_codes.get(status_code, "Unknown")
         status = "%d %s" % (status_code, status_text)
+
+        # DEBUG: 打印 content 类型和前 50 个字符
+        if content is not None:
+            print(f"DEBUG: content type = {type(content)}, first 50 chars = {repr(content[:50]) if isinstance(content, (str, bytes)) else 'N/A'}")
 
         # 创建响应头列表
         response_headers = []
@@ -499,7 +567,7 @@ class BaseRequestHandler(object):
                 if isinstance(content, (dict, list, tuple)):
                     response_headers.append(("Content-Type", json_content_type))
                 # HTML 字符串设置为 text/html
-                elif isinstance(content, str) and content.startswith('<'):
+                elif isinstance(content, str) and content.lstrip().startswith('<'):
                     response_headers.append(("Content-Type", "text/html; charset=utf-8"))
                 # 字节类型设置为 application/octet-stream
                 elif isinstance(content, bytes):
@@ -1886,7 +1954,7 @@ class RequestHandler(BaseRequestHandler):
                 elif isinstance(content, (dict, list, tuple)):
                     # dict、list、tuple 返回 JSON
                     content_type_value = json_content_type
-                elif isinstance(content, str) and content.startswith('<'):
+                elif isinstance(content, str) and content.lstrip().startswith('<'):
                     # HTML 内容
                     content_type_value = "text/html; charset=utf-8"
                 elif isinstance(content, bytes):
@@ -2038,7 +2106,7 @@ class RequestHandler(BaseRequestHandler):
             if isinstance(content, (dict, list, tuple)):
                 # dict、list、tuple 返回 JSON
                 headers = [("Content-Type", json_content_type)] + list(headers)
-            elif isinstance(content, str) and content.startswith('<'):
+            elif isinstance(content, str) and content.lstrip().startswith('<'):
                 # HTML 内容
                 headers = [("Content-Type", "text/html; charset=utf-8")] + list(headers)
             elif isinstance(content, bytes):

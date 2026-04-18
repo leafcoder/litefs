@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/editor">写文章</a>
+            <a href="/profile">个人中心</a>
+            <a href="/settings">设置</a>
+            <a href="#" onclick="logout(); return false;">退出</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="container">
+            <div class="settings-container">
+                <h1>账号设置</h1>
+                
+                <div class="settings-section">
+                    <h2>个人资料</h2>
+                    <form id="profile-form" onsubmit="return updateProfile(event)">
+                        <div class="form-group">
+                            <label for="nickname">昵称</label>
+                            <input type="text" id="nickname" value="${user.get('nickname', '')}" placeholder="显示名称">
+                        </div>
+                        <div class="form-group">
+                            <label for="email">邮箱</label>
+                            <input type="email" id="email" value="${user.get('email', '')}" placeholder="邮箱地址">
+                        </div>
+                        <div class="form-group">
+                            <label for="bio">个人简介</label>
+                            <textarea id="bio" rows="4" placeholder="介绍一下自己...">${user.get('bio', '')}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">保存资料</button>
+                        <div id="profile-message" class="message"></div>
+                    </form>
+                </div>
+                
+                <div class="settings-section">
+                    <h2>修改密码</h2>
+                    <form id="password-form" onsubmit="return changePassword(event)">
+                        <div class="form-group">
+                            <label for="old_password">原密码</label>
+                            <input type="password" id="old_password" required placeholder="输入原密码">
+                        </div>
+                        <div class="form-group">
+                            <label for="new_password">新密码</label>
+                            <input type="password" id="new_password" required minlength="6" placeholder="至少6个字符">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirm_password">确认新密码</label>
+                            <input type="password" id="confirm_password" required placeholder="再次输入新密码">
+                        </div>
+                        <button type="submit" class="btn btn-primary">修改密码</button>
+                        <div id="password-message" class="message"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        async function updateProfile(e) {
+            e.preventDefault();
+            const msgEl = document.getElementById('profile-message');
+            msgEl.className = 'message';
+            msgEl.textContent = '';
+            
+            const nickname = document.getElementById('nickname').value;
+            const email = document.getElementById('email').value;
+            const bio = document.getElementById('bio').value;
+            
+            try {
+                const response = await fetch('/api/profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname, email, bio })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    msgEl.className = 'message success';
+                    msgEl.textContent = '资料更新成功';
+                } else {
+                    msgEl.className = 'message error';
+                    msgEl.textContent = data.error || '更新失败';
+                }
+            } catch (e) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '网络错误';
+            }
+            
+            return false;
+        }
+        
+        async function changePassword(e) {
+            e.preventDefault();
+            const msgEl = document.getElementById('password-message');
+            msgEl.className = 'message';
+            msgEl.textContent = '';
+            
+            const old_password = document.getElementById('old_password').value;
+            const new_password = document.getElementById('new_password').value;
+            const confirm_password = document.getElementById('confirm_password').value;
+            
+            if (new_password !== confirm_password) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '两次密码不一致';
+                return false;
+            }
+            
+            try {
+                const response = await fetch('/api/password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ old_password, new_password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    msgEl.className = 'message success';
+                    msgEl.textContent = '密码修改成功';
+                    document.getElementById('password-form').reset();
+                } else {
+                    msgEl.className = 'message error';
+                    msgEl.textContent = data.error || '修改失败';
+                }
+            } catch (e) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '网络错误';
+            }
+            
+            return false;
+        }
+        
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '/';
+                }
+            } catch (e) {
+                console.error('Logout failed:', e);
+            }
+        }
+    </script>
+</body>
+</html>
