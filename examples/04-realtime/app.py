@@ -181,6 +181,9 @@ def chat_handler(ws):
     ws.leave('chat')
 
 
+app.register_routes(__name__)
+
+
 def push_notifications():
     """后台推送通知"""
     while True:
