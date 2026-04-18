@@ -40,16 +40,21 @@
             gap: 30px;
             margin-top: 15px;
         }
-        .stat-item {
+        .profile-stats .stat-item {
             text-align: center;
+            background: transparent;
+            padding: 10px 15px;
+            box-shadow: none;
         }
-        .stat-item .number {
+        .profile-stats .stat-item .number {
             font-size: 24px;
             font-weight: bold;
+            color: white;
         }
-        .stat-item .label {
+        .profile-stats .stat-item .label {
             font-size: 12px;
-            opacity: 0.8;
+            opacity: 0.9;
+            color: white;
         }
         .section-title {
             display: flex;
@@ -171,11 +176,11 @@
                             <div class="label">文章</div>
                         </div>
                         <div class="stat-item">
-                            <div class="number">${sum(p.get('views', 0) for p in posts)}</div>
+                            <div class="number">${total_views}</div>
                             <div class="label">阅读</div>
                         </div>
                         <div class="stat-item">
-                            <div class="number">${sum(p.get('likes', 0) for p in posts)}</div>
+                            <div class="number">${total_likes}</div>
                             <div class="label">点赞</div>
                         </div>
                     </div>

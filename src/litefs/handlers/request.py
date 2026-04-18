@@ -455,10 +455,13 @@ class BaseRequestHandler(object):
                 template_dir = os.path.join(os.getcwd(), template_dir)
 
             # 创建模板查找器
+            # 在开发模式下禁用缓存，确保模板修改后立即生效
+            debug_mode = getattr(self._app, 'debug', False) if self._app else False
             self._template_lookup = TemplateLookup(
                 directories=[template_dir],
                 input_encoding='utf-8',
-                encoding_errors='replace'
+                encoding_errors='replace',
+                cache_enabled=not debug_mode
             )
 
         try:

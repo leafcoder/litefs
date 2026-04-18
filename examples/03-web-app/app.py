@@ -229,12 +229,18 @@ def profile_page(request, user):
     user_posts = [p.to_dict() for p in db.posts.values() if p.author_id == user.id]
     user_posts.sort(key=lambda x: x['created_at'], reverse=True)
     
+    # 计算统计
+    total_views = sum(p.get('views', 0) for p in user_posts)
+    total_likes = sum(p.get('likes', 0) for p in user_posts)
+    
     user_dict = user.to_dict() if hasattr(user, 'to_dict') else user
     return request.render_template('profile.html',
         title='用户中心',
         user=user_dict,
         posts=user_posts[:10],
-        post_count=len(user_posts)
+        post_count=len(user_posts),
+        total_views=total_views,
+        total_likes=total_likes
     )
 
 
