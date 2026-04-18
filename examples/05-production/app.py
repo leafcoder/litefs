@@ -87,10 +87,14 @@ if debug_toolbar:
     app.add_middleware(DebugMiddleware)
 
 try:
-    redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
     from litefs.cache import RedisCache
-    app.cache = RedisCache(url=redis_url, prefix='litefs:')
-    app.logger.info(f"Redis 缓存已连接: {redis_url}")
+    app.cache = RedisCache(
+        host=os.environ.get('REDIS_HOST', 'localhost'),
+        port=int(os.environ.get('REDIS_PORT', 6379)),
+        db=int(os.environ.get('REDIS_DB', 0)),
+        key_prefix='litefs:'
+    )
+    app.logger.info("Redis 缓存已连接")
 except Exception as e:
     app.logger.warning(f"Redis 连接失败，使用内存缓存: {e}")
     app.cache = MemoryCache()
@@ -196,6 +200,9 @@ def get_config(request):
         'debug': debug_mode,
         'log_level': 'DEBUG' if debug_mode else 'INFO'
     })
+
+
+app.register_routes(__name__)
 
 
 def signal_handler(signum, frame):
