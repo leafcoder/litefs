@@ -136,6 +136,10 @@ class RadixTree:
             
             if not found_param:
                 return None
+            
+            # 如果匹配了通配符，直接跳出循环（匹配剩余所有路径段）
+            if found_param and node.has_wildcard:
+                break
         
         # 检查是否找到路由
         if not node.routes:
