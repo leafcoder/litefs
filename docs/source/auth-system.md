@@ -54,6 +54,109 @@ def list_users(request):
 
 ## 模块详解
 
+### OAuth2 社交登录
+
+Litefs 支持 OAuth2 社交登录，目前支持以下提供商：
+- GitHub
+- Google
+- 微信
+- 企业微信
+
+#### 配置 OAuth2
+
+```python
+from litefs import Litefs
+from litefs.auth.oauth2 import OAuth2
+from litefs.auth.providers import GitHubProvider, GoogleProvider
+
+app = Litefs()
+
+oauth2 = OAuth2(app)
+
+oauth2.register(
+    name='github',
+    provider=GitHubProvider,
+    client_id='your-github-client-id',
+    client_secret='your-github-client-secret',
+    redirect_uri='http://localhost:8080/auth/callback/github',
+)
+
+oauth2.register(
+    name='google',
+    provider=GoogleProvider,
+    client_id='your-google-client-id',
+    client_secret='your-google-client-secret',
+    redirect_uri='http://localhost:8080/auth/callback/google',
+)
+```
+
+#### 使用 OAuth2 登录
+
+```python
+from litefs.routing import get
+
+@get('/auth/login/github')
+def github_login(request):
+    return oauth2.authorize_redirect('github')
+
+@get('/auth/callback/github')
+def github_callback(request):
+    code = request.args.get('code')
+    state = request.args.get('state')
+    
+    user_info = oauth2.authorize_user('github', code, state)
+    
+    return {
+        'username': user_info.username,
+        'email': user_info.email,
+        'avatar': user_info.avatar_url,
+    }
+```
+
+#### 微信登录示例
+
+```python
+from litefs.auth.providers import WeChatProvider
+
+oauth2.register(
+    name='wechat',
+    provider=WeChatProvider,
+    client_id='your-wechat-appid',
+    client_secret='your-wechat-secret',
+    redirect_uri='http://yourdomain.com/auth/callback/wechat',
+)
+
+@get('/auth/login/wechat')
+def wechat_login(request):
+    return oauth2.authorize_redirect('wechat')
+
+@get('/auth/callback/wechat')
+def wechat_callback(request):
+    code = request.args.get('code')
+    state = request.args.get('state')
+    
+    user_info = oauth2.authorize_user('wechat', code, state)
+    
+    return {
+        'username': user_info.username,
+        'avatar': user_info.avatar_url,
+    }
+```
+
+#### OAuth2 用户信息
+
+`OAuth2UserInfo` 对象包含以下属性：
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| `provider` | str | 提供商名称 |
+| `provider_user_id` | str | 提供商用户 ID |
+| `username` | str | 用户名 |
+| `email` | str | 邮箱（可选） |
+| `name` | str | 显示名称（可选） |
+| `avatar_url` | str | 头像 URL（可选） |
+| `raw_data` | dict | 原始数据（可选） |
+
 ### JWT Token 管理
 
 ```python

@@ -79,7 +79,7 @@ def make_headers(rw: Any) -> Dict[str, str]:
 def make_environ(server: Any, rw: Any, client_address: Tuple[str, int]) -> Dict[str, Any]:
     environ = dict()
     environ["SERVER_NAME"] = server.server_name
-    environ["SERVER_SOFTWARE"] = "litefs/0.5.0"
+    environ["SERVER_SOFTWARE"] = "litefs/0.8.0"
     environ["SERVER_PORT"] = server.server_port
     environ["REMOTE_ADDR"] = client_address[0]
     environ["REMOTE_HOST"] = client_address[0]

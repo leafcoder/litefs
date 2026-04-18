@@ -384,7 +384,7 @@ def version():
     try:
         from litefs._version import __version__
     except ImportError:
-        __version__ = "0.5.0"
+        __version__ = "0.8.0"
     
     print(f"Litefs {__version__}")
     print("一个轻量级的 Python Web 框架")
