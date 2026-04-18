@@ -107,7 +107,11 @@ class CSRFMiddleware(Middleware):
             status, headers, content = response
             headers = list(headers)
         else:
-            status = "200 OK"
+            # 使用 request_handler 的状态码，而不是硬编码 200
+            from litefs.handlers.request import http_status_codes
+            status_code = getattr(request_handler, '_status_code', 200)
+            status_text = http_status_codes.get(status_code, "OK")
+            status = f"{status_code} {status_text}"
             headers = []
             content = response
         
@@ -118,8 +122,6 @@ class CSRFMiddleware(Middleware):
         # 将 CSRF 令牌添加到响应中，方便前端使用
         request_handler._csrf_token = csrf_token
         
-        if isinstance(response, tuple) and len(response) == 3:
-            return status, headers, content
         return status, headers, content
     
     def _generate_csrf_token(self, request_handler):

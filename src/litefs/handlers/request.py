@@ -1042,7 +1042,7 @@ class WSGIRequestHandler(BaseRequestHandler):
                             self, (status, response_headers, result)
                         )
                     return app.middleware_manager.process_response(
-                        self, self._response(200, content=result)
+                        self, self._response(self._status_code, content=result)
                     )
                 except Exception:
                     log_error(app.logger)
@@ -1534,7 +1534,7 @@ class ASGIRequestHandler(BaseRequestHandler):
                         self.set_cookie(session_name, session_key, path="/", secure=session_secure, httponly=session_http_only, samesite=session_same_site)
                     
                     return app.middleware_manager.process_response(
-                        self, self._response(200, content=result)
+                        self, self._response(self._status_code, content=result)
                     )
                 except Exception:
                     log_error(app.logger)
@@ -2236,7 +2236,7 @@ class RequestHandler(BaseRequestHandler):
                     if self._headers_responsed:
                         return app.middleware_manager.process_response(self, content)
                     return app.middleware_manager.process_response(
-                        self, self._response(200, content=content)
+                        self, self._response(self._status_code, content=content)
                     )
                 except Exception:
                     log_error(app.logger)
