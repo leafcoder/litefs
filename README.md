@@ -208,6 +208,120 @@ Litefs 提供了丰富的示例，按照功能模块组织：
 
 每个示例都包含详细的 README 文档和可运行的代码，请参考 [examples/README.md](examples/README.md) 了解更多。
 
+## 📊 性能测试
+
+LiteFS 提供完整的性能测试套件，支持多种服务器模式和部署方案的对比测试。
+
+### 测试矩阵
+
+| 服务器形式 | 单进程 | 多进程 | 测试场景 |
+|-----------|--------|--------|---------|
+| **原生 Greenlet** | ✅ | ✅ | Hello World / SQL 查询 |
+| **原生 Asyncio** | ✅ | ✅ | Hello World / SQL 查询 |
+| **WSGI + Gunicorn** | ✅ | ✅ | Hello World / SQL 查询 |
+| **ASGI + Gunicorn + UvicornWorker** | ✅ | ✅ | Hello World / SQL 查询 |
+| **ASGI + Uvicorn** | ✅ | ✅ | Hello World / SQL 查询 |
+| **FastAPI + Uvicorn** (对照组) | ✅ | ✅ | Hello World / SQL 查询 |
+
+### 性能测试结果
+
+> 测试环境: 4 核 CPU, 100 并发连接, 5 秒测试时长, 无日志输出
+> 测试工具: wrk
+> 测试时间: 2026-04-18
+
+#### Hello World 性能对比
+
+| 服务器 | 进程数 | RPS | 平均延迟 | P99 延迟 | 吞吐量 |
+|-------|--------|-----|----------|----------|--------|
+| **LiteFS-Greenlet** | 6P | **25,988** | 4.00ms | 14.63ms | 8.13 MB/s |
+| **LiteFS-Greenlet** | 4P | **24,749** | 4.18ms | 17.03ms | 7.74 MB/s |
+| **LiteFS-Asyncio** | 6P | **16,511** | 6.05ms | 6.73ms | 4.22 MB/s |
+| **LiteFS-Asyncio** | 1P | **16,441** | 6.06ms | 7.19ms | 4.20 MB/s |
+| **LiteFS-Asyncio** | 4P | **15,973** | 6.26ms | 7.94ms | 4.08 MB/s |
+| **LiteFS-Greenlet** | 1P | **9,675** | 10.33ms | 28.65ms | 3.03 MB/s |
+| FastAPI-Uvicorn | 1P | 5,385 | 18.50ms | 25.16ms | 0.73 MB/s |
+| FastAPI-Uvicorn | 4P | 2,353 | 42.23ms | 47.68ms | 0.32 MB/s |
+
+#### 性能优势
+
+| 对比项 | LiteFS-Greenlet | FastAPI-Uvicorn | 优势倍数 |
+|-------|----------------|-----------------|---------|
+| RPS (单进程) | 9,675 | 5,385 | **1.8x** |
+| RPS (多进程) | 25,988 | 2,353 | **11x** |
+| P99 延迟 | 14.63ms | 47.68ms | **3.3x 更快** |
+| 吞吐量 | 8.13 MB/s | 0.32 MB/s | **25x** |
+
+#### 性能特点
+
+- **Greenlet 多进程最高性能**: 6 进程 RPS 达 25,988
+- **Asyncio 最低 P99 延迟**: 6.73ms (6进程)，且零错误
+- **线性多进程扩展**: Greenlet 6进程是单进程的 2.7 倍
+- **轻量级**: 无需额外的 ASGI 服务器（如 Uvicorn）
+- **原生异步支持**: Asyncio 模式零错误，高稳定性
+
+### 快速开始
+
+```bash
+# 进入测试目录
+cd benchmarks
+
+# 安装测试依赖
+make install
+
+# 或手动安装
+pip install -r requirements.txt
+sudo apt install wrk  # Linux
+
+# 运行所有测试
+make test
+
+# 单独运行 Hello World 测试
+make hello
+
+# 单独运行 SQL 查询测试
+make sql
+
+# 查看报告
+make report
+```
+
+### 测试配置
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| 并发连接 | 100 | wrk -c 参数 |
+| 线程数 | 4 | wrk -t 参数 |
+| 测试时长 | 10s | 预热后稳定测试 |
+| 预热时长 | 2s | 服务器启动等待 |
+| 进程数 | 1, 6 | 单核 vs 多核对比 |
+
+### 输出报告
+
+测试完成后会在 `benchmarks/results/` 目录生成:
+
+- `report.html` - 可视化 HTML 报告 (含交互图表) - [查看示例报告](benchmarks/results/latest/report.html)
+- `data.json` - 完整测试原始数据
+
+报告包含：
+- RPS 性能对比柱状图
+- P99 延迟趋势图
+- 详细数据表格
+- 性能分析
+
+### 自定义测试
+
+编辑 `tests/test_hello_world.py` 或 `tests/test_sql_query.py` 添加新的服务器配置:
+
+```python
+SERVER_CONFIGS = [
+    ("MyServer-1P", "myserver", ["python", "my_app.py"], 1, None, 3),
+    ("MyServer-6P", "myserver", ["python", "my_app.py"], 6, None, 5),
+    # 添加更多配置...
+]
+```
+
+---
+
 ## 🧪 测试
 
 运行单元测试：
@@ -219,7 +333,7 @@ pytest tests/unit/ -v --cov=litefs --cov-report=html
 运行性能测试：
 
 ```bash
-pytest tests/performance/ -v
+cd benchmarks && make test
 ```
 
 查看测试覆盖率：
