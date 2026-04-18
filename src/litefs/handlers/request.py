@@ -974,6 +974,9 @@ class WSGIRequestHandler(BaseRequestHandler):
                     setattr(self, 'path_params', params)
                     result = handler(self, **params)
                     
+                    # DEBUG
+                    print(f"DEBUG: result type = {type(result)}, _headers_responsed = {self._headers_responsed}")
+                    
                     # 处理 Response 对象
                     if isinstance(result, Response):
                         # 保存 Session 数据到 Session 存储（只有在会话被修改时）

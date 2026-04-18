@@ -68,7 +68,7 @@ def setup_logging(app: Litefs) -> None:
 
 app = Litefs(
     host='0.0.0.0',
-    port=8080,
+    port=8085,
     debug=debug_mode,
     workers=workers,
     secret_key=secret_key

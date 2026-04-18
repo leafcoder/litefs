@@ -27,7 +27,7 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Litefs(
     host='0.0.0.0',
-    port=8080,
+    port=8084,
     debug=True,
 )
 
@@ -129,8 +129,8 @@ if __name__ == '__main__':
     print("  - 在线用户列表")
     print("  - 后台推送")
     print()
-    print("HTTP: http://localhost:8080")
-    print("WebSocket: ws://localhost:8081/ws")
+    print("HTTP: http://localhost:8084")
+    print("WebSocket: ws://localhost:8084/ws")
     print("=" * 60)
     
     threading.Thread(target=push_notifications, daemon=True).start()

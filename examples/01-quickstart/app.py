@@ -23,7 +23,7 @@ from litefs.session.session import MemorySessionStore
 
 app = Litefs(
     host='0.0.0.0',
-    port=8080,
+    port=8081,
     debug=True,
 )
 
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     print("  - 模板渲染")
     print("  - 静态文件服务")
     print()
-    print("访问地址: http://localhost:8080")
+    print("访问地址: http://localhost:8081")
     print("=" * 60)
 
     app.run()
