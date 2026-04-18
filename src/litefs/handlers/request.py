@@ -458,7 +458,6 @@ class BaseRequestHandler(object):
             self._template_lookup = TemplateLookup(
                 directories=[template_dir],
                 input_encoding='utf-8',
-                output_encoding='utf-8',
                 encoding_errors='replace'
             )
 
@@ -503,10 +502,6 @@ class BaseRequestHandler(object):
         status_code = int(status_code)
         status_text = http_status_codes.get(status_code, "Unknown")
         status = "%d %s" % (status_code, status_text)
-
-        # DEBUG: 打印 content 类型和前 50 个字符
-        if content is not None:
-            print(f"DEBUG: content type = {type(content)}, first 50 chars = {repr(content[:50]) if isinstance(content, (str, bytes)) else 'N/A'}")
 
         # 创建响应头列表
         response_headers = []
@@ -929,6 +924,24 @@ class WSGIRequestHandler(BaseRequestHandler):
         return self._environ.get("HTTP_REFERER")
 
     @property
+    def headers(self):
+        """
+        获取所有请求头
+        
+        Returns:
+            包含所有请求头的字典
+        """
+        headers = {}
+        for key, value in self._environ.items():
+            if key.startswith('HTTP_'):
+                header_name = key[5:].replace('_', '-').lower()
+                headers[header_name] = value
+            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
+                header_name = key.replace('_', '-').lower()
+                headers[header_name] = value
+        return headers
+
+    @property
     def cookie(self):
         cookie_str = self._environ.get("HTTP_COOKIE", "")
         cookie = SimpleCookie()
@@ -973,9 +986,6 @@ class WSGIRequestHandler(BaseRequestHandler):
                     setattr(self, 'route_params', params)
                     setattr(self, 'path_params', params)
                     result = handler(self, **params)
-                    
-                    # DEBUG
-                    print(f"DEBUG: result type = {type(result)}, _headers_responsed = {self._headers_responsed}")
                     
                     # 处理 Response 对象
                     if isinstance(result, Response):
@@ -1356,6 +1366,24 @@ class ASGIRequestHandler(BaseRequestHandler):
     @property
     def referer(self):
         return self._environ.get("HTTP_REFERER")
+
+    @property
+    def headers(self):
+        """
+        获取所有请求头
+        
+        Returns:
+            包含所有请求头的字典
+        """
+        headers = {}
+        for key, value in self._environ.items():
+            if key.startswith('HTTP_'):
+                header_name = key[5:].replace('_', '-').lower()
+                headers[header_name] = value
+            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
+                header_name = key.replace('_', '-').lower()
+                headers[header_name] = value
+        return headers
 
     @property
     def cookie(self):
@@ -1744,6 +1772,24 @@ class RequestHandler(BaseRequestHandler):
     @property
     def referer(self):
         return self.environ.get("HTTP_REFERER")
+
+    @property
+    def headers(self):
+        """
+        获取所有请求头
+        
+        Returns:
+            包含所有请求头的字典
+        """
+        headers = {}
+        for key, value in self.environ.items():
+            if key.startswith('HTTP_'):
+                header_name = key[5:].replace('_', '-').lower()
+                headers[header_name] = value
+            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
+                header_name = key.replace('_', '-').lower()
+                headers[header_name] = value
+        return headers
 
     @property
     def cookie(self):
