@@ -3,6 +3,10 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import os
+import logging
+
+# 禁用所有日志输出
+logging.disable(logging.CRITICAL)
 
 app = FastAPI()
 

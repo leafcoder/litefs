@@ -2,6 +2,11 @@
 
 import sys
 import os
+import logging
+
+
+# 禁用所有日志输出
+logging.disable(logging.CRITICAL)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 

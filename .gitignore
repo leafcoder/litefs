@@ -157,3 +157,14 @@ tests/performance/gunicorn_server.py
 tests/performance/fastapi_server.py
 tests/performance/litefs_server.py
 tests/performance/test_results/
+
+# Benchmark results (keep latest under version control, ignore timestamped and symlinks)
+benchmarks/results/latest
+benchmarks/results/20*/
+
+# Coverage data files
+coverage.json
+.coverage
+
+# Scanner work directory
+.scannerwork/
