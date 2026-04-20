@@ -15,8 +15,9 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 # 配置
-APPS_DIR = "/home/zhanglei3/Desktop/dev/litefs/benchmarks/apps"
-RESULTS_DIR = "/home/zhanglei3/Desktop/dev/litefs/benchmarks/results"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+APPS_DIR = str(_SCRIPT_DIR / "apps")
+RESULTS_DIR = str(_SCRIPT_DIR / "results")
 WRK_THREADS = 4
 TEST_DURATION = 10  # 秒
 
