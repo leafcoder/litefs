@@ -1,4 +1,4 @@
-.PHONY: install test hello sql clean help
+.PHONY: install benchmark clean report help
 
 # 颜色定义
 GREEN  := \033[0;32m
@@ -6,33 +6,28 @@ YELLOW := \033[0;33m
 BLUE   := \033[0;34m
 NC     := \033[0m
 
+# 简化 PATH，避免参数过长
+PATH_PREFIX := PATH=$$HOME/.pyenv/shims:$$HOME/.pyenv/bin:$$HOME/Installed:/usr/local/bin:/usr/bin:/bin
+
 help:
-	@echo "$(BLUE)LiteFS 性能测试套件$(NC)"
+	@echo "$(BLUE)LiteFS 性能基准测试套件$(NC)"
 	@echo ""
 	@echo "可用命令:"
-	@echo "  $(GREEN)make install$(NC)   - 安装测试依赖"
-	@echo "  $(GREEN)make test$(NC)      - 运行所有测试"
-	@echo "  $(GREEN)make hello$(NC)     - 运行 Hello World 测试"
-	@echo "  $(GREEN)make sql$(NC)       - 运行 SQL 查询测试"
-	@echo "  $(GREEN)make clean$(NC)     - 清理测试结果"
+	@echo "  $(GREEN)make install$(NC)    - 安装测试依赖"
+	@echo "  $(GREEN)make benchmark$(NC)  - 运行基准测试（10s，1/6进程，500/1000并发）"
+	@echo "  $(GREEN)make report$(NC)     - 查看最新测试报告"
+	@echo "  $(GREEN)make clean$(NC)      - 清理测试结果"
 	@echo ""
 
 install:
 	@echo "$(BLUE)安装测试依赖...$(NC)"
 	pip install -r requirements.txt
 	@echo "$(GREEN)依赖安装完成!$(NC)"
-	@echo "注意: 如果 wrk 未安装，请运行: sudo apt install wrk"
+	@echo "注意: 如果 wrk 未安装，请运行: sudo apt install wrk 或从源码编译"
 
-test: hello sql
-	@echo "$(GREEN)所有测试完成!$(NC)"
-
-hello:
-	@echo "$(BLUE)运行 Hello World 性能测试...$(NC)"
-	cd $(shell pwd) && pytest tests/test_hello_world.py -v -s
-
-sql:
-	@echo "$(BLUE)运行 SQL 查询性能测试...$(NC)"
-	cd $(shell pwd) && pytest tests/test_sql_query.py -v -s
+benchmark:
+	@echo "$(BLUE)运行性能基准测试...$(NC)"
+	$(PATH_PREFIX) python run_benchmark.py
 
 clean:
 	@echo "$(YELLOW)清理测试结果...$(NC)"
@@ -44,9 +39,15 @@ clean:
 
 report:
 	@echo "$(BLUE)查看最新测试报告...$(NC)"
-	@latest=$$(ls -td results/*/ 2>/dev/null | head -1); \
-	if [ -n "$$latest" ]; then \
-		open "$$latest/report.html" 2>/dev/null || echo "报告路径: $$latest/report.html"; \
+	@if [ -L results/latest ]; then \
+		open results/latest/report.html 2>/dev/null || echo "报告路径: $$(pwd)/results/latest/report.html"; \
+	elif [ -d results/ ]; then \
+		latest=$$(ls -td results/*/ 2>/dev/null | grep -v latest | head -1); \
+		if [ -n "$$latest" ]; then \
+			open "$$latest/report.html" 2>/dev/null || echo "报告路径: $$(pwd)/$$latest/report.html"; \
+		else \
+			echo "没有找到测试报告，请先运行 make benchmark"; \
+		fi; \
 	else \
-		echo "没有找到测试报告"; \
+		echo "没有找到测试报告，请先运行 make benchmark"; \
 	fi
