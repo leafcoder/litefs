@@ -60,7 +60,7 @@ echo   make.bat upload            - Upload to PyPI
 goto :eof
 
 :install
-python setup.py install
+python -m pip install .
 goto :eof
 
 :dev-install
@@ -85,11 +85,11 @@ if exist .pytest_cache rmdir /s /q .pytest_cache
 goto :eof
 
 :build
-python setup.py build sdist
+python -m build --sdist
 goto :eof
 
 :wheel
-python setup.py bdist_wheel
+python -m build --wheel
 goto :eof
 
 :test
@@ -178,6 +178,18 @@ call :format
 call :lint
 call :type-check
 echo All checks complete
+goto :eof
+
+:upload-test
+echo Uploading to Test PyPI...
+twine upload --repository testpypi dist/*
+echo Uploaded to Test PyPI successfully!
+goto :eof
+
+:upload
+echo Uploading to PyPI...
+twine upload dist/*
+echo Uploaded to PyPI successfully!
 goto :eof
 
 :eof

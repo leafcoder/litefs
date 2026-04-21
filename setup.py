@@ -66,6 +66,7 @@ def get_dependencies():
         "pathtools>=0.1.2",
         "PyYAML>=5.1",
         "watchdog>=0.8.3",
+        "SQLAlchemy>=2.0.0",
     ]
 
 setup(
