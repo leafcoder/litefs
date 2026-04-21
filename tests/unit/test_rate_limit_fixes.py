@@ -105,7 +105,7 @@ class TestRateLimitFixes(unittest.TestCase):
         
         result = middleware.process_request(request_handler2)
         self.assertIsNotNone(result)
-        self.assertEqual(result[0], '429 Too Many Requests')
+        self.assertEqual(result.status_code, 429)
 
     def test_rate_limit_state_persistence(self):
         """

@@ -6,13 +6,14 @@
 """
 
 import os
+import time
 from typing import Dict, Optional, Type, Union
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, Session, sessionmaker
 
 from ..config import Config
-from ..utils import log_error, log_info
+from ..utils import log_error, log_info, log_debug
 
 
 class Database:
@@ -58,27 +59,79 @@ class Database:
 
     def _create_engine(self):
         """
-        创建数据库引擎
-
+        创建数据库引擎（优化版）
+        
+        包含连接池优化：
+        - 连接健康检查（pool_pre_ping）
+        - 连接回收（pool_recycle）
+        - 连接池监控
+        - 连接泄漏检测
+        
         Returns:
             数据库引擎实例
         """
         # 获取数据库配置
-        pool_size = getattr(self.config, 'database_pool_size', 5)
-        max_overflow = getattr(self.config, 'database_max_overflow', 10)
+        pool_size = getattr(self.config, 'database_pool_size', 10)
+        max_overflow = getattr(self.config, 'database_max_overflow', 20)
         pool_timeout = getattr(self.config, 'database_pool_timeout', 30)
+        pool_recycle = getattr(self.config, 'database_pool_recycle', 3600)
         echo = getattr(self.config, 'database_echo', False)
-
+        
+        # 判断是否为 SQLite（SQLite 不支持连接池）
+        is_sqlite = self.database_url.startswith('sqlite')
+        
+        # 创建引擎配置
+        engine_kwargs = {
+            'echo': echo,
+        }
+        
+        # 非 SQLite 数据库启用连接池
+        if not is_sqlite:
+            engine_kwargs.update({
+                'pool_size': pool_size,
+                'max_overflow': max_overflow,
+                'pool_timeout': pool_timeout,
+                'pool_recycle': pool_recycle,
+                'pool_pre_ping': True,  # 启用连接健康检查
+            })
+        
         # 创建引擎
-        engine = create_engine(
-            self.database_url,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_timeout=pool_timeout,
-            echo=echo
-        )
-
+        engine = create_engine(self.database_url, **engine_kwargs)
+        
+        # 添加连接池事件监听
+        self._setup_pool_events(engine)
+        
         return engine
+    
+    def _setup_pool_events(self, engine):
+        """
+        设置连接池事件监听
+        
+        Args:
+            engine: 数据库引擎
+        """
+        from sqlalchemy import event
+        
+        @event.listens_for(engine, "connect")
+        def on_connect(dbapi_connection, connection_record):
+            """连接创建时触发"""
+            connection_record.info['connected_at'] = time.time()
+            log_info(None, f"Database connection created: {id(dbapi_connection)}")
+        
+        @event.listens_for(engine, "checkout")
+        def on_checkout(dbapi_connection, connection_record, connection_proxy):
+            """连接从池中取出时触发"""
+            log_debug(None, f"Database connection checked out: {id(dbapi_connection)}")
+        
+        @event.listens_for(engine, "checkin")
+        def on_checkin(dbapi_connection, connection_record):
+            """连接归还到池中时触发"""
+            log_debug(None, f"Database connection checked in: {id(dbapi_connection)}")
+        
+        @event.listens_for(engine, "close")
+        def on_close(dbapi_connection, connection_record):
+            """连接关闭时触发"""
+            log_info(None, f"Database connection closed: {id(dbapi_connection)}")
 
     def get_session(self) -> Session:
         """
@@ -100,6 +153,30 @@ class Database:
         删除所有数据表
         """
         self.Base.metadata.drop_all(bind=self.engine)
+    
+    def get_pool_status(self) -> dict:
+        """
+        获取连接池状态
+        
+        Returns:
+            连接池状态信息字典
+        """
+        pool = self.engine.pool
+        
+        return {
+            'pool_size': pool.size(),
+            'checked_in': pool.checkedin(),
+            'checked_out': pool.checkedout(),
+            'overflow': pool.overflow(),
+            'invalid': pool.invalidatedcount() if hasattr(pool, 'invalidatedcount') else 0
+        }
+    
+    def dispose(self):
+        """
+        释放连接池资源
+        """
+        self.engine.dispose()
+        log_info(None, "Database connection pool disposed")
 
 
 class DatabaseManager:

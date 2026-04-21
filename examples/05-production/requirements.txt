@@ -1,0 +1,5 @@
+litefs>=1.0.0
+redis>=4.5.0
+celery>=5.3.0
+gunicorn>=21.0.0
+python-dotenv>=1.0.0

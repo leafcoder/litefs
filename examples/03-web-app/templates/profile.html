@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户中心 - Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            font-weight: bold;
+        }
+        .profile-info h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        .profile-info p {
+            margin: 5px 0;
+            opacity: 0.9;
+        }
+        .profile-stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+        }
+        .profile-stats .stat-item {
+            text-align: center;
+            background: transparent;
+            padding: 10px 15px;
+            box-shadow: none;
+        }
+        .profile-stats .stat-item .number {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        .profile-stats .stat-item .label {
+            font-size: 12px;
+            opacity: 0.9;
+            color: white;
+        }
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .section-title h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .posts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .post-item {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .post-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .post-item h3 {
+            margin: 0 0 10px 0;
+        }
+        .post-item h3 a {
+            color: #333;
+            text-decoration: none;
+        }
+        .post-item h3 a:hover {
+            color: #667eea;
+        }
+        .post-meta {
+            display: flex;
+            gap: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+        .post-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .post-summary {
+            color: #666;
+            margin: 10px 0 0 0;
+            line-height: 1.6;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .empty-state p {
+            margin-bottom: 20px;
+        }
+        .oauth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/editor">写文章</a>
+            <a href="/profile" class="active">个人中心</a>
+            <a href="/settings">设置</a>
+            <a href="#" onclick="logout(); return false;">退出</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="container">
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${user['nickname'][0] if user.get('nickname') else user['username'][0]}
+                </div>
+                <div class="profile-info">
+                    <h1>
+                        ${user.get('nickname') or user['username']}
+                        % if user.get('oauth_provider'):
+                        <span class="oauth-badge">
+                            % if user['oauth_provider'] == 'github':
+                            GitHub
+                            % elif user['oauth_provider'] == 'google':
+                            Google
+                            % else:
+                            ${user['oauth_provider']}
+                            % endif
+                        </span>
+                        % endif
+                    </h1>
+                    <p>@${user['username']}</p>
+                    % if user.get('email'):
+                    <p>${user['email']}</p>
+                    % endif
+                    % if user.get('bio'):
+                    <p>${user['bio']}</p>
+                    % endif
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <div class="number">${post_count}</div>
+                            <div class="label">文章</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="number">${total_views}</div>
+                            <div class="label">阅读</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="number">${total_likes}</div>
+                            <div class="label">点赞</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section-title">
+                <h2>我的文章</h2>
+                <a href="/editor" class="btn btn-primary">写新文章</a>
+            </div>
+            
+            % if posts:
+            <div class="posts-list">
+                % for post in posts:
+                <div class="post-item">
+                    <h3><a href="/post/${post['id']}">${post['title']}</a></h3>
+                    <div class="post-meta">
+                        <span>${post['created_at']}</span>
+                        <span>👁 ${post.get('views', 0)}</span>
+                        <span>❤️ ${post.get('likes', 0)}</span>
+                        <span class="tag">${post.get('category', '默认')}</span>
+                    </div>
+                    % if post.get('summary'):
+                    <p class="post-summary">${post['summary'][:150]}${'...' if len(post.get('summary', '')) > 150 else ''}</p>
+                    % endif
+                </div>
+                % endfor
+            </div>
+            % else:
+            <div class="empty-state">
+                <p>还没有发布任何文章</p>
+                <a href="/editor" class="btn btn-primary">开始写作</a>
+            </div>
+            % endif
+        </div>
+    </main>
+    
+    <script>
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '/';
+                }
+            } catch (e) {
+                console.error('Logout failed:', e);
+            }
+        }
+    </script>
+</body>
+</html>

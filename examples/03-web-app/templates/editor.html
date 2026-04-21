@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title} - Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .editor-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .editor-container h1 {
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .form-row {
+            display: flex;
+            gap: 20px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 400px;
+            font-family: Monaco, Menlo, Ubuntu Mono, monospace;
+            line-height: 1.6;
+        }
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .message {
+            margin-top: 15px;
+            padding: 10px 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .message.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+        }
+        .message.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .editor-tips {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .editor-tips h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .editor-tips code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/profile">个人中心</a>
+            <a href="#" onclick="logout(); return false;">退出</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="editor-container">
+            <h1>${title}</h1>
+            
+            <div class="editor-tips">
+                <h4>Markdown 语法提示</h4>
+                <p>
+                    <code># 标题</code> 
+                    <code>**粗体**</code> 
+                    <code>*斜体*</code> 
+                    <code>[链接](url)</code> 
+                    <code>![图片](url)</code>
+                    <code>\`代码\`</code>
+                    <code>\`\`\`代码块\`\`\`</code>
+                </p>
+            </div>
+            
+            <form id="post-form" onsubmit="return savePost(event)">
+                <div class="form-group">
+                    <label for="title">标题</label>
+                    <input type="text" id="title" name="post_title" required placeholder="请输入文章标题" 
+                           value="${post_title}">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="category">分类</label>
+                        <select id="category">
+                            <option value="默认" ${'selected' if post_category == '默认' else ''}>默认</option>
+                            <option value="技术" ${'selected' if post_category == '技术' else ''}>技术</option>
+                            <option value="教程" ${'selected' if post_category == '教程' else ''}>教程</option>
+                            <option value="生活" ${'selected' if post_category == '生活' else ''}>生活</option>
+                            <option value="公告" ${'selected' if post_category == '公告' else ''}>公告</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="status">状态</label>
+                        <select id="status">
+                            <option value="published" ${'selected' if post_status == 'published' else ''}>发布</option>
+                            <option value="draft" ${'selected' if post_status == 'draft' else ''}>草稿</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="summary">摘要（可选）</label>
+                    <textarea id="summary" rows="2" placeholder="文章摘要，不填则自动截取内容前200字">${post_summary}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="content">内容（支持 Markdown）</label>
+                    <textarea id="content" rows="25" required placeholder="支持 Markdown 格式...">${post_content}</textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存文章</button>
+                    <a href="/profile" class="btn btn-secondary">取消</a>
+                    % if post_id:
+                    <a href="/post/${post_id}" class="btn btn-secondary" target="_blank">预览</a>
+                    % endif
+                </div>
+                <div id="message" class="message"></div>
+            </form>
+        </div>
+    </main>
+    
+    <script>
+        const postId = ${post_id if post_id else 'null'};
+        
+        async function savePost(e) {
+            e.preventDefault();
+            const msgEl = document.getElementById('message');
+            msgEl.className = 'message';
+            msgEl.textContent = '';
+            
+            const title = document.getElementById('title').value.trim();
+            const content = document.getElementById('content').value.trim();
+            const category = document.getElementById('category').value;
+            const summary = document.getElementById('summary').value.trim();
+            const status = document.getElementById('status').value;
+            
+            if (!title) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '请输入文章标题';
+                return false;
+            }
+            
+            if (!content) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '请输入文章内容';
+                return false;
+            }
+            
+            const url = postId ? '/api/posts/' + postId : '/api/posts';
+            
+            try {
+                msgEl.className = 'message';
+                msgEl.textContent = '保存中...';
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        title: title, 
+                        content: content, 
+                        category: category, 
+                        summary: summary, 
+                        status: status, 
+                        tags: [] 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    msgEl.className = 'message success';
+                    msgEl.textContent = '保存成功！正在跳转...';
+                    setTimeout(function() {
+                        window.location.href = '/post/' + data.post.id;
+                    }, 1000);
+                } else {
+                    msgEl.className = 'message error';
+                    msgEl.textContent = data.error || '保存失败，请重试';
+                }
+            } catch (e) {
+                msgEl.className = 'message error';
+                msgEl.textContent = '网络错误，请检查网络连接';
+            }
+            
+            return false;
+        }
+        
+        function logout() {
+            fetch('/api/logout', { method: 'POST' })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        window.location.href = '/';
+                    }
+                })
+                .catch(function(e) {
+                    console.error('Logout failed:', e);
+                });
+        }
+        
+        // 自动保存草稿
+        var autoSaveTimer = null;
+        document.getElementById('content').addEventListener('input', function() {
+            if (autoSaveTimer) clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(function() {
+                localStorage.setItem('draft_content', document.getElementById('content').value);
+            }, 1000);
+        });
+        
+        // 恢复草稿
+        var savedDraft = localStorage.getItem('draft_content');
+        if (savedDraft && !postId) {
+            document.getElementById('content').value = savedDraft;
+        }
+    </script>
+</body>
+</html>

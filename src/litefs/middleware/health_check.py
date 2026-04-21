@@ -7,10 +7,7 @@ import sys
 import os
 from typing import Any, Dict, List, Optional, Callable
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from middleware.base import Middleware
-from exceptions import HttpError
+from .base import Middleware
 
 
 class HealthCheck(Middleware):
@@ -87,6 +84,8 @@ class HealthCheck(Middleware):
         Returns:
             健康检查响应
         """
+        from ..handlers.request import Response
+        
         status_code = 200
         checks = {}
 
@@ -107,14 +106,13 @@ class HealthCheck(Middleware):
                 }
                 status_code = 503
 
-        response = {
+        response_data = {
             'status': 'healthy' if status_code == 200 else 'unhealthy',
             'timestamp': time.time(),
             'checks': checks
         }
 
-        request_handler.start_response(status_code, [('Content-Type', 'application/json')])
-        return json.dumps(response).encode('utf-8')
+        return Response.json(response_data, status_code=status_code)
 
     def _handle_ready_check(self, request_handler):
         """
@@ -126,6 +124,8 @@ class HealthCheck(Middleware):
         Returns:
             就绪检查响应
         """
+        from ..handlers.request import Response
+        
         status_code = 200
         checks = {}
 
@@ -146,11 +146,10 @@ class HealthCheck(Middleware):
                 }
                 status_code = 503
 
-        response = {
+        response_data = {
             'status': 'ready' if status_code == 200 else 'not_ready',
             'timestamp': time.time(),
             'checks': checks
         }
 
-        request_handler.start_response(status_code, [('Content-Type', 'application/json')])
-        return json.dumps(response).encode('utf-8')
+        return Response.json(response_data, status_code=status_code)

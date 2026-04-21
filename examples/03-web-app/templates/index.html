@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            % if user:
+            <a href="/editor">写文章</a>
+            <a href="/profile">个人中心</a>
+            % if user.get('is_admin'):
+            <a href="/admin">管理后台</a>
+            % endif
+            <a href="#" onclick="logout(); return false;">退出</a>
+            % else:
+            <a href="/login">登录</a>
+            <a href="/register">注册</a>
+            % endif
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="container">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-value">${stats['total_posts']}</span>
+                    <span class="stat-label">文章</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">${stats['total_users']}</span>
+                    <span class="stat-label">用户</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">${stats['total_views']}</span>
+                    <span class="stat-label">访问</span>
+                </div>
+            </div>
+            
+            <div class="content-wrapper">
+                <div class="posts-section">
+                    % if categories:
+                    <div class="category-tabs">
+                        <a href="/" class="${'active' if not current_category else ''}">全部</a>
+                        % for cat in categories:
+                        <a href="/?category=${cat}" class="${'active' if current_category == cat else ''}">${cat}</a>
+                        % endfor
+                    </div>
+                    % endif
+                    
+                    % if posts:
+                    <div class="posts-list">
+                        % for post in posts:
+                        <article class="post-card">
+                            <h2 class="post-title">
+                                <a href="/post/${post['id']}">${post['title']}</a>
+                            </h2>
+                            <p class="post-summary">${post['summary'][:150]}...</p>
+                            <div class="post-meta">
+                                <span class="post-author">作者: ${post['author_name']}</span>
+                                <span class="post-category">分类: ${post['category']}</span>
+                                <span class="post-views">阅读: ${post['views']}</span>
+                                <span class="post-date">${post['created_at'][:10]}</span>
+                            </div>
+                        </article>
+                        % endfor
+                    </div>
+                    % else:
+                    <div class="empty-state">
+                        <p>暂无文章</p>
+                    </div>
+                    % endif
+                </div>
+                
+                <aside class="sidebar">
+                    <div class="sidebar-card">
+                        <h3>快速链接</h3>
+                        <ul>
+                            <li><a href="/editor">发布新文章</a></li>
+                            <li><a href="/profile">我的文章</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="sidebar-card">
+                        <h3>分类</h3>
+                        <ul>
+                            % for cat in categories:
+                            <li><a href="/?category=${cat}">${cat}</a></li>
+                            % endfor
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+    
+    <footer class="footer">
+        <p>Powered by Litefs - 轻量级 Python Web 框架</p>
+    </footer>
+    
+    <script>
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '/';
+                }
+            } catch (e) {
+                console.error('Logout failed:', e);
+            }
+        }
+    </script>
+</body>
+</html>

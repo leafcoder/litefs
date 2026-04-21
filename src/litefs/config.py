@@ -65,11 +65,20 @@ class Config:
         'database_url': None,             # 数据库连接 URL
         'database_session_table': 'sessions', # 会话表名
         'database_cache_table': 'cache',  # 缓存表名
+        'database_pool_size': 10,         # 连接池大小
+        'database_max_overflow': 20,      # 连接池最大溢出数
+        'database_pool_timeout': 30,      # 连接池超时时间（秒）
+        'database_pool_recycle': 3600,    # 连接回收时间（秒）
         
         # Memcache 配置
         'memcache_servers': 'localhost:11211', # Memcache 服务器列表
         'memcache_key_prefix': 'litefs:', # Memcache 缓存键前缀
         'memcache_session_key_prefix': 'litefs:session:', # Memcache 会话键前缀
+        
+        # Celery 任务队列配置
+        'celery_broker': None,            # Celery Broker URL (如 redis://localhost:6379/0)
+        'celery_backend': None,           # Celery Result Backend URL
+        'celery_config': None,            # Celery 额外配置字典
         
         # 配置管理
         'config_encrypted_keys': [],      # 需要加密的配置键

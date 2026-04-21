@@ -1,0 +1,33 @@
+{
+  "users": {
+    "1": {
+      "id": 1,
+      "username": "admin",
+      "password_hash": "f7bd63a97002f69d0fbdce86678f613fa6d717c2554a16a4189a80d011f8ed86",
+      "password_salt": "97b1a494218a4eddb3f86b13ce4bb2fd",
+      "email": "admin@example.com",
+      "nickname": "管理员",
+      "avatar": "",
+      "bio": "",
+      "created_at": "2026-04-18 14:19:37",
+      "is_admin": true,
+      "oauth_provider": "",
+      "oauth_user_id": ""
+    },
+    "2": {
+      "id": 2,
+      "username": "test",
+      "password_hash": "d80b3bf7e84cd535c2c535f41c0ecb0925dcfefd7429c062d3fa9747eb00fbe5",
+      "password_salt": "d02c669121e5e0e9860212e446f1bd58",
+      "email": "",
+      "nickname": "test",
+      "avatar": "",
+      "bio": "",
+      "created_at": "2026-04-18 18:00:35",
+      "is_admin": false,
+      "oauth_provider": "",
+      "oauth_user_id": ""
+    }
+  },
+  "next_user_id": 3
+}

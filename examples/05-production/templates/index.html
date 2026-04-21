@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Litefs 生产环境示例</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>${message}</h1>
+            <p class="subtitle">高性能 Python Web 框架</p>
+        </header>
+
+        <main>
+            <section class="status-card">
+                <h2>服务器状态</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="label">运行时间</span>
+                        <span class="value">${uptime}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Worker 进程</span>
+                        <span class="value">${workers}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">调试模式</span>
+                        <span class="value">${'开启' if debug else '关闭'}</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="features-card">
+                <h2>生产环境特性</h2>
+                <ul class="feature-list">
+                    % for feature in features:
+                    <li>${feature}</li>
+                    % endfor
+                </ul>
+            </section>
+
+            <section class="api-card">
+                <h2>API 端点</h2>
+                <div class="api-list">
+                    <div class="api-item">
+                        <span class="method get">GET</span>
+                        <span class="path">/health</span>
+                        <span class="desc">健康检查</span>
+                    </div>
+                    <div class="api-item">
+                        <span class="method get">GET</span>
+                        <span class="path">/ready</span>
+                        <span class="desc">就绪检查</span>
+                    </div>
+                    <div class="api-item">
+                        <span class="method get">GET</span>
+                        <span class="path">/metrics</span>
+                        <span class="desc">性能指标</span>
+                    </div>
+                    <div class="api-item">
+                        <span class="method post">POST</span>
+                        <span class="path">/api/cache/clear</span>
+                        <span class="desc">清除缓存</span>
+                    </div>
+                    <div class="api-item">
+                        <span class="method post">POST</span>
+                        <span class="path">/api/task/submit</span>
+                        <span class="desc">提交任务</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Litefs - 高性能 Python Web 框架</p>
+        </footer>
+    </div>
+</body>
+</html>

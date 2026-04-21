@@ -48,7 +48,7 @@ class TestRateLimitBug(unittest.TestCase):
         # 第 4 个请求应该被限流
         result = middleware.process_request(request_handler)
         self.assertIsNotNone(result)
-        self.assertEqual(result[0], '429 Too Many Requests')
+        self.assertEqual(result.status_code, 429)
         
         # 等待时间窗口过期
         time.sleep(1.1)

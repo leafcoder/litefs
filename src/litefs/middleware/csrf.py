@@ -72,6 +72,11 @@ class CSRFMiddleware(Middleware):
         if request_method in self.exempt_methods:
             return None
         
+        # 对于 API 路由，跳过 CSRF 保护
+        path = request_handler.environ.get("PATH_INFO", "/")
+        if path.startswith("/api/"):
+            return None
+        
         # 获取 CSRF 令牌
         csrf_token = self._get_csrf_token(request_handler)
         if not csrf_token:
@@ -102,7 +107,11 @@ class CSRFMiddleware(Middleware):
             status, headers, content = response
             headers = list(headers)
         else:
-            status = "200 OK"
+            # 使用 request_handler 的状态码，而不是硬编码 200
+            from litefs.handlers.request import http_status_codes
+            status_code = getattr(request_handler, '_status_code', 200)
+            status_text = http_status_codes.get(status_code, "OK")
+            status = f"{status_code} {status_text}"
             headers = []
             content = response
         
@@ -113,8 +122,6 @@ class CSRFMiddleware(Middleware):
         # 将 CSRF 令牌添加到响应中，方便前端使用
         request_handler._csrf_token = csrf_token
         
-        if isinstance(response, tuple) and len(response) == 3:
-            return status, headers, content
         return status, headers, content
     
     def _generate_csrf_token(self, request_handler):
@@ -129,7 +136,11 @@ class CSRFMiddleware(Middleware):
         """
         # 从 cookie 中获取现有令牌
         cookie = request_handler.cookie
-        csrf_token = cookie.get(self.cookie_name, {}).value if cookie else None
+        csrf_token = None
+        if cookie:
+            cookie_item = cookie.get(self.cookie_name)
+            if cookie_item:
+                csrf_token = cookie_item.value
         
         # 如果没有现有令牌，生成新的
         if not csrf_token:
@@ -163,9 +174,11 @@ class CSRFMiddleware(Middleware):
         # 从 cookie 中获取
         cookie = request_handler.cookie
         if cookie:
-            cookie_token = cookie.get(self.cookie_name, {}).value
-            if cookie_token:
-                return cookie_token
+            cookie_item = cookie.get(self.cookie_name)
+            if cookie_item:
+                cookie_token = cookie_item.value
+                if cookie_token:
+                    return cookie_token
         
         return None
     

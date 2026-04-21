@@ -161,6 +161,9 @@ class Litefs(object):
 
         self.middleware_manager = MiddlewareManager()
         self._middleware_instances = []
+        
+        self._init_debug_middleware()
+        
         error_pages_dir = getattr(config, "error_pages_dir", None)
         self.error_page_renderer = ErrorPageRenderer(error_pages_dir)
         
@@ -178,6 +181,13 @@ class Litefs(object):
         # 添加默认插件目录
         self.plugin_loader.add_plugin_dir('./plugins')
         self.plugin_loader.add_plugin_dir('./litefs/plugins')
+
+    def _init_debug_middleware(self):
+        """初始化调试中间件"""
+        import os
+        if os.environ.get('LITEFS_DEBUG', '0') == '1':
+            from .debug.middleware import DebugMiddleware
+            self.add_middleware(DebugMiddleware)
 
     def database(self, name: str = 'default') -> Any:
         """
@@ -272,7 +282,14 @@ class Litefs(object):
                         start_response(status, headers)
                     else:
                         content = middleware_result
-                        status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                        if isinstance(content, (dict, list, tuple)):
+                            status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
+                        elif isinstance(content, str) and content.startswith('<'):
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
+                        elif isinstance(content, bytes):
+                            status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
+                        else:
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
                         start_response(status, headers)
 
                     if isinstance(content, (str, bytes, dict, list, tuple, type(None))):
@@ -307,7 +324,14 @@ class Litefs(object):
                     start_response(status, headers)
                 else:
                     content = handler_result
-                    status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                    if isinstance(content, (dict, list, tuple)):
+                        status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
+                    elif isinstance(content, str) and content.startswith('<'):
+                        status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
+                    elif isinstance(content, bytes):
+                        status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
+                    else:
+                        status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
                     start_response(status, headers)
 
                 headers_dict = dict(headers)
@@ -370,7 +394,14 @@ class Litefs(object):
                         start_response(status, headers)
                     else:
                         content = middleware_result
-                        status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                        if isinstance(content, (dict, list, tuple)):
+                            status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
+                        elif isinstance(content, str) and content.startswith('<'):
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
+                        elif isinstance(content, bytes):
+                            status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
+                        else:
+                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
                         start_response(status, headers)
 
                     if isinstance(content, str):
@@ -384,13 +415,13 @@ class Litefs(object):
 
                 if isinstance(e, HttpError):
                     status = f"{e.status_code} {e.message}"
-                    headers = [("Content-Type", "text/plain; charset=utf-8")]
+                    headers = [("Content-Type", "text/html; charset=utf-8")]
                     start_response(status, headers)
                     return [e.message.encode("utf-8")]
                 else:
                     log_error(self.logger, str(e))
                     status = "500 Internal Server Error"
-                    headers = [("Content-Type", "text/plain; charset=utf-8")]
+                    headers = [("Content-Type", "text/html; charset=utf-8")]
                     start_response(status, headers)
                     return [b"500 Internal Server Error"]
 
@@ -877,6 +908,50 @@ class Litefs(object):
         self.router.add_static(prefix, directory, name)
         return self
     
+    def websocket(self, path: str = '/ws', auth_required: bool = False, 
+                  auth_handler: Callable = None, port: int = None):
+        """
+        WebSocket 路由装饰器
+        
+        Args:
+            path: WebSocket 路径
+            auth_required: 是否需要认证
+            auth_handler: 认证处理函数
+            port: WebSocket 服务器端口（默认 HTTP 端口 + 1）
+            
+        Returns:
+            装饰器函数
+            
+        使用示例:
+            @app.websocket('/ws')
+            def ws_handler(ws):
+                ws.send('欢迎连接!')
+                for message in ws:
+                    ws.broadcast(message)
+        """
+        from .websocket import WebSocket
+        
+        if not hasattr(self, '_websocket_instance'):
+            ws_port = port or (self.port + 1)
+            self._websocket_instance = WebSocket(
+                app=self,
+                path=path,
+                port=ws_port,
+                auth_required=auth_required,
+                auth_handler=auth_handler,
+            )
+        
+        return self._websocket_instance.handler(path)
+    
+    def get_websocket(self) -> Optional['WebSocket']:
+        """
+        获取 WebSocket 实例
+        
+        Returns:
+            WebSocket 实例或 None
+        """
+        return getattr(self, '_websocket_instance', None)
+    
     def register_routes(self, module):
         """
         注册模块中的路由
@@ -1023,67 +1098,38 @@ class Litefs(object):
         result = request_handler.handler()
         return request_handler.finish(result)
 
-    def run(self, poll_interval=0.2, processes=1, no_reload=False):
+    def run(self, poll_interval=0.2, processes=1, reload=False):
         import os
         import sys
+        import signal
         import subprocess
         import time
-        import signal
-        from pathlib import Path
-        from watchdog.events import FileSystemEventHandler
-        from watchdog.observers import Observer
         
-        # 获取启动脚本路径
         main_file = getattr(sys.modules['__main__'], '__file__', None)
         if main_file:
             main_file = os.path.abspath(main_file)
         
-        # 检查是否是子进程
         is_child_process = os.environ.get('LITEFS_CHILD_PROCESS', '0') == '1'
         
-        # 子进程 PID 存储，用于信号处理
-        child_proc = None
-        
-        def parent_signal_handler(signum, frame):
-            """父进程信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
-            if child_proc:
-                try:
-                    # 发送 SIGTERM 信号给子进程
-                    child_proc.terminate()
-                    # 等待子进程关闭，最多等待 15 秒
+        if not reload or is_child_process:
+            def signal_handler(signum, frame):
+                if hasattr(self, 'server') and self.server:
                     try:
-                        child_proc.wait(timeout=15)
-                    except subprocess.TimeoutExpired:
-                        child_proc.kill()
-                        child_proc.wait()
-                except Exception:
-                    pass
-            sys.exit(0)
-        
-        def child_signal_handler(signum, frame):
-            """子进程信号处理函数，用于处理 SIGINT 和 SIGTERM 信号"""
-            # 关闭服务器
-            if hasattr(self, 'server') and self.server:
-                try:
-                    if hasattr(self.server, 'shutdown'):
-                        self.server.shutdown()
-                except Exception:
-                    pass
-            # 退出进程
-            sys.exit(0)
-        
-        # 如果禁用热重载或已经是子进程，直接运行服务器
-        if no_reload or is_child_process:
-            # 子进程：实际运行服务器
-            # 设置环境变量
-            os.environ['LITEFS_CHILD_PROCESS'] = '1'
+                        if hasattr(self.server, 'shutdown'):
+                            self.server.shutdown()
+                    except Exception:
+                        pass
+                sys.exit(0)
             
-            # 注册信号处理函数
-            signal.signal(signal.SIGINT, child_signal_handler)
-            signal.signal(signal.SIGTERM, child_signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
             
-            # 加载插件
             self.load_plugins()
+            
+            ws_instance = self.get_websocket()
+            if ws_instance:
+                ws_instance.start()
+                log_info(self.logger, "WebSocket server started on port %d" % (self.port + 1))
             
             log_info(self.logger, "Starting server on %s:%d (processes=%d)" % (self.host, self.port, processes))
             
@@ -1104,121 +1150,139 @@ class Litefs(object):
             except Exception as e:
                 log_error(self.logger, "Server error: %s" % str(e))
             finally:
-                # 关闭服务器
+                ws_instance = self.get_websocket()
+                if ws_instance:
+                    try:
+                        ws_instance.stop()
+                    except Exception:
+                        pass
                 if hasattr(self, 'server') and self.server:
                     try:
-                        # 先关闭所有工作进程
                         if hasattr(self.server, 'shutdown'):
                             self.server.shutdown()
-                            # 给工作进程足够的时间关闭
-                            time.sleep(2)
-                        # 再关闭服务器套接字
                         self.server.server_close()
                     except Exception:
                         pass
-                # 关闭数据库连接
                 try:
                     from .database import DatabaseManager
                     DatabaseManager.close_all()
                 except Exception:
                     pass
         else:
-            # 父进程，启动子进程监控
+            child_proc = None
             
-            # 注册信号处理
+            def parent_signal_handler(signum, frame):
+                if child_proc and child_proc.poll() is None:
+                    try:
+                        child_proc.terminate()
+                        child_proc.wait(timeout=5)
+                    except Exception:
+                        try:
+                            child_proc.kill()
+                            child_proc.wait()
+                        except Exception:
+                            pass
+                sys.exit(0)
+            
             signal.signal(signal.SIGINT, parent_signal_handler)
             signal.signal(signal.SIGTERM, parent_signal_handler)
             
-            # 启动子进程循环
-            while True:
+            log_info(self.logger, "Starting server with hot reload on %s:%d" % (self.host, self.port))
+            
+            if main_file:
+                project_dir = os.path.dirname(main_file)
+                watch_dirs = [project_dir]
                 
-                # 启动子进程
+                src_dir = os.path.join(os.path.dirname(project_dir), 'src')
+                if os.path.exists(src_dir):
+                    watch_dirs.append(src_dir)
+            else:
+                watch_dirs = []
+            
+            file_mod_times = {}
+            
+            def scan_files():
+                """扫描所有 Python 文件的修改时间"""
+                mod_times = {}
+                for watch_dir in watch_dirs:
+                    if not os.path.exists(watch_dir):
+                        continue
+                    for root, dirs, files in os.walk(watch_dir):
+                        dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
+                        for file in files:
+                            if file.endswith('.py'):
+                                file_path = os.path.join(root, file)
+                                try:
+                                    mod_times[file_path] = os.path.getmtime(file_path)
+                                except OSError:
+                                    pass
+                return mod_times
+            
+            def check_file_changes():
+                """检查文件是否有变化"""
+                nonlocal file_mod_times
+                current_mod_times = scan_files()
+                
+                for file_path, mtime in current_mod_times.items():
+                    if file_path not in file_mod_times:
+                        return True
+                    if mtime != file_mod_times[file_path]:
+                        return True
+                
+                for file_path in file_mod_times:
+                    if file_path not in current_mod_times:
+                        return True
+                
+                return False
+            
+            file_mod_times = scan_files()
+            
+            while True:
                 try:
-                    # 准备环境变量
                     env = os.environ.copy()
                     env['LITEFS_CHILD_PROCESS'] = '1'
                     
-                    # 启动子进程
                     child_proc = subprocess.Popen(
                         [sys.executable] + sys.argv,
                         env=env,
                         close_fds=True
                     )
                     
-                    # 简单的文件监控（暂时跳过 watchdog 避免复杂问题）
-                    if main_file:
-                        project_dir = os.path.dirname(main_file)
+                    while child_proc.poll() is None:
+                        time.sleep(1)
                         
-                        # 监控文件变化
-                        file_mod_times = {}
-                        for root, dirs, files in os.walk(project_dir):
-                            for file in files:
-                                if file.endswith('.py'):
-                                    file_path = os.path.join(root, file)
-                                    file_mod_times[file_path] = os.path.getmtime(file_path)
-                        
-                        # 等待子进程或文件变化
-                        while child_proc.poll() is None:
-                            # 检查文件变化
-                            should_restart = False
+                        if check_file_changes():
+                            log_info(self.logger, "File changed, restarting server...")
+                            file_mod_times = scan_files()
+                            
                             try:
-                                for root, dirs, files in os.walk(project_dir):
-                                    for file in files:
-                                        if file.endswith('.py'):
-                                            file_path = os.path.join(root, file)
-                                            if file_path in file_mod_times:
-                                                try:
-                                                    current_mtime = os.path.getmtime(file_path)
-                                                    if current_mtime != file_mod_times[file_path]:
-                                                        should_restart = True
-                                                        break
-                                                except FileNotFoundError:
-                                                    # 文件被删除
-                                                    should_restart = True
-                                                    break
-                                    if should_restart:
-                                        break
+                                child_proc.terminate()
+                                child_proc.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                child_proc.kill()
+                                child_proc.wait()
                             except Exception:
                                 pass
-                            
-                            if should_restart:
-                                child_proc.terminate()
-                                try:
-                                    child_proc.wait(timeout=15)
-                                except subprocess.TimeoutExpired:
-                                    child_proc.kill()
-                                    child_proc.wait()
-                                break
-                            
-                            time.sleep(1)
-                    else:
-                        # 没有主文件，直接等待子进程退出
-                        child_proc.wait()
+                            break
                     
-                    # 子进程已退出
                     exit_code = child_proc.returncode
                     
-                    # 如果是文件变化导致的重启，继续循环
-                    if 'should_restart' in locals() and should_restart:
-                        # 等待一段时间，确保所有旧的工作进程都已经完全关闭
-                        # 检查端口是否已经释放
-                        start_time = time.time()
-                        while time.time() - start_time < 30:  # 最多等待 30 秒
-                            if is_port_available(self.host, self.port):
-                                break
-                            time.sleep(1)
+                    if exit_code == 0 or exit_code is None:
                         continue
-                    else:
-                        break
-                        
-                except Exception:
+                    
+                    if exit_code not in (0, -2, -15):
+                        log_error(self.logger, "Server exited with code %d" % exit_code)
+                    
+                    break
+                    
+                except Exception as e:
+                    log_error(self.logger, "Error starting server: %s" % str(e))
                     time.sleep(1)
                 finally:
-                    # 确保子进程被关闭
                     if child_proc and child_proc.poll() is None:
                         try:
                             child_proc.terminate()
-                            child_proc.wait(timeout=15)
+                            child_proc.wait(timeout=5)
                         except Exception:
                             try:
                                 child_proc.kill()

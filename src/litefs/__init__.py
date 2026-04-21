@@ -37,9 +37,11 @@ from .cli import main as cli_main
 from .config import Config, load_config, merge_configs
 from .core import Litefs, _cmd_args, make_config, make_server, test_server
 from .error_pages import ErrorPageRenderer
-from .exceptions import HttpError
+from .exceptions import HttpError, HTTPException, NotFound, BadRequest, Unauthorized, Forbidden, InternalServerError, abort
 from .handlers import RequestHandler, WSGIRequestHandler, EnhancedRequestHandler, parse_form, Response
 from .middleware import MiddlewareManager
+from .context import g, has_request_context, get_current_request, RequestContext
+from .forms import Form, Field, Email as EmailFieldValidator, Length, Required, URL as URLFieldValidator, Number, Regex, Choice
 
 from .server import HTTPServer, TCPServer, WSGIServer, mainloop, make_environ, make_headers
 from .session import Session
@@ -88,7 +90,6 @@ __all__ = [
     "RequestHandler",
     "WSGIRequestHandler",
     "parse_form",
-    "new_module",
     "HTTPServer",
     "WSGIServer",
     "TCPServer",
@@ -96,6 +97,13 @@ __all__ = [
     "make_headers",
     "mainloop",
     "HttpError",
+    "HTTPException",
+    "NotFound",
+    "BadRequest",
+    "Unauthorized",
+    "Forbidden",
+    "InternalServerError",
+    "abort",
     "make_logger",
     "log_error",
     "log_info",
@@ -110,6 +118,19 @@ __all__ = [
     "ErrorPageRenderer",
     "EnhancedRequestHandler",
     "Response",
+    "g",
+    "has_request_context",
+    "get_current_request",
+    "RequestContext",
+    "Form",
+    "Field",
+    "EmailFieldValidator",
+    "Length",
+    "Required",
+    "URLFieldValidator",
+    "Number",
+    "Regex",
+    "Choice",
     "ValidationError",
     "Validator",
     "RequiredValidator",

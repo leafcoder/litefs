@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Litefs 实时聊天室</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>💬 聊天室</h2>
+                <div class="connection-status" id="connection-status">
+                    <span class="status-dot disconnected"></span>
+                    <span class="status-text">未连接</span>
+                </div>
+            </div>
+            
+            <div class="user-setup">
+                <h3>设置昵称</h3>
+                <div class="name-input-group">
+                    <input 
+                        type="text" 
+                        id="username-input" 
+                        placeholder="输入你的昵称..." 
+                        maxlength="20"
+                        autocomplete="off"
+                    >
+                </div>
+            </div>
+            
+            <div class="room-info">
+                <h3>当前房间</h3>
+                <div class="room-name">
+                    <span class="room-icon">🏠</span>
+                    <span>公共聊天室</span>
+                </div>
+                <div class="online-count">
+                    <span class="online-icon">👥</span>
+                    <span id="online-count">0</span> 人在线
+                </div>
+            </div>
+            
+            <div class="online-users">
+                <h3>在线用户</h3>
+                <ul class="user-list" id="user-list">
+                    <li class="empty-hint">暂无在线用户</li>
+                </ul>
+            </div>
+            
+            <div class="quick-actions">
+                <button class="btn btn-primary" id="connect-btn">
+                    <span class="btn-icon">🔌</span>
+                    连接服务器
+                </button>
+            </div>
+            
+            <div class="features-list">
+                <h3>功能特性</h3>
+                <ul>
+                    <li><span class="feature-icon">✓</span> WebSocket 实时通信</li>
+                    <li><span class="feature-icon">✓</span> 房间管理</li>
+                    <li><span class="feature-icon">✓</span> 消息广播</li>
+                    <li><span class="feature-icon">✓</span> 后台推送通知</li>
+                </ul>
+            </div>
+        </aside>
+        
+        <main class="chat-main">
+            <header class="chat-header">
+                <h1>公共聊天室</h1>
+                <p class="subtitle">基于 Litefs WebSocket 的实时聊天演示</p>
+            </header>
+            
+            <div class="messages-container" id="messages-container">
+                <div class="welcome-message">
+                    <div class="welcome-icon">👋</div>
+                    <h2>欢迎使用 Litefs 聊天室</h2>
+                    <p>请先设置昵称，然后点击「连接服务器」开始聊天</p>
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="message-input" 
+                        placeholder="输入消息，按 Enter 发送..." 
+                        disabled
+                        autocomplete="off"
+                    >
+                    <button class="send-btn" id="send-btn" disabled>
+                        <span class="send-icon">📤</span>
+                        发送
+                    </button>
+                </div>
+                <div class="input-hint">
+                    <span>提示: 按 Enter 快速发送消息</span>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

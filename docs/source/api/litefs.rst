@@ -12,6 +12,7 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
+   litefs.auth
    litefs.cache
    litefs.handlers
    litefs.middleware

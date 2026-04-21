@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - Litefs 博客</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Litefs 博客</a>
+        </div>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/profile">个人中心</a>
+            <a href="/admin">管理后台</a>
+            <a href="#" onclick="logout(); return false;">退出</a>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="container">
+            <div class="admin-header">
+                <h1>管理后台</h1>
+            </div>
+            
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <div class="stat-icon">📄</div>
+                    <div class="stat-info">
+                        <span class="stat-value">${stats['total_posts']}</span>
+                        <span class="stat-label">文章总数</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-info">
+                        <span class="stat-value">${stats['total_users']}</span>
+                        <span class="stat-label">注册用户</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">👁️</div>
+                    <div class="stat-info">
+                        <span class="stat-value">${stats['total_views']}</span>
+                        <span class="stat-label">总访问量</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-info">
+                        <span class="stat-value">${stats['today_views']}</span>
+                        <span class="stat-label">今日访问</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="admin-sections">
+                <section class="admin-section">
+                    <h2>最近文章</h2>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>标题</th>
+                                <th>作者</th>
+                                <th>分类</th>
+                                <th>状态</th>
+                                <th>浏览</th>
+                                <th>日期</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            % for post in recent_posts:
+                            <tr>
+                                <td><a href="/post/${post['id']}">${post['title'][:30]}${'...' if len(post['title']) > 30 else ''}</a></td>
+                                <td>${post['author_name']}</td>
+                                <td>${post['category']}</td>
+                                <td><span class="badge ${'badge-success' if post['status'] == 'published' else 'badge-warning'}">${'已发布' if post['status'] == 'published' else '草稿'}</span></td>
+                                <td>${post['views']}</td>
+                                <td>${post['created_at'][:10]}</td>
+                            </tr>
+                            % endfor
+                        </tbody>
+                    </table>
+                </section>
+                
+                <section class="admin-section">
+                    <h2>用户列表</h2>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>用户名</th>
+                                <th>昵称</th>
+                                <th>邮箱</th>
+                                <th>角色</th>
+                                <th>注册时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            % for u in users:
+                            <tr>
+                                <td>${u['username']}</td>
+                                <td>${u.get('nickname', '-')}</td>
+                                <td>${u.get('email', '-')}</td>
+                                <td><span class="badge ${'badge-primary' if u.get('is_admin') else 'badge-secondary'}">${'管理员' if u.get('is_admin') else '用户'}</span></td>
+                                <td>${u['created_at'][:10] if u.get('created_at') else '-'}</td>
+                            </tr>
+                            % endfor
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '/';
+                }
+            } catch (e) {
+                console.error('Logout failed:', e);
+            }
+        }
+    </script>
+</body>
+</html>

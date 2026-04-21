@@ -1,150 +1,89 @@
-# Greenlet vs AsyncIO 性能分析报告
+# LiteFS 性能基准测试报告
 
-## 测试概述
-
-本报告对比分析了 Litefs 框架中基于 Greenlet 和 AsyncIO 两种实现的 HTTP 服务器性能。
+> 测试时间：2026-04-20 | 测试工具：wrk 4.2.0 | 测试场景：Hello World（最小化 HTTP 响应）
 
 ## 测试环境
 
-- **操作系统**: Linux
-- **Python 版本**: 3.10.9
-- **测试工具**: Apache Benchmark (ab)
-- **测试参数**: 
-  - 请求数: 10,000
-  - 并发数: 100
-  - 测试端点: `/`, `/async`, `/user/123`
+| 项目 | 配置 |
+|------|------|
+| CPU | 13th Gen Intel(R) Core(TM) i7-1355U (12 线程, 10 核心) |
+| 内存 | 62 GiB |
+| 操作系统 | Linux x86_64 (6.12.65-amd64) |
+| Python | 3.10.9 |
+| wrk | 4.2.0 [epoll] |
+
+## 测试对象
+
+| 服务器 | 说明 | 启动方式 |
+|--------|------|----------|
+| **LiteFS-Greenlet** | LiteFS 原生 HTTP 服务器 (epoll + greenlet) | `python hello_greenlet.py` |
+| **LiteFS-ASGI/Uvicorn** | LiteFS ASGI 应用 + Uvicorn | `uvicorn hello_asgi:application` |
+| **LiteFS-WSGI/Gunicorn** | LiteFS WSGI 应用 + Gunicorn (gevent worker) | `gunicorn hello_wsgi:application -k gevent` |
+| **FastAPI/Uvicorn** | FastAPI 框架 + Uvicorn（对比基准） | `uvicorn hello_fastapi:app` |
+
+测试配置：进程数 1/6，并发连接 500/1000，每组测试时长 10s。
 
 ## 测试结果
 
-### QPS 对比
+### 吞吐量 (Requests/sec)
 
-| 端点 | Greenlet | AsyncIO | 差异 | AsyncIO 优势 |
-|------|----------|---------|------|--------------|
-| / | 8,437 | 8,966 | +529 | +6.27% |
-| /async | 8,043 | 9,213 | +1,170 | +14.54% |
-| /user/123 | 7,521 | 8,143 | +622 | +8.28% |
+| 服务器 | 1P-c500 | 1P-c1000 | 6P-c500 | 6P-c1000 |
+|--------|---------|----------|---------|----------|
+| LiteFS-Greenlet | 8,077 | 6,669 | 14,922 | 15,687 |
+| LiteFS-ASGI/Uvicorn | 4,795 | 5,023 | 9,589 | 11,634 |
+| LiteFS-WSGI/Gunicorn | 6,176 | 6,839 | 14,026 | 13,239 |
+| FastAPI/Uvicorn | 4,858 | 4,804 | 9,316 | 10,499 |
 
-**平均性能提升**: +9.70%
+### P99 延迟 (ms)
 
-### 延迟对比 (ms)
+| 服务器 | 1P-c500 | 1P-c1000 | 6P-c500 | 6P-c1000 |
+|--------|---------|----------|---------|----------|
+| LiteFS-Greenlet | 121.36 | 303.95 | 91.51 | 158.77 |
+| LiteFS-ASGI/Uvicorn | 230.11 | 250.45 | 74.95 | 178.98 |
+| LiteFS-WSGI/Gunicorn | 1,460.00 | 1,770.00 | 1,380.00 | 1,530.00 |
+| FastAPI/Uvicorn | 158.07 | 264.92 | 92.01 | 170.18 |
 
-| 端点 | Greenlet | AsyncIO | 差异 | AsyncIO 优势 |
-|------|----------|---------|------|--------------|
-| / | 0.12 | 0.11 | -0.01 | -8.33% |
-| /async | 0.12 | 0.11 | -0.01 | -8.33% |
-| /user/123 | 0.13 | 0.12 | -0.01 | -7.69% |
+### 多进程扩展性 (6进程 vs 1进程 RPS 提升)
 
-**平均延迟降低**: -8.12%
+| 服务器 | 500 并发 | 1000 并发 |
+|--------|---------|----------|
+| LiteFS-ASGI/Uvicorn | **2.00x** | **2.32x** |
+| LiteFS-Greenlet | 1.85x | 2.35x |
+| FastAPI/Uvicorn | 1.92x | 2.18x |
+| LiteFS-WSGI/Gunicorn | 2.27x | 1.94x |
 
-## 性能分析
+## 结论
 
-### AsyncIO 版本优势
+### 吞吐量排名（6 进程 / 1000 并发）
 
-1. **更高的 QPS**:
-   - 所有端点的 QPS 都比 Greenlet 版本高
-   - `/async` 端点优势最明显（+14.54%）
-   - 平均性能提升约 9.70%
+| 排名 | 服务器 | RPS | P99 延迟 | 综合评价 |
+|------|--------|-----|----------|----------|
+| 1 | **LiteFS-Greenlet** | **15,687** | **158.77 ms** | **综合最优：最高吞吐 + 最低延迟** |
+| 2 | LiteFS-WSGI/Gunicorn | 13,239 | 1,530.00 ms | 吞吐尚可，但尾部延迟偏高 |
+| 3 | LiteFS-ASGI/Uvicorn | 11,634 | 178.98 ms | 多进程扩展性最佳 |
+| 4 | FastAPI/Uvicorn | 10,499 | 170.18 ms | 对比基准，表现稳定 |
 
-2. **更低的延迟**:
-   - 所有端点的延迟都比 Greenlet 版本低
-   - 平均延迟降低约 8.12%
-   - 更好的用户体验
+### 综合评价
 
-3. **技术优势**:
-   - 使用 ASGIRequestHandler，有更好的优化
-   - Python 3.10+ 的 asyncio 事件循环有显著优化
-   - 更现代的实现方式
+1. **LiteFS-Greenlet** 是综合表现最优的方案。单进程 6,600-8,000 RPS，6 进程达 14,900-15,700 RPS，P99 延迟控制在 160ms 以内，在吞吐量和延迟上均为最优。
 
-### Greenlet 版本特点
+2. **LiteFS-WSGI/Gunicorn** 吞吐量尚可（13,200-14,000 RPS），但 P99 延迟超过 1.3 秒，延迟分布极不均匀，gevent worker 在高并发下存在尾部延迟问题，不适合对延迟敏感的场景。
 
-1. **技术特点**:
-   - 使用 C 扩展，理论上上下文切换更快
-   - epoll 在 Linux 上性能优异
-   - 成熟的实现，经过生产验证
+3. **LiteFS-ASGI/Uvicorn** 多进程扩展性最佳（6 进程 RPS 提升 2.32x），禁用日志后性能显著提升，6 进程 1000 并发达 11,600+ RPS，适合需要 ASGI 中间件生态的场景。
 
-2. **功能特点**:
-   - 支持多进程模式
-   - 与现有 Greenlet 生态集成
+4. **FastAPI/Uvicorn** 作为对比基准，表现稳定。6 进程 1000 并发达 10,500 RPS。LiteFS-Greenlet 在吞吐上领先 FastAPI 约 49%。
 
-### 性能差异原因分析
+### 推荐方案
 
-1. **ASGIRequestHandler 优化**:
-   - AsyncIO 版本使用了 ASGIRequestHandler
-   - ASGIRequestHandler 经过了深度优化
-   - 包括延迟加载会话、请求体处理优化等
+- **追求综合性能**：LiteFS-Greenlet（高吞吐 + 低延迟 + 零外部依赖）
+- **追求极致吞吐**：LiteFS-WSGI/Gunicorn（可接受尾部延迟）
+- **ASGI 生态**：LiteFS-ASGI/Uvicorn（需要 ASGI 中间件生态时选择）
 
-2. **Python 3.10+ asyncio 优化**:
-   - Python 3.10 对 asyncio 进行了大量优化
-   - 事件循环性能显著提升
-   - 原生协程性能接近 Greenlet
-
-3. **实现差异**:
-   - Greenlet 版本使用传统的 WSGI 风格处理
-   - AsyncIO 版本使用现代的 ASGI 风格处理
-   - ASGI 风格更适合异步处理
-
-## 结论与建议
-
-### 结论
-
-1. **AsyncIO 版本性能更好**: 在所有测试场景中，AsyncIO 版本的性能都优于 Greenlet 版本。
-
-2. **性能提升显著**: 平均 QPS 提升 9.70%，平均延迟降低 8.12%。
-
-3. **技术趋势**: AsyncIO 是 Python 异步编程的未来，性能已经超越 Greenlet。
-
-### 建议
-
-1. **新项目推荐使用 AsyncIO 版本**:
-   - 性能更好
-   - 延迟更低
-   - 更好的异步生态兼容性
-   - 与 async/await 无缝集成
-
-2. **现有 Greenlet 项目**:
-   - 可以继续使用，性能仍然很好
-   - 考虑逐步迁移到 AsyncIO 版本
-   - 利用多进程模式提升性能
-
-3. **生产环境**:
-   - AsyncIO 版本已经足够成熟
-   - 建议使用 Gunicorn + Uvicorn 部署
-   - 可以获得更好的性能和开发体验
-
-## 后续工作
-
-1. **进一步优化 Greenlet 版本**:
-   - 参考 AsyncIO 版本的优化策略
-   - 提升 Greenlet 版本的性能
-
-2. **扩展测试场景**:
-   - 测试更多并发级别
-   - 测试不同负载模式
-   - 测试长时间运行稳定性
-
-3. **生产验证**:
-   - 在生产环境中验证 AsyncIO 版本的稳定性
-   - 收集实际使用数据
-   - 持续优化性能
-
-## 附录
-
-### 测试命令
+## 运行测试
 
 ```bash
-# Greenlet 版本
-ab -n 10000 -c 100 http://127.0.0.1:9010/
-
-# AsyncIO 版本
-ab -n 10000 -c 100 http://127.0.0.1:9110/
+cd benchmarks
+PATH=~/.pyenv/shims:~/.pyenv/bin:~/Installed:/usr/local/bin:/usr/bin:/bin python run_benchmark.py
 ```
 
-### 测试代码
-
-测试代码位于: `/home/zhanglei3/Desktop/dev/litefs/tests/performance/test_greenlet_vs_asyncio.py`
-
-### 相关文档
-
-- [AsyncIO HTTP 服务器](asyncio-server.md)
-- [ASGI 部署](asgi-deployment.md)
-- [WSGI 部署](wsgi-deployment.md)
+测试结果自动保存到 `results/{timestamp}/data.json`，HTML 报告保存到 `results/latest/report.html`。

@@ -45,6 +45,10 @@ import sys
 import os
 import multiprocessing
 import time
+import signal
+import select
+import tempfile
+import json
 
 
 should_retry_error = (EWOULDBLOCK, EAGAIN)
@@ -75,7 +79,7 @@ def make_headers(rw: Any) -> Dict[str, str]:
 def make_environ(server: Any, rw: Any, client_address: Tuple[str, int]) -> Dict[str, Any]:
     environ = dict()
     environ["SERVER_NAME"] = server.server_name
-    environ["SERVER_SOFTWARE"] = "litefs/0.5.0"
+    environ["SERVER_SOFTWARE"] = "litefs/0.8.0"
     environ["SERVER_PORT"] = server.server_port
     environ["REMOTE_ADDR"] = client_address[0]
     environ["REMOTE_HOST"] = client_address[0]
@@ -410,12 +414,8 @@ class TCPServer(object):
                 # Flush the buffer to ensure the response is sent
                 if hasattr(rw, 'flush'):
                     rw.flush()
-            except Exception:
-                pass
             finally:
                 self.shutdown_request(request)
-        except Exception as e:
-            raise
         finally:
             # 确保在所有情况下都清理 greenlet 和关闭连接
             try:
@@ -479,244 +479,270 @@ class HTTPServer(TCPServer):
 
 
 class ProcessHTTPServer(HTTPServer):
-    """多进程 HTTP 服务器"""
+    """多进程 HTTP 服务器（改进版）
+    
+    改进点：
+    1. 使用 PID 文件管理进程，避免残留
+    2. Master-Worker 架构，Master 负责管理 Worker
+    3. 优雅关闭，先停止接收新连接，等待现有请求完成
+    4. 信号管道通信，确保信号可靠传递
+    """
 
     def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True, processes=4):
-        """
-        初始化多进程 HTTP 服务器
-        
-        Args:
-            server_address: 服务器地址
-            RequestHandlerClass: 请求处理器类
-            bind_and_activate: 是否绑定和激活
-            processes: 进程数，默认为 4
-        """
-        # 延迟绑定端口，避免热重载时端口被占用
         super().__init__(server_address, RequestHandlerClass, False)
         self.processes = processes
         self.workers = []
+        self._shutdown_requested = False
+        self._master_pid = os.getpid()
+        self._worker_pids = []
+        self._signal_pipe_r = None
+        self._signal_pipe_w = None
+        self._listen_sock = None
+
+    def _get_pid_file(self):
+        """获取 PID 文件路径"""
+        host, port = self.server_address
+        pid_dir = os.path.join(tempfile.gettempdir(), 'litefs')
+        os.makedirs(pid_dir, exist_ok=True)
+        return os.path.join(pid_dir, f'litefs_{host}_{port}.pid')
+
+    def _write_pid_file(self):
+        """写入 PID 文件"""
+        pid_file = self._get_pid_file()
+        pid_data = {
+            'master_pid': os.getpid(),
+            'worker_pids': self._worker_pids,
+            'port': self.server_address[1],
+            'host': self.server_address[0],
+            'starttime': time.time()
+        }
+        try:
+            with open(pid_file, 'w') as f:
+                json.dump(pid_data, f)
+        except Exception as e:
+            logging.warning(f"无法写入 PID 文件: {e}")
+
+    def _read_pid_file(self):
+        """读取 PID 文件"""
+        pid_file = self._get_pid_file()
+        try:
+            if os.path.exists(pid_file):
+                with open(pid_file, 'r') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return None
+
+    def _remove_pid_file(self):
+        """删除 PID 文件"""
+        pid_file = self._get_pid_file()
+        try:
+            if os.path.exists(pid_file):
+                os.remove(pid_file)
+        except Exception:
+            pass
+
+    def _is_process_alive(self, pid):
+        """检查进程是否存活"""
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+    def _kill_stale_processes(self):
+        """清理残留进程"""
+        pid_data = self._read_pid_file()
+        if not pid_data:
+            return
+        
+        master_pid = pid_data.get('master_pid')
+        worker_pids = pid_data.get('worker_pids', [])
+        
+        all_pids = [master_pid] + worker_pids
+        all_pids = [p for p in all_pids if p and p != os.getpid()]
+        
+        for pid in all_pids:
+            if self._is_process_alive(pid):
+                logging.info(f"清理残留进程: PID {pid}")
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    time.sleep(0.1)
+                    if self._is_process_alive(pid):
+                        os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+        
+        self._remove_pid_file()
+        time.sleep(0.5)
+
+    def _setup_signal_handlers(self):
+        """设置信号处理器"""
+        def handle_signal(signum, frame):
+            if self._signal_pipe_w is not None:
+                try:
+                    os.write(self._signal_pipe_w, b'1')
+                except OSError:
+                    pass
+        
+        signal.signal(signal.SIGTERM, handle_signal)
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
     def server_forever(self, poll_interval=0.1):
         """启动多进程服务器"""
-        # 绑定和激活服务器
+        self._kill_stale_processes()
+        
+        self._signal_pipe_r, self._signal_pipe_w = os.pipe()
+        
         self.server_bind()
         self.server_activate()
+        self._listen_sock = self.socket
         
-        # 启动多个进程
+        self._setup_signal_handlers()
+        
         for i in range(self.processes):
-            worker = multiprocessing.Process(target=self._run_worker, args=(i, poll_interval))
-            worker.daemon = True
-            worker.start()
-            self.workers.append(worker)
-            logging.info(f"启动工作进程 {i}")
+            worker_pid = os.fork()
+            if worker_pid == 0:
+                self._run_worker(i, poll_interval)
+                os._exit(0)
+            else:
+                self._worker_pids.append(worker_pid)
+                logging.info(f"启动工作进程 {i}, PID: {worker_pid}")
         
-        # 等待所有进程结束
+        self._write_pid_file()
+        
         try:
-            for worker in self.workers:
-                worker.join()
-        except KeyboardInterrupt:
-            logging.info("接收到中断信号，停止服务器")
-            self.shutdown()
+            self._master_loop(poll_interval)
+        except Exception as e:
+            logging.error(f"Master 进程错误: {e}")
+        finally:
+            self._shutdown_workers()
+            self._remove_pid_file()
+
+    def _master_loop(self, poll_interval):
+        """Master 进程主循环"""
+        while not self._shutdown_requested:
+            try:
+                rlist, _, _ = select.select([self._signal_pipe_r], [], [], poll_interval)
+                if rlist:
+                    self._shutdown_requested = True
+                    break
+                
+                self._check_workers()
+            except KeyboardInterrupt:
+                self._shutdown_requested = True
+                break
+            except Exception as e:
+                logging.error(f"Master 循环错误: {e}")
+
+    def _check_workers(self):
+        """检查工作进程状态，自动重启意外退出的进程"""
+        for i, pid in enumerate(self._worker_pids):
+            if pid and not self._is_process_alive(pid):
+                logging.warning(f"工作进程 {i} (PID: {pid}) 意外退出，正在重启...")
+                new_pid = os.fork()
+                if new_pid == 0:
+                    self._run_worker(i, 0.1)
+                    os._exit(0)
+                else:
+                    self._worker_pids[i] = new_pid
+                    self._write_pid_file()
+                    logging.info(f"重启工作进程 {i}, 新 PID: {new_pid}")
 
     def _run_worker(self, worker_id, poll_interval):
         """运行工作进程"""
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+        
         logging.info(f"工作进程 {worker_id} 启动，PID: {os.getpid()}")
-        try:
-            # 每个进程创建自己的 epoll 实例
-            global epoll
-            epoll = Epoll() if HAS_EPOLL else None
+        
+        global epoll
+        epoll = Epoll() if HAS_EPOLL else None
+        
+        if HAS_EPOLL:
+            epoll.register(self)
+            self._started = True
             
-            # 运行主循环
-            if HAS_EPOLL:
-                # 注册服务器套接字到 epoll
-                if not hasattr(self, '_started') or not self._started:
-                    epoll.register(self)
-                    self._started = True
-                
-                # 运行 epoll 循环
-                while True:
+            try:
+                while not self._shutdown_requested:
                     epoll.poll(poll_interval=poll_interval)
-            else:
-                # 运行传统循环
-                while True:
-                    self.handle_request()
-        except Exception as e:
-            logging.error(f"工作进程 {worker_id} 出错: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _check_port_free(self, host, port, timeout=5):
-        """检查端口是否已释放
-        
-        Args:
-            host: 主机名
-            port: 端口号
-            timeout: 超时时间（秒）
-            
-        Returns:
-            bool: 端口是否已释放
-        """
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                # 尝试绑定到端口，如果成功则说明端口已释放
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.bind((host, port))
-                sock.close()
-                return True
-            except socket.error:
-                # 端口被占用，继续等待
-                time.sleep(0.1)
-        return False
-    
-    def _get_all_children(self, process):
-        """递归获取所有子进程和孙子进程
-        
-        Args:
-            process: 父进程对象
-            
-        Returns:
-            list: 所有子进程列表
-        """
-        all_children = []
-        try:
-            # 尝试获取子进程
-            # 注意：multiprocessing.Process没有直接获取子进程的方法
-            # 这里我们通过psutil库来实现（如果可用）
-            try:
-                import psutil
-                parent = psutil.Process(process.pid)
-                for child in parent.children(recursive=True):
-                    all_children.append(child)
-            except ImportError:
-                # 如果没有psutil，只检查直接子进程
-                # 注意：这可能无法获取所有孙子进程
+            except KeyboardInterrupt:
                 pass
-        except Exception:
-            pass
-        return all_children
-    
-    def shutdown(self):
-        """关闭服务器"""
-        import signal
-        
-        # 记录服务器地址和端口
-        host, port = self.server_address
-        
-        # 只在主进程中打印关闭信息
-        if os.getpid() == os.getppid() or len(self.workers) > 0:
-            logging.info("开始关闭服务器...")
-        
-        # 终止所有工作进程
-        alive_workers = [w for w in self.workers if w.is_alive()]
-        if alive_workers:
-            logging.info(f"发现 {len(alive_workers)} 个活跃的工作进程")
-        
-        # 首先尝试优雅地终止所有工作进程
-        for i, worker in enumerate(alive_workers):
-            if worker.is_alive():
+            except Exception as e:
+                logging.error(f"工作进程 {worker_id} 错误: {e}")
+            finally:
                 try:
-                    # 发送 SIGTERM 信号
-                    worker.terminate()
+                    epoll.unregister(self)
                 except Exception:
                     pass
+        else:
+            try:
+                while not self._shutdown_requested:
+                    self.handle_request()
+            except KeyboardInterrupt:
+                pass
+
+    def _shutdown_workers(self):
+        """关闭所有工作进程"""
+        if not self._worker_pids:
+            return
         
-        # 等待工作进程关闭
-        if alive_workers:
-            logging.info("等待工作进程关闭...")
+        logging.info("正在关闭工作进程...")
+        
+        for pid in self._worker_pids:
+            if pid and self._is_process_alive(pid):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except OSError:
+                    pass
+        
+        timeout = 5
         start_time = time.time()
-        timeout = 10  # 最多等待 10 秒
-        
         while time.time() - start_time < timeout:
             all_dead = True
-            for worker in self.workers:
-                if worker.is_alive():
+            for pid in self._worker_pids:
+                if pid and self._is_process_alive(pid):
                     all_dead = False
-                    worker.join(timeout=0.1)
-            
+                    break
             if all_dead:
-                if alive_workers:
-                    logging.info("所有工作进程已关闭")
                 break
-            
             time.sleep(0.1)
         
-        # 如果还有进程存活，强制终止
-        for i, worker in enumerate(self.workers):
-            if worker.is_alive():
+        for pid in self._worker_pids:
+            if pid and self._is_process_alive(pid):
                 try:
-                    worker.kill()
-                    worker.join(timeout=1)
-                except Exception:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
                     pass
         
-        # 清空工作进程列表
-        self.workers = []
+        self._worker_pids = []
+        logging.info("所有工作进程已关闭")
+
+    def shutdown(self):
+        """关闭服务器"""
+        self._shutdown_requested = True
         
-        # 关闭服务器套接字
+        if os.getpid() == self._master_pid:
+            self._shutdown_workers()
+            self._remove_pid_file()
+        
         try:
             self.server_close()
-            if alive_workers:
-                logging.info("服务器套接字已关闭")
         except Exception:
             pass
         
-        # 尝试使用 psutil 找到并终止所有相关进程
-        try:
-            import psutil
-            current_pid = os.getpid()
-            
-            # 查找所有监听指定端口的进程
-            for proc in psutil.process_iter(['pid', 'name', 'connections']):
-                try:
-                    # 跳过当前进程
-                    if proc.info['pid'] == current_pid:
-                        continue
-                    
-                    # 检查进程是否监听指定端口
-                    connections = proc.info.get('connections', [])
-                    if connections:
-                        for conn in connections:
-                            if conn.status == 'LISTEN' and conn.laddr.port == port:
-                                # 终止进程及其所有子进程
-                                for child in proc.children(recursive=True):
-                                    try:
-                                        child.terminate()
-                                    except Exception:
-                                        pass
-                                
-                                try:
-                                    proc.terminate()
-                                    proc.wait(timeout=5)
-                                except psutil.TimeoutExpired:
-                                    proc.kill()
-                                    proc.wait()
-                                except Exception:
-                                    pass
-                                break
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-                except Exception:
-                    pass
-        except ImportError:
-            pass
-        except Exception:
-            pass
-        
-        # 等待一段时间让端口释放
-        time.sleep(1)
-        
-        # 检查端口是否已释放
-        if self._check_port_free(host, port, timeout=5):
-            if alive_workers:
-                logging.info("端口已释放，服务器已完全关闭")
-        else:
-            if alive_workers:
-                logging.warning("端口可能未完全释放，服务器已尝试关闭")
-        
-        if alive_workers:
-            logging.info("服务器已关闭")
+        if self._signal_pipe_r is not None:
+            try:
+                os.close(self._signal_pipe_r)
+            except OSError:
+                pass
+        if self._signal_pipe_w is not None:
+            try:
+                os.close(self._signal_pipe_w)
+            except OSError:
+                pass
 
 
 class WSGIServer(HTTPServer):
