@@ -39,7 +39,7 @@ class TestBasicFunctionality(unittest.TestCase):
 
     def test_parse_form(self):
         """测试 parse_form 函数"""
-        from litefs.handlers.request import parse_form
+        from litefs.handlers import parse_form
         
         test_query = "name=test&value=123"
         form = parse_form(test_query)

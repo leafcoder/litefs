@@ -112,7 +112,7 @@ class RateLimitMiddleware(Middleware):
         Returns:
             429 响应
         """
-        from ..handlers.request import Response
+        from ..handlers import Response
 
         response = Response(
             content={
@@ -203,7 +203,7 @@ class ThrottleMiddleware(Middleware):
         Returns:
             429 响应
         """
-        from ..handlers.request import Response
+        from ..handlers import Response
         
         response = Response(
             content={

@@ -111,7 +111,7 @@ class CSRFMiddleware(Middleware):
             headers = list(headers)
         else:
             # 使用 request_handler 的状态码，而不是硬编码 200
-            from litefs.handlers.request import http_status_codes
+            from litefs.handlers import http_status_codes
             status_code = getattr(request_handler, '_status_code', 200)
             status_text = http_status_codes.get(status_code, "OK")
             status = f"{status_code} {status_text}"

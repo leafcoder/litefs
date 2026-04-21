@@ -9,7 +9,7 @@ from io import BytesIO
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 import litefs
-from litefs.handlers.request import WSGIRequestHandler
+from litefs.handlers import WSGIRequestHandler
 
 
 class TestWSGIRequestHandlerPost(unittest.TestCase):
