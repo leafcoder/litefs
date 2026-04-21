@@ -28,8 +28,13 @@ litefs/
 │   ├── server/              # HTTP 服务器实现
 │   │   └── greenlet.py   # epoll + greenlet 高性能服务器
 │   ├── handlers/            # 请求处理器
-│   │   ├── request.py       # 核心请求处理、Response 对象
-│   │   └── request_enhanced.py
+│   │   ├── base.py          # 请求处理器基类
+│   │   ├── wsgi.py          # WSGI 请求处理器
+│   │   ├── asgi.py          # ASGI 请求处理器
+│   │   ├── socket.py        # Socket 请求处理器
+│   │   ├── response.py      # HTTP 响应对象
+│   │   ├── form.py          # 表单数据解析
+│   │   └── enhanced.py      # 增强请求处理
 │   ├── routing/             # 路由系统
 │   │   ├── router.py        # 路由管理（支持装饰器/方法链）
 │   │   └── radix_tree.py    # Radix Tree 路由匹配

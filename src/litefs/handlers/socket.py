@@ -10,10 +10,8 @@
 
 import itertools
 import json
-from hashlib import sha256
 from http.cookies import SimpleCookie
 from io import BytesIO, DEFAULT_BUFFER_SIZE, StringIO
-from os import urandom
 from tempfile import TemporaryFile
 from urllib.parse import unquote_plus
 
@@ -134,17 +132,6 @@ class SocketRequestHandler(BaseRequestHandler):
         session = Session(session_id, store=sessions)
         sessions.put(session_id, session)
         return None, session
-
-    def _new_session_id(self):
-        app = self._app
-        sessions = app.sessions
-        while True:
-            token = urandom(32)
-            session_id = sha256(token).hexdigest()
-            session = sessions.get(session_id)
-            if session is None:
-                break
-        return session_id
 
     @property
     def config(self):

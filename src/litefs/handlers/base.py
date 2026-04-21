@@ -154,11 +154,6 @@ class BaseRequestHandler:
             session_key = self._session_id or self.session.id
             if self._session_modified:
                 app.sessions.put(session_key, self.session)
-        elif self._session_id or self._session:
-            # 对于没有 _session_loaded 属性的旧版本，保持兼容
-            session_key = self._session_id or self.session.id
-            if self._session_modified:
-                app.sessions.put(session_key, self.session)
 
         return session_key
 
