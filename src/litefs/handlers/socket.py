@@ -222,24 +222,6 @@ class SocketRequestHandler(BaseRequestHandler):
         return self.environ.get("HTTP_REFERER")
 
     @property
-    def headers(self):
-        """
-        获取所有请求头
-
-        Returns:
-            包含所有请求头的字典
-        """
-        headers = {}
-        for key, value in self.environ.items():
-            if key.startswith('HTTP_'):
-                header_name = key[5:].replace('_', '-').lower()
-                headers[header_name] = value
-            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
-                header_name = key.replace('_', '-').lower()
-                headers[header_name] = value
-        return headers
-
-    @property
     def cookie(self):
         cookie_str = self.environ.get("HTTP_COOKIE", "")
         cookie = SimpleCookie()

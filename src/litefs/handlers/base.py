@@ -46,6 +46,8 @@ class BaseRequestHandler:
         self._template_lookup = None
         # 初始化 _headers 属性，用于存储响应头
         self._headers = []
+        # 预构建请求头缓存，避免每次访问 headers property 时遍历 environ
+        self._request_headers = self._build_request_headers(environ)
 
     # ==================== 模板渲染 ====================
 
@@ -103,15 +105,18 @@ class BaseRequestHandler:
     # ==================== 会话管理 ====================
 
     def _new_session_id(self):
-        """生成新的会话 ID（SHA256 随机值，确保唯一）"""
-        app = self._app
-        sessions = app.sessions
-        while True:
-            token = urandom(32)
-            session_id = sha256(token).hexdigest()
-            session = sessions.get(session_id)
-            if session is None:
-                break
+        """
+        生成新的会话 ID（SHA256 随机值）
+        
+        使用 SHA-256 哈希算法生成唯一的会话 ID。
+        SHA-256 的碰撞概率约为 2^-128，在实际应用中几乎不可能发生碰撞，
+        因此无需每次检查存储中是否已存在该 ID。
+        
+        Returns:
+            str: 64字符的十六进制会话 ID
+        """
+        token = urandom(32)
+        session_id = sha256(token).hexdigest()
         return session_id
 
     def _build_session_cookie_header(self, session_key):
@@ -466,16 +471,19 @@ class BaseRequestHandler:
     def referer(self):
         return self._environ.get("HTTP_REFERER")
 
-    @property
-    def headers(self):
+    @staticmethod
+    def _build_request_headers(environ):
         """
-        获取所有请求头
+        从 environ 字典中提取所有 HTTP 请求头并缓存
+
+        Args:
+            environ: WSGI/ASGI environ 字典
 
         Returns:
             包含所有请求头的字典
         """
         headers = {}
-        for key, value in self._environ.items():
+        for key, value in environ.items():
             if key.startswith('HTTP_'):
                 header_name = key[5:].replace('_', '-').lower()
                 headers[header_name] = value
@@ -483,6 +491,16 @@ class BaseRequestHandler:
                 header_name = key.replace('_', '-').lower()
                 headers[header_name] = value
         return headers
+
+    @property
+    def headers(self):
+        """
+        获取所有请求头（已缓存，O(1) 访问）
+
+        Returns:
+            包含所有请求头的字典
+        """
+        return self._request_headers
 
     def handle_response(self, result):
         """
