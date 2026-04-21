@@ -11,8 +11,10 @@ import time
 import json
 from typing import Any, Optional
 
+from .base import CacheBackendBase
 
-class MemcacheCache:
+
+class MemcacheCache(CacheBackendBase):
     """
     Memcache 缓存实现
     

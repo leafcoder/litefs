@@ -17,6 +17,7 @@ from zlib import compress
 from watchdog.events import FileSystemEventHandler
 
 from ..utils import gmt_date, log_info
+from .base import CacheBackendBase
 
 suffixes = (".py", ".pyc", ".pyo", ".so")
 
@@ -255,7 +256,7 @@ class LiteFile(object):
         return request._response(self.status_code, headers=headers, content=text)
 
 
-class TreeCache(object):
+class TreeCache(CacheBackendBase):
 
     def __init__(self, clean_period=60, expiration_time=3600):
         self.data = {}
@@ -368,8 +369,26 @@ class TreeCache(object):
         # 更新清理时间
         self.clean_time = current_time
 
+    def exists(self, key):
+        """检查键是否存在且未过期"""
+        return self.get(key) is not None
 
-class MemoryCache(object):
+    def clear(self):
+        """清空所有缓存"""
+        self.data.clear()
+        self.conn.execute("DELETE FROM cache")
+        self.clean_time = time.time()
+
+    def close(self):
+        """关闭数据库连接"""
+        try:
+            if self.conn:
+                self.conn.close()
+        except Exception:
+            pass
+
+
+class MemoryCache(CacheBackendBase):
 
     def __init__(self, max_size=10000):
         self._max_size = int(max_size)
@@ -399,3 +418,15 @@ class MemoryCache(object):
         if key not in self._cache:
             return
         del self._cache[key]
+
+    def exists(self, key):
+        """检查键是否存在"""
+        return key in self._cache
+
+    def clear(self):
+        """清空所有缓存"""
+        self._cache.clear()
+
+    def close(self):
+        """关闭（内存缓存无需操作）"""
+        pass

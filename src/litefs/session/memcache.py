@@ -11,10 +11,11 @@ import time
 import json
 from typing import Any, Optional
 
+from .base import SessionStoreBase
 from .session import Session
 
 
-class MemcacheSession:
+class MemcacheSession(SessionStoreBase):
     """
     Memcache Session 实现
     

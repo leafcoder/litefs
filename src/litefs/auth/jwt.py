@@ -15,6 +15,99 @@ import time
 from typing import Any, Dict, Optional
 
 
+class TokenBlacklist:
+    """
+    Token 黑名单存储
+
+    支持多种后端：内存、缓存（Redis 等）。
+    黑名单条目自动过期清理，不会无限增长。
+    """
+
+    def __init__(self, backend=None):
+        """
+        初始化 Token 黑名单
+
+        Args:
+            backend: 缓存后端实例，需支持 get/put/delete 方法。
+                     如果为 None，则使用内存字典（单实例模式）。
+                     推荐使用 RedisCache 等分布式缓存实现多实例共享。
+        """
+        self._backend = backend
+        self._memory_store = {}  # 内存后端：{token_hash: expire_timestamp}
+
+    def _hash_token(self, token: str) -> str:
+        """对 token 做哈希，避免存储原始 token"""
+        return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+    def add(self, token: str, expires_in: int = 3600):
+        """
+        将 token 加入黑名单
+
+        Args:
+            token: JWT Token
+            expires_in: 黑名单条目存活时间（秒），应 >= token 自身的 exp
+        """
+        token_hash = self._hash_token(token)
+        expire_at = int(time.time()) + expires_in
+
+        if self._backend is not None:
+            self._backend.put(f"jwt:blacklist:{token_hash}", True, expiration=expires_in)
+        else:
+            self._memory_store[token_hash] = expire_at
+
+    def is_blacklisted(self, token: str) -> bool:
+        """
+        检查 token 是否在黑名单中
+
+        Args:
+            token: JWT Token
+
+        Returns:
+            是否已撤销
+        """
+        token_hash = self._hash_token(token)
+
+        if self._backend is not None:
+            return self._backend.get(f"jwt:blacklist:{token_hash}") is not None
+
+        # 内存后端：检查并清理过期条目
+        expire_at = self._memory_store.get(token_hash)
+        if expire_at is None:
+            return False
+        if time.time() > expire_at:
+            del self._memory_store[token_hash]
+            return False
+        return True
+
+    def cleanup(self):
+        """
+        清理内存后端中的过期条目
+
+        仅对内存后端有效，缓存后端依赖自身的 TTL 机制自动清理。
+        """
+        if self._backend is not None:
+            return
+
+        now = time.time()
+        expired_keys = [k for k, v in self._memory_store.items() if now > v]
+        for key in expired_keys:
+            del self._memory_store[key]
+
+    def clear(self):
+        """清空黑名单"""
+        if self._backend is not None:
+            # 缓存后端无法精确清空仅黑名单条目，跳过
+            return
+        self._memory_store.clear()
+
+    def __len__(self) -> int:
+        """黑名单条目数量"""
+        if self._backend is not None:
+            return 0  # 缓存后端无法精确统计
+        self.cleanup()
+        return len(self._memory_store)
+
+
 class JWTManager:
     """JWT Token 管理器"""
     
@@ -24,6 +117,7 @@ class JWTManager:
         algorithm: str = 'HS256',
         access_token_expires: int = 3600,
         refresh_token_expires: int = 604800,
+        blacklist_backend=None,
     ):
         """
         初始化 JWT 管理器
@@ -33,13 +127,15 @@ class JWTManager:
             algorithm: 算法（目前仅支持 HS256）
             access_token_expires: Access Token 过期时间（秒）
             refresh_token_expires: Refresh Token 过期时间（秒）
+            blacklist_backend: 黑名单缓存后端（如 RedisCache），
+                               为 None 则使用内存（单实例，重启丢失）
         """
         self.secret_key = secret_key
         self.algorithm = algorithm
         self.access_token_expires = access_token_expires
         self.refresh_token_expires = refresh_token_expires
         
-        self._blacklist = set()
+        self._blacklist = TokenBlacklist(backend=blacklist_backend)
     
     def _base64url_encode(self, data: bytes) -> str:
         """Base64 URL 安全编码"""
@@ -102,7 +198,7 @@ class JWTManager:
         Returns:
             载荷数据或 None
         """
-        if token in self._blacklist:
+        if self._blacklist.is_blacklisted(token):
             return None
         
         try:
@@ -159,10 +255,27 @@ class JWTManager:
         """
         撤销 Token（加入黑名单）
         
+        自动计算黑名单条目的 TTL，与 token 自身的 exp 对齐，
+        token 过期后黑名单条目自动清理。
+        
         Args:
             token: JWT Token
         """
-        self._blacklist.add(token)
+        # 计算 token 剩余有效期，作为黑名单条目的 TTL
+        try:
+            parts = token.split('.')
+            if len(parts) == 3:
+                payload = json.loads(self._base64url_decode(parts[1]))
+                exp = payload.get('exp', 0)
+                ttl = max(exp - int(time.time()), 0)
+                # 额外增加 60 秒缓冲，确保 token 过期后黑名单仍短暂有效
+                ttl = ttl + 60 if ttl > 0 else 3600
+            else:
+                ttl = 3600
+        except Exception:
+            ttl = 3600
+
+        self._blacklist.add(token, expires_in=ttl)
     
     def is_token_revoked(self, token: str) -> bool:
         """
@@ -174,7 +287,15 @@ class JWTManager:
         Returns:
             是否已撤销
         """
-        return token in self._blacklist
+        return self._blacklist.is_blacklisted(token)
+
+    def cleanup_blacklist(self):
+        """
+        清理黑名单中的过期条目
+
+        仅对内存后端有效，缓存后端依赖自身 TTL 机制。
+        """
+        self._blacklist.cleanup()
 
 
 def create_token(

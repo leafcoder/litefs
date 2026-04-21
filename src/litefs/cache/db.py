@@ -14,8 +14,10 @@ import time
 import zlib
 from typing import Any, Optional
 
+from .base import CacheBackendBase
 
-class DatabaseCache:
+
+class DatabaseCache(CacheBackendBase):
     """
     数据库缓存实现
     

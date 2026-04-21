@@ -11,8 +11,10 @@ import time
 import json
 from typing import Any, Optional
 
+from .base import CacheBackendBase
 
-class RedisCache:
+
+class RedisCache(CacheBackendBase):
     """
     Redis 缓存实现
     

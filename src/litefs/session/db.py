@@ -20,10 +20,11 @@ try:
 except ImportError:
     SQLALCHEMY_AVAILABLE = False
 
+from .base import SessionStoreBase
 from .session import Session
 
 
-class DatabaseSession:
+class DatabaseSession(SessionStoreBase):
     """
     数据库 Session 实现
     
