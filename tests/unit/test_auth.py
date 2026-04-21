@@ -108,6 +108,71 @@ class TestPassword(unittest.TestCase):
         valid, errors = validate_password_strength('weak')
         self.assertFalse(valid)
         self.assertGreater(len(errors), 0)
+    
+    def test_check_password_breach_with_known_password(self):
+        """测试已知泄露密码的检查"""
+        from litefs.auth.password import check_password_breach
+        
+        # 测试已知泄露的密码 "password"
+        is_breached = check_password_breach("password", use_cache=False)
+        self.assertTrue(is_breached, "已知泄露密码 'password' 应该被检测到")
+        
+        # 测试已知泄露的密码 "123456"
+        is_breached = check_password_breach("123456", use_cache=False)
+        self.assertTrue(is_breached, "已知泄露密码 '123456' 应该被检测到")
+    
+    def test_check_password_breach_with_safe_password(self):
+        """测试安全密码的检查"""
+        from litefs.auth.password import check_password_breach, generate_password
+        
+        # 生成一个随机密码，应该不在泄露数据库中
+        safe_password = generate_password(32)
+        is_breached = check_password_breach(safe_password, use_cache=False)
+        # 注意：这个测试有极小概率失败（如果生成的密码恰好被泄露）
+        # 但概率非常低，可以接受
+        self.assertFalse(is_breached, "随机生成的强密码不应该被检测为泄露")
+    
+    def test_check_password_breach_with_empty_password(self):
+        """测试空密码的检查"""
+        from litefs.auth.password import check_password_breach
+        
+        is_breached = check_password_breach("", use_cache=False)
+        self.assertFalse(is_breached, "空密码不应该被检测为泄露")
+        
+        is_breached = check_password_breach(None, use_cache=False)
+        self.assertFalse(is_breached, "None 密码不应该被检测为泄露")
+    
+    def test_check_password_breach_cache(self):
+        """测试密码泄露检查缓存"""
+        from litefs.auth.password import check_password_breach, clear_breach_cache
+        
+        # 清空缓存
+        clear_breach_cache()
+        
+        # 第一次调用，应该访问 API
+        is_breached1 = check_password_breach("password", use_cache=True)
+        
+        # 第二次调用，应该使用缓存
+        is_breached2 = check_password_breach("password", use_cache=True)
+        
+        # 结果应该一致
+        self.assertEqual(is_breached1, is_breached2)
+        
+        # 清空缓存
+        clear_breach_cache()
+    
+    def test_get_breach_count(self):
+        """测试获取密码泄露次数"""
+        from litefs.auth.password import get_breach_count
+        
+        # 测试已知泄露的密码
+        count = get_breach_count("password")
+        # "password" 是最常见的泄露密码之一，泄露次数应该很大
+        self.assertGreater(count, 0, "已知泄露密码 'password' 的泄露次数应该大于 0")
+        
+        # 测试空密码
+        count = get_breach_count("")
+        self.assertEqual(count, 0, "空密码的泄露次数应该是 0")
 
 
 class TestModels(unittest.TestCase):
