@@ -49,7 +49,7 @@ class Config:
         'session_max_size': 1000000,      # 会话最大容量
         'session_expiration_time': 3600,  # 会话过期时间（秒）
         'session_name': 'litefs.sid',     # 会话cookie名称
-        'session_secure': False,          # 是否使用安全cookie
+        'session_secure': None,           # 是否使用安全cookie (None=自动检测，生产环境True，开发环境False)
         'session_http_only': True,        # 是否仅HTTP访问
         'session_same_site': 'Lax',       # SameSite策略（Strict, Lax, None）
         
@@ -219,6 +219,64 @@ class Config:
         port = self._config.get('port')
         if not isinstance(port, int) or port < 1 or port > 65535:
             raise ValueError(f"无效的端口: {port}")
+        
+        # 环境感知的安全配置
+        self._apply_security_defaults()
+    
+    def _apply_security_defaults(self):
+        """
+        应用环境感知的安全配置默认值
+        
+        根据运行环境自动调整安全相关配置：
+        - 生产环境：启用所有安全特性
+        - 开发环境：放宽部分安全限制以便于开发
+        """
+        # 检测是否为生产环境
+        env = os.getenv(f'{self.ENV_PREFIX}CONFIG_ENV', 'development')
+        is_production = env.lower() in ('production', 'prod', 'live')
+        
+        # 自动设置 session_secure
+        if self._config.get('session_secure') is None:
+            self._config['session_secure'] = is_production
+            if is_production:
+                # 生产环境强制使用安全cookie
+                pass
+            else:
+                # 开发环境允许HTTP（但发出警告）
+                import warnings
+                warnings.warn(
+                    "session_secure 设置为 False，仅适用于开发环境。"
+                    "生产环境请确保使用HTTPS并设置 session_secure=True",
+                    UserWarning,
+                    stacklevel=3
+                )
+        
+        # 生产环境强制安全配置检查
+        if is_production:
+            if not self._config.get('session_secure'):
+                import warnings
+                warnings.warn(
+                    "生产环境检测到 session_secure=False，这会导致安全风险！"
+                    "强烈建议在生产环境中设置 session_secure=True",
+                    UserWarning,
+                    stacklevel=3
+                )
+            
+            if self._config.get('debug'):
+                import warnings
+                warnings.warn(
+                    "生产环境检测到 debug=True，这会暴露敏感信息！"
+                    "强烈建议在生产环境中设置 debug=False",
+                    UserWarning,
+                    stacklevel=3
+                )
+            
+            if self._config.get('session_same_site') == 'None':
+                if not self._config.get('session_secure'):
+                    raise ValueError(
+                        "安全配置错误：SameSite=None 必须配合 Secure=True 使用。"
+                        "请设置 session_secure=True 或更改 session_same_site 配置。"
+                    )
     
 
     

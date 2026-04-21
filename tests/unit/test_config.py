@@ -418,5 +418,108 @@ class TestMergeConfigs(unittest.TestCase):
         self.assertEqual(merged.debug, True)
 
 
+class TestSecurityConfig(unittest.TestCase):
+    """测试安全配置"""
+
+    def setUp(self):
+        """设置测试环境"""
+        self.original_env = os.environ.get('LITEFS_CONFIG_ENV')
+    
+    def tearDown(self):
+        """清理测试环境"""
+        if self.original_env is not None:
+            os.environ['LITEFS_CONFIG_ENV'] = self.original_env
+        elif 'LITEFS_CONFIG_ENV' in os.environ:
+            del os.environ['LITEFS_CONFIG_ENV']
+    
+    def test_session_secure_default_development(self):
+        """测试开发环境下session_secure默认值"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'development'
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = Config()
+            
+            # 开发环境应该默认为False
+            self.assertEqual(config.session_secure, False)
+            
+            # 应该有警告提示
+            self.assertTrue(len(w) > 0)
+            self.assertIn("session_secure 设置为 False", str(w[0].message))
+    
+    def test_session_secure_default_production(self):
+        """测试生产环境下session_secure默认值"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'production'
+        
+        config = Config()
+        
+        # 生产环境应该默认为True
+        self.assertEqual(config.session_secure, True)
+    
+    def test_session_secure_explicit_false_in_production(self):
+        """测试生产环境显式设置session_secure=False"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'production'
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = Config(session_secure=False)
+            
+            # 应该保持用户设置的值
+            self.assertEqual(config.session_secure, False)
+            
+            # 应该有安全警告
+            self.assertTrue(len(w) > 0)
+            self.assertTrue(any("生产环境检测到 session_secure=False" in str(warning.message) for warning in w))
+    
+    def test_debug_true_in_production(self):
+        """测试生产环境debug=True的警告"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'production'
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = Config(debug=True)
+            
+            # 应该有安全警告
+            self.assertTrue(len(w) > 0)
+            self.assertTrue(any("生产环境检测到 debug=True" in str(warning.message) for warning in w))
+    
+    def test_samesite_none_without_secure(self):
+        """测试SameSite=None但没有Secure的错误"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'production'
+        
+        # SameSite=None 必须配合 Secure=True
+        with self.assertRaises(ValueError) as context:
+            config = Config(
+                session_same_site='None',
+                session_secure=False
+            )
+        
+        self.assertIn("SameSite=None 必须配合 Secure=True", str(context.exception))
+    
+    def test_samesite_none_with_secure(self):
+        """测试SameSite=None配合Secure=True的正确配置"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'production'
+        
+        # 应该正常工作
+        config = Config(
+            session_same_site='None',
+            session_secure=True
+        )
+        
+        self.assertEqual(config.session_same_site, 'None')
+        self.assertEqual(config.session_secure, True)
+    
+    def test_session_secure_explicit_true(self):
+        """测试显式设置session_secure=True"""
+        os.environ['LITEFS_CONFIG_ENV'] = 'development'
+        
+        # 显式设置应该覆盖默认值
+        config = Config(session_secure=True)
+        self.assertEqual(config.session_secure, True)
+
+
 if __name__ == '__main__':
     unittest.main()
