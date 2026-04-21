@@ -184,7 +184,7 @@ class ASGIRequestHandler(BaseRequestHandler):
         # 处理请求体
         await self._process_request_body()
 
-        middleware_result = app.middleware_manager.process_request(self)
+        middleware_result = await app.middleware_manager.async_process_request(self)
         if middleware_result is not None:
             return middleware_result
 
@@ -208,17 +208,91 @@ class ASGIRequestHandler(BaseRequestHandler):
                     else:
                         result = handler(self, **params)
 
-                    return self._process_route_result(result, app)
+                    return await self._async_process_route_result(result, app)
                 except Exception:
-                    return self._process_route_error(app)
+                    return await self._async_process_route_error(app)
 
             # 路由未匹配，返回 404
-            return app.middleware_manager.process_response(self, self._response(404))
+            return await app.middleware_manager.async_process_response(
+                self, self._response(404)
+            )
         except Exception as e:
-            middleware_result = app.middleware_manager.process_exception(self, e)
+            middleware_result = await app.middleware_manager.async_process_exception(self, e)
             if middleware_result is not None:
                 return middleware_result
             raise
+
+    async def _async_process_route_result(self, result, app):
+        """
+        异步处理路由处理器的返回结果
+        """
+        from .response import Response
+        from http.client import responses as http_status_codes
+
+        if isinstance(result, Response):
+            return await self._async_handle_response_object(result, app, http_status_codes)
+
+        if self._headers_responsed:
+            return await self._async_handle_headers_responsed(result, app, http_status_codes)
+
+        return await self._async_handle_normal_result(result, app, http_status_codes)
+
+    async def _async_handle_response_object(self, result, app, http_status_codes):
+        """异步处理 Response 对象类型的返回值"""
+        session_key = self._session_id or self.session.id
+        if self._session_modified:
+            app.sessions.put(session_key, self.session)
+
+        result.headers.append(("Set-Cookie", self._build_session_cookie_header(session_key)))
+
+        status_code = result.status_code
+        status_text = http_status_codes.get(status_code, "Unknown")
+        status = "%d %s" % (status_code, status_text)
+        return await app.middleware_manager.async_process_response(
+            self, (status, result.headers, result.content)
+        )
+
+    async def _async_handle_headers_responsed(self, result, app, http_status_codes):
+        """异步处理已经调用过 start_response 的情况"""
+        session_key = self._session_id or self.session.id
+        app.sessions.put(session_key, self.session)
+
+        self.set_cookie(
+            app.config.session_name, session_key,
+            path="/",
+            secure=app.config.session_secure,
+            httponly=app.config.session_http_only,
+            samesite=app.config.session_same_site
+        )
+
+        status_code = int(self._status_code)
+        status_text = http_status_codes.get(status_code, "Unknown")
+        status = "%d %s" % (status_code, status_text)
+
+        from .response import server_info
+        response_headers = [("Server", server_info)]
+        response_headers.extend(self._headers)
+
+        return await app.middleware_manager.async_process_response(
+            self, (status, response_headers, result)
+        )
+
+    async def _async_handle_normal_result(self, result, app, http_status_codes):
+        """异步处理普通返回值"""
+        return await app.middleware_manager.async_process_response(
+            self, self._response(self._status_code, content=result)
+        )
+
+    async def _async_process_route_error(self, app):
+        """异步处理路由执行过程中的异常"""
+        from ..utils import log_error, render_error
+        log_error(app.logger)
+        if app.config.debug:
+            content = render_error()
+            return await app.middleware_manager.async_process_response(
+                self, self._response(500, content=content)
+            )
+        return await app.middleware_manager.async_process_response(self, self._response(500))
 
 
 __all__ = [
