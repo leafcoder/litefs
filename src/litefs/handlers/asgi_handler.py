@@ -10,18 +10,12 @@ ASGI 请求处理器
 
 import asyncio
 import io
-import json
-from hashlib import sha256
 from http.cookies import SimpleCookie
-from os import urandom
-from tempfile import TemporaryFile
 
 from ..exceptions import HttpError
 from ..session import Session
-from ..utils import gmt_date, log_debug, log_error, render_error
 from .base_handler import BaseRequestHandler
 from .form_parser import parse_form, parse_header, parse_multipart_asgi
-from .response import server_info
 
 
 class ASGIRequestHandler(BaseRequestHandler):
@@ -169,125 +163,6 @@ class ASGIRequestHandler(BaseRequestHandler):
         self._session_modified = False
         return None, session
 
-    def _new_session_id(self):
-        app = self._app
-        sessions = app.sessions
-        while True:
-            token = urandom(32)
-            session_id = sha256(token).hexdigest()
-            session = sessions.get(session_id)
-            if session is None:
-                break
-        return session_id
-
-    @property
-    def config(self):
-        return self._app.config
-
-    @property
-    def files(self):
-        return self._files or {}
-
-    @property
-    def body(self):
-        return self._body
-
-    @property
-    def json(self):
-        body = self._body
-        if not body:
-            return {}
-        content_type = self._environ.get("CONTENT_TYPE", "")
-        content_type, _ = parse_header(content_type)
-        content_type = content_type.lower()
-        if content_type not in ("application/json", "application/json-rpc"):
-            return {}
-        return json.loads(body)
-
-    @property
-    def environ(self):
-        return self._environ
-
-    @property
-    def params(self):
-        return self._get
-
-    @property
-    def data(self):
-        return self._post
-
-    @property
-    def session_id(self):
-        return self._session_id
-
-    @property
-    def session(self):
-        return self._session
-
-    @property
-    def request_method(self):
-        return self._environ.get("REQUEST_METHOD", "GET")
-
-    method = request_method
-
-    @property
-    def server_protocol(self):
-        return self._environ.get("SERVER_PROTOCOL", "HTTP/1.1")
-
-    @property
-    def content_type(self):
-        return self._environ.get("CONTENT_TYPE")
-
-    @property
-    def charset(self, default="UTF-8"):
-        content_type = self.content_type
-        if content_type:
-            _, params = parse_header(content_type)
-            return params.get("charset", default)
-        return default
-
-    @property
-    def content_length(self):
-        return int(self._environ.get("CONTENT_LENGTH", 0) or 0)
-
-    @property
-    def path_info(self):
-        return self._environ.get("PATH_INFO", "/")
-
-    @property
-    def query_string(self):
-        return self._environ.get("QUERY_STRING", "")
-
-    @property
-    def request_uri(self):
-        path_info = self.path_info
-        query_string = self.query_string
-        if not query_string:
-            return path_info
-        return "?".join((path_info, query_string))
-
-    @property
-    def referer(self):
-        return self._environ.get("HTTP_REFERER")
-
-    @property
-    def headers(self):
-        """
-        获取所有请求头
-
-        Returns:
-            包含所有请求头的字典
-        """
-        headers = {}
-        for key, value in self._environ.items():
-            if key.startswith('HTTP_'):
-                header_name = key[5:].replace('_', '-').lower()
-                headers[header_name] = value
-            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
-                header_name = key.replace('_', '-').lower()
-                headers[header_name] = value
-        return headers
-
     @property
     def cookie(self):
         cookie_str = ""
@@ -300,61 +175,10 @@ class ASGIRequestHandler(BaseRequestHandler):
         cookie.load(cookie_str)
         return cookie
 
-    def _add_header(self, key, value):
-        self._headers.append((key, value))
-
-    def _add_response_headers(self, headers):
-        headers.extend(self._headers)
-
-    def set_cookie(self, key, value, **kwargs):
-        cookie = SimpleCookie()
-        cookie[key] = value
-        for k, v in kwargs.items():
-            if not v:
-                continue
-            cookie[key][k] = v
-        self._headers.append(("Set-Cookie", str(cookie[key])))
-
-    def _redirect(self, url):
-        url = "/" if url is None else url
-        headers = [("Content-Type", "text/html; charset=utf-8"), ("Location", url)]
-        status_code = 302
-        status_text = "Found"
-        content = "%d %s" % (status_code, status_text)
-        return self._response(status_code, headers=headers, content=content)
-
-    def _build_session_cookie_header(self, session_key):
-        """
-        构建会话 Cookie 头部
-
-        Args:
-            session_key: 会话 ID
-
-        Returns:
-            Set-Cookie 头部值
-        """
-        app = self._app
-        session_name = app.config.session_name
-        session_secure = app.config.session_secure
-        session_http_only = app.config.session_http_only
-        session_same_site = app.config.session_same_site
-        cookie_header = SimpleCookie()
-        cookie_header[session_name] = session_key
-        cookie_header[session_name]['path'] = "/"
-        if session_secure:
-            cookie_header[session_name]['secure'] = True
-        if session_http_only:
-            cookie_header[session_name]['httponly'] = True
-        if session_same_site:
-            cookie_header[session_name]['samesite'] = session_same_site
-        return str(cookie_header[session_name])
-
     async def handler(self):
         """
         异步处理请求
         """
-        from .response import Response
-        from http.client import responses as http_status_codes
         app = self._app
 
         # 处理请求体
@@ -384,95 +208,9 @@ class ASGIRequestHandler(BaseRequestHandler):
                     else:
                         result = handler(self, **params)
 
-                    # 处理 Response 对象
-                    if isinstance(result, Response):
-                        # 确保会话已加载
-                        session_key = None
-                        if self._session_loaded:
-                            # 保存 Session 数据到 Session 存储（只有在会话被修改时）
-                            if self._session_modified:
-                                session_key = self._session_id or self.session.id
-                                app.sessions.put(session_key, self.session)
-                            else:
-                                session_key = self._session_id or self.session.id
-                        else:
-                            # 会话未加载，不需要设置 cookie
-                            pass
-
-                        # 设置 session cookie（只有在会话已加载时）
-                        if session_key:
-                            result.headers.append(("Set-Cookie", self._build_session_cookie_header(session_key)))
-
-                        status_code = result.status_code
-                        status_text = http_status_codes.get(status_code, "Unknown")
-                        status = "%d %s" % (status_code, status_text)
-                        return app.middleware_manager.process_response(
-                            self, (status, result.headers, result.content)
-                        )
-
-                    if self._headers_responsed:
-                        # 确保会话已加载
-                        session_key = None
-                        if self._session_loaded:
-                            # 保存 Session 数据到 Session 存储（只有在会话被修改时）
-                            if self._session_modified:
-                                session_key = self._session_id or self.session.id
-                                app.sessions.put(session_key, self.session)
-                            else:
-                                session_key = self._session_id or self.session.id
-
-                        # 设置 session cookie（只有在会话已加载时）
-                        if session_key:
-                            self.set_cookie(
-                                app.config.session_name, session_key,
-                                path="/",
-                                secure=app.config.session_secure,
-                                httponly=app.config.session_http_only,
-                                samesite=app.config.session_same_site
-                            )
-
-                        status_code = int(self._status_code)
-                        status_text = http_status_codes.get(status_code, "Unknown")
-                        status = "%d %s" % (status_code, status_text)
-
-                        response_headers = [("Server", server_info)]
-                        response_headers.extend(self._headers)
-
-                        return app.middleware_manager.process_response(
-                            self, (status, response_headers, result)
-                        )
-
-                    # 确保会话已加载
-                    session_key = None
-                    if self._session_loaded:
-                        # 保存 Session 数据到 Session 存储（只有在会话被修改时）
-                        if self._session_modified:
-                            session_key = self._session_id or self.session.id
-                            app.sessions.put(session_key, self.session)
-                        else:
-                            session_key = self._session_id or self.session.id
-
-                    # 设置 session cookie（只有在会话已加载时）
-                    if session_key:
-                        self.set_cookie(
-                            app.config.session_name, session_key,
-                            path="/",
-                            secure=app.config.session_secure,
-                            httponly=app.config.session_http_only,
-                            samesite=app.config.session_same_site
-                        )
-
-                    return app.middleware_manager.process_response(
-                        self, self._response(self._status_code, content=result)
-                    )
+                    return self._process_route_result(result, app)
                 except Exception:
-                    log_error(app.logger)
-                    if app.config.debug:
-                        content = render_error()
-                        return app.middleware_manager.process_response(
-                            self, self._response(500, content=content)
-                        )
-                    return app.middleware_manager.process_response(self, self._response(500))
+                    return self._process_route_error(app)
 
             # 路由未匹配，返回 404
             return app.middleware_manager.process_response(self, self._response(404))
@@ -481,18 +219,6 @@ class ASGIRequestHandler(BaseRequestHandler):
             if middleware_result is not None:
                 return middleware_result
             raise
-
-    def handle_response(self, result):
-        """
-        处理响应结果，支持 Response 对象
-        """
-        from .response import Response
-        if isinstance(result, Response):
-            self._status_code = result.status_code
-            for header, value in result.headers:
-                self._add_header(header, value)
-            return result.content
-        return result
 
 
 __all__ = [

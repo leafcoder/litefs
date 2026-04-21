@@ -8,8 +8,10 @@
 """
 
 import json
+from hashlib import sha256
 from http.cookies import SimpleCookie
 from http.client import responses as http_status_codes
+from os import urandom
 
 from .response import (
     DEFAULT_STATUS_MESSAGE,
@@ -17,12 +19,15 @@ from .response import (
     json_content_type,
     server_info,
 )
-from .form_parser import parse_form
+from .form_parser import parse_form, parse_header
 
 
 class BaseRequestHandler:
     """
     请求处理器基类，提供通用的请求处理功能
+
+    所有 WSGI/ASGI/Socket 请求处理器共享的属性和方法集中在此，
+    减少子类间的代码重复。
     """
 
     def __init__(self, app, environ):
@@ -37,9 +42,12 @@ class BaseRequestHandler:
         self._session_id = None
         self._session = None
         self._session_modified = False
+        self._session_loaded = False
         self._template_lookup = None
         # 初始化 _headers 属性，用于存储响应头
         self._headers = []
+
+    # ==================== 模板渲染 ====================
 
     def render_template(self, template_name, **kwargs):
         """
@@ -92,6 +100,70 @@ class BaseRequestHandler:
             # Content-Type 会在 _response 方法中设置
             return error_content
 
+    # ==================== 会话管理 ====================
+
+    def _new_session_id(self):
+        """生成新的会话 ID（SHA256 随机值，确保唯一）"""
+        app = self._app
+        sessions = app.sessions
+        while True:
+            token = urandom(32)
+            session_id = sha256(token).hexdigest()
+            session = sessions.get(session_id)
+            if session is None:
+                break
+        return session_id
+
+    def _build_session_cookie_header(self, session_key):
+        """
+        构建会话 Cookie 头部
+
+        Args:
+            session_key: 会话 ID
+
+        Returns:
+            Set-Cookie 头部值
+        """
+        app = self._app
+        session_name = app.config.session_name
+        session_secure = app.config.session_secure
+        session_http_only = app.config.session_http_only
+        session_same_site = app.config.session_same_site
+        cookie_header = SimpleCookie()
+        cookie_header[session_name] = session_key
+        cookie_header[session_name]['path'] = "/"
+        if session_secure:
+            cookie_header[session_name]['secure'] = True
+        if session_http_only:
+            cookie_header[session_name]['httponly'] = True
+        if session_same_site:
+            cookie_header[session_name]['samesite'] = session_same_site
+        return str(cookie_header[session_name])
+
+    def _save_session_to_store(self):
+        """
+        保存会话到存储并返回 session_key。
+
+        Returns:
+            session_key 如果会话已加载且有 ID，否则 None
+        """
+        app = self._app
+        session_key = None
+
+        if self._session_loaded:
+            session_key = self._session_id or self.session.id
+            if self._session_modified:
+                app.sessions.put(session_key, self.session)
+        elif self._session_id or self._session:
+            # 对于没有 _session_loaded 属性的旧版本，保持兼容
+            session_key = self._session_id or self.session.id
+            if self._session_modified:
+                app.sessions.put(session_key, self.session)
+
+        return session_key
+
+    # ==================== 响应构建 ====================
+
     def start_response(self, status_code=200, headers=None):
         if self._headers_responsed:
             raise ValueError("Http headers already responsed.")
@@ -108,7 +180,27 @@ class BaseRequestHandler:
         self._headers_responsed = True
 
     def _add_header(self, key, value):
-        raise NotImplementedError("Subclasses must implement _add_header")
+        self._headers.append((key, value))
+
+    def _add_response_headers(self, headers):
+        headers.extend(self._headers)
+
+    def set_cookie(self, key, value, **kwargs):
+        cookie = SimpleCookie()
+        cookie[key] = value
+        for k, v in kwargs.items():
+            if not v:
+                continue
+            cookie[key][k] = v
+        self._headers.append(("Set-Cookie", str(cookie[key])))
+
+    def _redirect(self, url):
+        url = "/" if url is None else url
+        headers = [("Content-Type", "text/html; charset=utf-8"), ("Location", url)]
+        status_code = 302
+        status_text = "Found"
+        content = "%d %s" % (status_code, status_text)
+        return self._response(status_code, headers=headers, content=content)
 
     def _build_response_headers(self, status_code, extra_headers=None, content=None):
         """
@@ -226,19 +318,7 @@ class BaseRequestHandler:
         Args:
             response_headers: 响应头列表
         """
-        # 保存 Session 数据到 Session 存储（只有在会话被修改且已加载时）
-        app = self._app
-        session_key = None
-
-        if hasattr(self, '_session_loaded') and self._session_loaded:
-            session_key = self._session_id or self.session.id
-            if self._session_modified:
-                app.sessions.put(session_key, self.session)
-        elif self._session_id or self._session:
-            # 对于没有 _session_loaded 属性的旧版本，保持兼容
-            session_key = self._session_id or self.session.id
-            if self._session_modified:
-                app.sessions.put(session_key, self.session)
+        session_key = self._save_session_to_store()
 
         # 设置 session cookie（只有在会话已加载时）
         if session_key:
@@ -271,11 +351,21 @@ class BaseRequestHandler:
         """
         return self._prepare_response(status_code, headers, content)
 
-    def _add_response_headers(self, headers):
-        raise NotImplementedError("Subclasses must implement _add_response_headers")
+    # ==================== 请求属性（共享） ====================
 
-    def set_cookie(self, key, value, **kwargs):
-        raise NotImplementedError("Subclasses must implement set_cookie")
+    @property
+    def config(self):
+        return self._app.config
+
+    @property
+    def app(self):
+        """
+        获取应用实例
+
+        Returns:
+            应用实例
+        """
+        return self._app
 
     @property
     def session_id(self):
@@ -299,7 +389,7 @@ class BaseRequestHandler:
 
     @property
     def files(self):
-        return self._files
+        return self._files or {}
 
     @property
     def form(self):
@@ -312,14 +402,188 @@ class BaseRequestHandler:
         return self._post
 
     @property
-    def app(self):
+    def json(self):
+        body = self._body
+        if not body:
+            return {}
+        content_type = self._environ.get("CONTENT_TYPE", "")
+        content_type, _ = parse_header(content_type)
+        content_type = content_type.lower()
+        if content_type not in ("application/json", "application/json-rpc"):
+            return {}
+        return json.loads(body)
+
+    @property
+    def environ(self):
+        return self._environ
+
+    @property
+    def params(self):
+        return self._get
+
+    @property
+    def data(self):
+        return self._post
+
+    @property
+    def request_method(self):
+        return self._environ.get("REQUEST_METHOD", "GET")
+
+    method = request_method
+
+    @property
+    def server_protocol(self):
+        return self._environ.get("SERVER_PROTOCOL", "HTTP/1.1")
+
+    @property
+    def content_type(self):
+        return self._environ.get("CONTENT_TYPE")
+
+    @property
+    def charset(self, default="UTF-8"):
+        content_type = self.content_type
+        if content_type:
+            _, params = parse_header(content_type)
+            return params.get("charset", default)
+        return default
+
+    @property
+    def content_length(self):
+        return int(self._environ.get("CONTENT_LENGTH", 0) or 0)
+
+    @property
+    def path_info(self):
+        return self._environ.get("PATH_INFO", "/")
+
+    @property
+    def query_string(self):
+        return self._environ.get("QUERY_STRING", "")
+
+    @property
+    def request_uri(self):
+        path_info = self.path_info
+        query_string = self.query_string
+        if not query_string:
+            return path_info
+        return "?".join((path_info, query_string))
+
+    @property
+    def referer(self):
+        return self._environ.get("HTTP_REFERER")
+
+    @property
+    def headers(self):
         """
-        获取应用实例
+        获取所有请求头
 
         Returns:
-            应用实例
+            包含所有请求头的字典
         """
-        return self._app
+        headers = {}
+        for key, value in self._environ.items():
+            if key.startswith('HTTP_'):
+                header_name = key[5:].replace('_', '-').lower()
+                headers[header_name] = value
+            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
+                header_name = key.replace('_', '-').lower()
+                headers[header_name] = value
+        return headers
+
+    def handle_response(self, result):
+        """
+        处理响应结果，支持 Response 对象
+        """
+        from .response import Response
+        if isinstance(result, Response):
+            self._status_code = result.status_code
+            for header, value in result.headers:
+                self._add_header(header, value)
+            return result.content
+        return result
+
+    def _process_route_result(self, result, app):
+        """
+        处理路由处理器的返回结果，统一处理 Response 对象、
+        已发送头部的响应、和普通返回值。
+
+        Args:
+            result: 路由处理器的返回值
+            app: 应用实例
+
+        Returns:
+            经过 middleware 处理的响应元组
+        """
+        from .response import Response
+        from http.client import responses as http_status_codes
+
+        # 处理 Response 对象
+        if isinstance(result, Response):
+            return self._handle_response_object(result, app, http_status_codes)
+
+        if self._headers_responsed:
+            return self._handle_headers_responsed(result, app, http_status_codes)
+
+        return self._handle_normal_result(result, app, http_status_codes)
+
+    def _handle_response_object(self, result, app, http_status_codes):
+        """处理 Response 对象类型的返回值"""
+        # 保存会话
+        session_key = self._session_id or self.session.id
+        if self._session_modified:
+            app.sessions.put(session_key, self.session)
+
+        # 设置 session cookie
+        result.headers.append(("Set-Cookie", self._build_session_cookie_header(session_key)))
+
+        status_code = result.status_code
+        status_text = http_status_codes.get(status_code, "Unknown")
+        status = "%d %s" % (status_code, status_text)
+        return app.middleware_manager.process_response(
+            self, (status, result.headers, result.content)
+        )
+
+    def _handle_headers_responsed(self, result, app, http_status_codes):
+        """处理已经调用过 start_response 的情况"""
+        # 保存会话
+        session_key = self._session_id or self.session.id
+        app.sessions.put(session_key, self.session)
+
+        # 设置 session cookie
+        self.set_cookie(
+            app.config.session_name, session_key,
+            path="/",
+            secure=app.config.session_secure,
+            httponly=app.config.session_http_only,
+            samesite=app.config.session_same_site
+        )
+
+        status_code = int(self._status_code)
+        status_text = http_status_codes.get(status_code, "Unknown")
+        status = "%d %s" % (status_code, status_text)
+
+        response_headers = [("Server", server_info)]
+        response_headers.extend(self._headers)
+
+        return app.middleware_manager.process_response(
+            self, (status, response_headers, result)
+        )
+
+    def _handle_normal_result(self, result, app, http_status_codes):
+        """处理普通返回值"""
+        return app.middleware_manager.process_response(
+            self, self._response(self._status_code, content=result)
+        )
+
+    def _process_route_error(self, app):
+        """处理路由执行过程中的异常"""
+        from ..utils import log_error, render_error
+        log_error(app.logger)
+        if app.config.debug:
+            content = render_error()
+            return app.middleware_manager.process_response(
+                self, self._response(500, content=content)
+            )
+        return app.middleware_manager.process_response(self, self._response(500))
 
 
 __all__ = [
