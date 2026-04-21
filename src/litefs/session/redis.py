@@ -84,6 +84,32 @@ class RedisSession:
         """生成带前缀的键"""
         return f"{self._key_prefix}{session_id}"
 
+    def _scan_keys(self, pattern: str, count: int = 100) -> list:
+        """
+        使用 SCAN 迭代匹配键，替代 KEYS 命令
+
+        KEYS 是 O(N) 操作，会阻塞 Redis 服务器；
+        SCAN 是游标式迭代，不会阻塞。
+
+        Args:
+            pattern: 键模式（已包含前缀）
+            count: 每次 SCAN 建议返回数量（仅提示，非精确值）
+
+        Returns:
+            匹配的键列表
+        """
+        keys = []
+        cursor = 0
+        while True:
+            cursor, batch = self._redis.scan(
+                cursor=cursor, match=pattern, count=count
+            )
+            if batch:
+                keys.extend(batch)
+            if cursor == 0:
+                break
+        return keys
+
     def put(self, session_id: str, session: Session) -> None:
         """
         存储 Session
@@ -155,7 +181,10 @@ class RedisSession:
             删除的键数量
         """
         redis_pattern = self._make_key(pattern)
-        return self._redis.delete(*self._redis.keys(redis_pattern))
+        keys = self._scan_keys(redis_pattern)
+        if keys:
+            return self._redis.delete(*keys)
+        return 0
 
     def exists(self, session_id: str) -> bool:
         """
@@ -204,7 +233,7 @@ class RedisSession:
         注意：这会删除所有带前缀的键
         """
         pattern = self._make_key("*")
-        keys = self._redis.keys(pattern)
+        keys = self._scan_keys(pattern)
         if keys:
             self._redis.delete(*keys)
 
@@ -216,8 +245,8 @@ class RedisSession:
             Session 数量
         """
         pattern = self._make_key("*")
-        keys = self._redis.keys(pattern)
-        return len(keys) if keys else 0
+        keys = self._scan_keys(pattern)
+        return len(keys)
 
     def close(self) -> None:
         """
