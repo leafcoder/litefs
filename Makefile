@@ -1,4 +1,4 @@
-.PHONY: docs-serve docs-build docs-check docs-clean docs-stats
+.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help
 
 # 文档相关命令
 
@@ -52,3 +52,47 @@ docs-help:
 	@echo "  make docs-clean    - 清理构建文件"
 	@echo "  make docs-stats    - 显示文档统计"
 	@echo "  make docs-help     - 显示帮助信息"
+
+# 打包和发布命令
+
+# 打包（构建sdist和wheel）
+build:
+	@echo "Building package..."
+	python -m build
+	@echo "Package built successfully!"
+
+# 发布到测试PyPI
+publish-test:
+	@echo "Publishing to Test PyPI..."
+	twine upload --repository testpypi dist/*
+	@echo "Published to Test PyPI successfully!"
+
+# 发布到正式PyPI
+publish:
+	@echo "Publishing to PyPI..."
+	twine upload dist/*
+	@echo "Published to PyPI successfully!"
+
+# 清理构建产物
+clean-build:
+	@echo "Cleaning build artifacts..."
+	rm -rf dist build *.egg-info
+	@echo "Build artifacts cleaned!"
+
+# 完整发布流程（清理→构建→发布）
+release:
+	@echo "Starting release process..."
+	make clean-build
+	make build
+	make publish
+	@echo "Release process completed!"
+
+# 发布帮助信息
+publish-help:
+	@echo "打包和发布命令:"
+	@echo "  make build         - 构建sdist和wheel包"
+	@echo "  make publish-test  - 发布到测试PyPI"
+	@echo "  make publish       - 发布到正式PyPI"
+	@echo "  make clean-build   - 清理构建产物"
+	@echo "  make release       - 完整发布流程（清理→构建→发布）"
+	@echo "  make publish-help  - 显示发布帮助信息"
