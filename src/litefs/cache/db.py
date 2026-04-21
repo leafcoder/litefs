@@ -8,6 +8,7 @@
 """
 
 import json
+import random
 import sqlite3
 import time
 import zlib
@@ -27,6 +28,8 @@ class DatabaseCache:
         db_path: str = ":memory:",
         table_name: str = "cache",
         expiration_time: int = 3600,
+        cleanup_probability: float = 0.01,
+        cleanup_threshold: int = 1000,
         **kwargs
     ):
         """
@@ -36,13 +39,18 @@ class DatabaseCache:
             db_path: 数据库文件路径，默认为内存数据库
             table_name: 缓存表名
             expiration_time: 默认过期时间（秒）
+            cleanup_probability: 清理概率（0-1之间，默认0.01即1%概率）
+            cleanup_threshold: 触发强制清理的过期条目阈值（默认1000）
             **kwargs: 其他数据库连接参数
         """
         self._db_path = db_path
         self._table_name = table_name
         self._expiration_time = expiration_time
+        self._cleanup_probability = cleanup_probability
+        self._cleanup_threshold = cleanup_threshold
         self._conn = None
         self._cursor = None
+        self._operation_count = 0
         
         self._initialize_database()
 
@@ -67,17 +75,43 @@ class DatabaseCache:
         
         self._conn.commit()
 
-    def _cleanup_expired(self):
-        """清理过期的缓存条目"""
+    def _cleanup_expired(self, force: bool = False):
+        """
+        清理过期的缓存条目
+        
+        使用概率性清理策略：
+        1. 每次操作有小概率触发清理（默认1%）
+        2. 当操作计数达到阈值时强制清理
+        3. 可通过force参数强制执行清理
+        
+        Args:
+            force: 是否强制执行清理
+        """
         if self._cursor is None:
             return
-            
-        current_time = int(time.time())
-        self._cursor.execute(
-            f"DELETE FROM {self._table_name} WHERE expiration < ?",
-            (current_time,)
-        )
-        self._conn.commit()
+        
+        self._operation_count += 1
+        
+        # 判断是否需要执行清理
+        should_cleanup = force
+        
+        # 概率性清理
+        if not should_cleanup and self._cleanup_probability > 0:
+            should_cleanup = random.random() < self._cleanup_probability
+        
+        # 阈值触发清理
+        if not should_cleanup and self._cleanup_threshold > 0:
+            if self._operation_count >= self._cleanup_threshold:
+                should_cleanup = True
+                self._operation_count = 0
+        
+        if should_cleanup:
+            current_time = int(time.time())
+            self._cursor.execute(
+                f"DELETE FROM {self._table_name} WHERE expiration < ?",
+                (current_time,)
+            )
+            self._conn.commit()
 
     def _serialize(self, value: Any) -> str:
         """
@@ -294,6 +328,7 @@ class DatabaseCache:
             
         self._cursor.execute(f"DELETE FROM {self._table_name}")
         self._conn.commit()
+        self._operation_count = 0
 
     def __len__(self) -> int:
         """
