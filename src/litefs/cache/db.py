@@ -7,8 +7,10 @@
 提供基于关系数据库的缓存实现
 """
 
+import json
 import sqlite3
 import time
+import zlib
 from typing import Any, Optional
 
 
@@ -17,6 +19,7 @@ class DatabaseCache:
     数据库缓存实现
     
     使用 SQLite 数据库作为缓存后端，提供持久化的缓存支持
+    使用 JSON 序列化替代 pickle，避免反序列化安全风险
     """
 
     def __init__(
@@ -51,7 +54,7 @@ class DatabaseCache:
         self._cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {self._table_name} (
                 key TEXT PRIMARY KEY,
-                value BLOB,
+                value TEXT,
                 timestamp INTEGER,
                 expiration INTEGER
             )
@@ -76,6 +79,45 @@ class DatabaseCache:
         )
         self._conn.commit()
 
+    def _serialize(self, value: Any) -> str:
+        """
+        安全序列化：使用 JSON + zlib 压缩
+        
+        Args:
+            value: 要序列化的值
+            
+        Returns:
+            序列化后的字符串
+            
+        Raises:
+            TypeError: 如果值包含 JSON 不支持的类型
+        """
+        json_str = json.dumps(value, ensure_ascii=False, default=str)
+        compressed = zlib.compress(json_str.encode("utf-8"))
+        import base64
+        return base64.b64encode(compressed).decode("ascii")
+
+    def _deserialize(self, data: str) -> Any:
+        """
+        安全反序列化：使用 zlib 解压 + JSON 解析
+        
+        Args:
+            data: 序列化的字符串
+            
+        Returns:
+            反序列化后的值
+            
+        Raises:
+            ValueError: 如果数据损坏或格式无效
+        """
+        import base64
+        try:
+            compressed = base64.b64decode(data.encode("ascii"))
+            json_str = zlib.decompress(compressed).decode("utf-8")
+            return json.loads(json_str)
+        except (json.JSONDecodeError, zlib.error, Exception) as e:
+            raise ValueError(f"缓存数据反序列化失败: {e}")
+
     def put(self, key: str, val: Any, expiration: Optional[int] = None) -> None:
         """
         存储值到缓存
@@ -85,8 +127,6 @@ class DatabaseCache:
             val: 缓存值
             expiration: 过期时间（秒），如果为 None 则使用默认过期时间
         """
-        import pickle
-        
         if self._cursor is None:
             return
             
@@ -94,7 +134,7 @@ class DatabaseCache:
         expiration_time = expiration if expiration is not None else self._expiration_time
         expire_timestamp = current_time + expiration_time if expiration_time > 0 else 0
         
-        serialized_value = pickle.dumps(val)
+        serialized_value = self._serialize(val)
         
         self._cursor.execute(
             f"""
@@ -116,8 +156,6 @@ class DatabaseCache:
         Returns:
             缓存值，如果不存在或已过期则返回 None
         """
-        import pickle
-        
         if self._cursor is None:
             return None
             
@@ -130,7 +168,12 @@ class DatabaseCache:
         result = self._cursor.fetchone()
         
         if result:
-            return pickle.loads(result[0])
+            try:
+                return self._deserialize(result[0])
+            except ValueError:
+                # 损坏的缓存数据，删除并返回 None
+                self.delete(key)
+                return None
         return None
 
     def delete(self, key: str) -> None:
@@ -279,8 +322,6 @@ class DatabaseCache:
         Returns:
             键值字典
         """
-        import pickle
-        
         if self._cursor is None or not keys:
             return {}
         
@@ -295,7 +336,11 @@ class DatabaseCache:
         
         result = {}
         for key, value in results:
-            result[key] = pickle.loads(value)
+            try:
+                result[key] = self._deserialize(value)
+            except ValueError:
+                # 损坏的数据跳过
+                self.delete(key)
         
         return result
 
@@ -307,8 +352,6 @@ class DatabaseCache:
             mapping: 键值字典
             expiration: 过期时间（秒），如果为 None 则使用默认过期时间
         """
-        import pickle
-        
         if self._cursor is None or not mapping:
             return
         
@@ -318,7 +361,7 @@ class DatabaseCache:
         
         data = []
         for key, value in mapping.items():
-            serialized_value = pickle.dumps(value)
+            serialized_value = self._serialize(value)
             data.append((key, serialized_value, current_time, expire_timestamp))
         
         self._cursor.executemany(

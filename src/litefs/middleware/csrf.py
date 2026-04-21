@@ -7,6 +7,9 @@ CSRF 保护中间件
 提供跨站请求伪造防护
 """
 
+import hashlib
+import hmac
+import json
 import secrets
 from typing import Optional
 
@@ -126,7 +129,10 @@ class CSRFMiddleware(Middleware):
     
     def _generate_csrf_token(self, request_handler):
         """
-        生成 CSRF 令牌
+        生成 CSRF 令牌（HMAC-SHA256 签名方式）
+        
+        令牌格式: <随机nonce>.<HMAC签名>
+        签名内容: nonce + session_id，绑定到当前会话
         
         Args:
             request_handler: 请求处理器实例
@@ -134,19 +140,56 @@ class CSRFMiddleware(Middleware):
         Returns:
             CSRF 令牌
         """
-        # 从 cookie 中获取现有令牌
+        # 从 cookie 中获取现有令牌，验证其是否仍有效
         cookie = request_handler.cookie
-        csrf_token = None
         if cookie:
             cookie_item = cookie.get(self.cookie_name)
             if cookie_item:
-                csrf_token = cookie_item.value
+                existing_token = cookie_item.value
+                if self._validate_csrf_token(existing_token, request_handler):
+                    return existing_token
         
-        # 如果没有现有令牌，生成新的
-        if not csrf_token:
-            csrf_token = secrets.token_urlsafe(32)
+        # 生成新的 HMAC-SHA256 签名令牌
+        nonce = secrets.token_urlsafe(32)
+        session_id = self._get_session_id(request_handler)
+        signature = self._sign_token(nonce, session_id)
+        csrf_token = f"{nonce}.{signature}"
         
         return csrf_token
+
+    def _sign_token(self, nonce: str, session_id: str) -> str:
+        """
+        使用 HMAC-SHA256 对 nonce 和 session_id 进行签名
+        
+        Args:
+            nonce: 随机字符串
+            session_id: 会话 ID
+            
+        Returns:
+            签名的十六进制字符串
+        """
+        message = f"{nonce}:{session_id}".encode("utf-8")
+        key = self.secret_key.encode("utf-8")
+        return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+    def _get_session_id(self, request_handler) -> str:
+        """
+        获取当前请求的 session_id，用于绑定 CSRF 令牌到会话
+        
+        Args:
+            request_handler: 请求处理器实例
+            
+        Returns:
+            session_id 字符串，如果没有会话则返回空字符串
+        """
+        session_id = getattr(request_handler, 'session_id', None)
+        if session_id:
+            return str(session_id)
+        # 尝试从 session 属性获取
+        session = getattr(request_handler, 'session', None)
+        if session and hasattr(session, 'id'):
+            return str(session.id)
+        return ""
     
     def _get_csrf_token(self, request_handler):
         """
@@ -184,7 +227,12 @@ class CSRFMiddleware(Middleware):
     
     def _validate_csrf_token(self, token, request_handler):
         """
-        验证 CSRF 令牌
+        验证 CSRF 令牌（HMAC-SHA256 签名验证）
+        
+        验证流程:
+        1. 检查令牌格式（必须包含 nonce.signature）
+        2. 使用 secret_key 和当前 session_id 重新计算签名
+        3. 使用恒定时间比较防止时序攻击
         
         Args:
             token: 要验证的 CSRF 令牌
@@ -193,13 +241,24 @@ class CSRFMiddleware(Middleware):
         Returns:
             如果令牌有效返回 True，否则返回 False
         """
-        # 简单验证：检查令牌是否存在且长度足够
-        if not token or len(token) < 32:
+        if not token or len(token) < 64:
             return False
         
-        # 更安全的验证：使用 HMAC 验证令牌
-        # 这里可以根据需要实现更复杂的验证逻辑
-        return True
+        # 解析令牌格式: nonce.signature
+        parts = token.rsplit(".", 1)
+        if len(parts) != 2:
+            return False
+        
+        nonce, signature = parts
+        if not nonce or not signature:
+            return False
+        
+        # 使用当前 session_id 重新计算签名
+        session_id = self._get_session_id(request_handler)
+        expected_signature = self._sign_token(nonce, session_id)
+        
+        # 使用恒定时间比较，防止时序攻击
+        return hmac.compare_digest(signature, expected_signature)
     
     def _create_csrf_cookie(self, csrf_token):
         """
@@ -228,10 +287,10 @@ class CSRFMiddleware(Middleware):
     def _create_forbidden_response(self, message):
         """
         创建 403 响应
-        
+
         Args:
             message: 错误消息
-            
+
         Returns:
             403 响应
         """
@@ -239,6 +298,6 @@ class CSRFMiddleware(Middleware):
         headers = [
             ("Content-Type", "application/json; charset=utf-8"),
         ]
-        content = f'{{"error": "{message}"}}'.encode("utf-8")
-        
+        content = json.dumps({"error": message}).encode("utf-8")
+
         return status, headers, content

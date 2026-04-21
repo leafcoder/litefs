@@ -44,7 +44,6 @@ class DatabaseSession:
         self._expiration_time = expiration_time
         self._conn = None
         self._create_table()
-        print(f"调试：数据库路径: {self._db_path}")
 
     def _connect(self):
         """连接数据库"""
@@ -67,12 +66,6 @@ class DatabaseSession:
             )
         """)
         conn.commit()
-        # 调试：打印表结构
-        cursor.execute(f"PRAGMA table_info({self._table_name})")
-        columns = cursor.fetchall()
-        print(f"调试：表 {self._table_name} 的结构：")
-        for column in columns:
-            print(f"  {column[1]}: {column[2]}")
 
     def _make_key(self, key: str) -> str:
         """生成键"""
@@ -88,7 +81,6 @@ class DatabaseSession:
         """
         conn = self._connect()
         cursor = conn.cursor()
-        print(f"调试：存储 Session: {session_id} {session.data}")
         
         # 序列化 Session 数据
         try:
@@ -106,14 +98,6 @@ class DatabaseSession:
             VALUES (?, ?, ?, ?)
         """, (session_id, data, created_at, expires_at))
         conn.commit()
-        cursor = conn.cursor()
-        ret = cursor.execute(f"""
-            SELECT * FROM {self._table_name} 
-            WHERE session_id = ?
-        """, (session_id,))
-        row = cursor.fetchone()
-        print(row.keys())
-        print(f"调试：查询 Session: {session_id} 结果: {row if row else '无'}")
 
     def get(self, session_id: str) -> Optional[Session]:
         """

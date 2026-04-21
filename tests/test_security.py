@@ -9,6 +9,8 @@ import unittest
 import tempfile
 import os
 import shutil
+import hashlib
+import hmac
 
 
 class TestSecurePathJoin(unittest.TestCase):
@@ -198,6 +200,282 @@ class TestCSRFMiddleware(unittest.TestCase):
         handler = MockRequestHandler()
         result = self.middleware.process_request(handler)
         self.assertIsNone(result)
+
+
+class TestCSRFMiddlewareHMAC(unittest.TestCase):
+    """测试 CSRF 中间件 HMAC-SHA256 签名验证修复"""
+
+    def setUp(self):
+        """测试前准备"""
+        from litefs.middleware.csrf import CSRFMiddleware
+        self.secret_key = "test-hmac-secret-key-for-testing"
+        self.middleware = CSRFMiddleware(None, secret_key=self.secret_key)
+
+    def _make_handler(self, method="POST", session_id="session_abc",
+                      header_token=None, form_token=None, cookie_token=None):
+        """创建 Mock 请求处理器"""
+        environ = {"REQUEST_METHOD": method, "PATH_INFO": "/form"}
+        if header_token:
+            environ["HTTP_X_CSRFTOKEN"] = header_token
+
+        class MockCookieItem:
+            def __init__(self, value):
+                self.value = value
+
+        class MockCookie(dict):
+            pass
+
+        cookie = None
+        if cookie_token:
+            cookie = MockCookie()
+            cookie[self.middleware.cookie_name] = MockCookieItem(cookie_token)
+
+        handler = type("MockHandler", (), {
+            "environ": environ,
+            "cookie": cookie,
+            "post": {self.middleware.token_name: form_token} if form_token else {},
+            "session_id": session_id,
+            "session": None,
+        })()
+        return handler
+
+    def _generate_valid_token(self, nonce, session_id):
+        """生成合法的 HMAC 签名 token"""
+        signature = hmac.new(
+            self.secret_key.encode("utf-8"),
+            f"{nonce}:{session_id}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{nonce}.{signature}"
+
+    def test_valid_hmac_token_passes(self):
+        """测试合法 HMAC 签名 token 通过验证"""
+        token = self._generate_valid_token("nonce123", "session_abc")
+        handler = self._make_handler(header_token=token, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNone(result, "合法 HMAC token 应通过验证")
+
+    def test_tampered_signature_rejected(self):
+        """测试篡改签名的 token 被拒绝"""
+        token = self._generate_valid_token("nonce123", "session_abc")
+        # 篡改签名部分
+        tampered = f"nonce123.{'f' * 64}"
+        handler = self._make_handler(header_token=tampered, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "篡改签名的 token 应被拒绝")
+        self.assertIn("error", result[2].decode("utf-8"))
+
+    def test_different_session_rejected(self):
+        """测试不同 session_id 的 token 被拒绝"""
+        token = self._generate_valid_token("nonce123", "session_abc")
+        handler = self._make_handler(header_token=token, session_id="session_xyz")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "不同 session 的 token 应被拒绝")
+
+    def test_wrong_secret_key_rejected(self):
+        """测试使用错误 secret_key 签名的 token 被拒绝"""
+        wrong_signature = hmac.new(
+            "wrong-secret".encode("utf-8"),
+            "nonce123:session_abc".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        token = f"nonce123.{wrong_signature}"
+        handler = self._make_handler(header_token=token, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "错误 secret_key 签名的 token 应被拒绝")
+
+    def test_no_dot_format_rejected(self):
+        """测试无点号分隔的 token 被拒绝"""
+        handler = self._make_handler(header_token="a" * 64, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "无 nonce.signature 格式的 token 应被拒绝")
+
+    def test_empty_nonce_rejected(self):
+        """测试空 nonce 的 token 被拒绝"""
+        token = self._generate_valid_token("", "session_abc")
+        handler = self._make_handler(header_token=token, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "空 nonce 的 token 应被拒绝")
+
+    def test_short_token_rejected(self):
+        """测试过短的 token 被拒绝"""
+        handler = self._make_handler(header_token="short", session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "过短的 token 应被拒绝")
+
+    def test_exempt_methods_bypass(self):
+        """测试豁免方法不需要 CSRF"""
+        for method in ["GET", "HEAD", "OPTIONS", "TRACE"]:
+            handler = self._make_handler(method=method, session_id="session_abc")
+            result = self.middleware.process_request(handler)
+            self.assertIsNone(result, f"{method} 请求不需要 CSRF 验证")
+
+    def test_missing_token_rejected(self):
+        """测试缺少 token 的 POST 请求被拒绝"""
+        handler = self._make_handler(session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result, "缺少 token 的请求应被拒绝")
+
+    def test_form_token_validated(self):
+        """测试表单中的 CSRF token 也能通过 HMAC 验证"""
+        token = self._generate_valid_token("nonce456", "session_abc")
+        handler = self._make_handler(form_token=token, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNone(result, "表单中的合法 HMAC token 应通过验证")
+
+    def test_cookie_token_validated(self):
+        """测试 Cookie 中的 CSRF token 也能通过 HMAC 验证"""
+        token = self._generate_valid_token("nonce789", "session_abc")
+        handler = self._make_handler(cookie_token=token, session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNone(result, "Cookie 中的合法 HMAC token 应通过验证")
+
+    def test_forbidden_response_is_valid_json(self):
+        """测试 403 响应是合法 JSON（无注入风险）"""
+        handler = self._make_handler(session_id="session_abc")
+        result = self.middleware.process_request(handler)
+        self.assertIsNotNone(result)
+        import json
+        body = json.loads(result[2].decode("utf-8"))
+        self.assertIn("error", body)
+
+    def test_generate_token_returns_hmac_format(self):
+        """测试生成的 token 包含 HMAC 签名格式"""
+        handler = self._make_handler(method="GET", session_id="session_abc")
+        token = self.middleware._generate_csrf_token(handler)
+        self.assertIn(".", token, "生成的 token 应包含 nonce.signature 格式")
+        parts = token.rsplit(".", 1)
+        self.assertEqual(len(parts), 2, "token 应恰好有一个点号分隔 nonce 和 signature")
+
+
+class TestAuthMiddleware(unittest.TestCase):
+    """测试认证中间件修复"""
+
+    def test_no_verifier_rejects_all(self):
+        """测试无验证器时拒绝所有请求（安全默认值）"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None)
+        self.assertFalse(middleware._verify_token("any_token"))
+        self.assertFalse(middleware._verify_token(""))
+
+    def test_custom_token_verifier_accepts(self):
+        """测试自定义验证函数通过有效 token"""
+        from litefs.middleware.security import AuthMiddleware
+        verifier = lambda t: t == "valid_token"
+        middleware = AuthMiddleware(None, token_verifier=verifier)
+        self.assertTrue(middleware._verify_token("valid_token"))
+
+    def test_custom_token_verifier_rejects(self):
+        """测试自定义验证函数拒绝无效 token"""
+        from litefs.middleware.security import AuthMiddleware
+        verifier = lambda t: t == "valid_token"
+        middleware = AuthMiddleware(None, token_verifier=verifier)
+        self.assertFalse(middleware._verify_token("invalid_token"))
+
+    def test_verifier_exception_returns_false(self):
+        """测试自定义验证函数抛异常时返回 False"""
+        from litefs.middleware.security import AuthMiddleware
+        def bad_verifier(t):
+            raise RuntimeError("verification error")
+        middleware = AuthMiddleware(None, token_verifier=bad_verifier)
+        self.assertFalse(middleware._verify_token("any_token"))
+
+    def test_bearer_token_extraction(self):
+        """测试 Bearer token 正确提取"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None)
+        self.assertEqual(middleware._extract_bearer_token("Bearer mytoken123"), "mytoken123")
+        self.assertEqual(middleware._extract_bearer_token("Bearer  x"), "x")
+
+    def test_non_bearer_scheme_rejected(self):
+        """测试非 Bearer 认证方案被拒绝"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None)
+        self.assertIsNone(middleware._extract_bearer_token("Basic abc123"))
+        self.assertIsNone(middleware._extract_bearer_token("Digest user=abc"))
+
+    def test_missing_auth_header_returns_401(self):
+        """测试缺少认证头返回 401"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None, token_verifier=lambda t: True)
+        handler = type("MockHandler", (), {"environ": {"REQUEST_METHOD": "GET"}})()
+        result = middleware.process_request(handler)
+        self.assertIsNotNone(result)
+        self.assertIn("401", result[0])
+
+    def test_invalid_auth_format_returns_401(self):
+        """测试无效认证格式返回 401"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None, token_verifier=lambda t: True)
+        handler = type("MockHandler", (), {
+            "environ": {"HTTP_AUTHORIZATION": "Basic abc123"}
+        })()
+        result = middleware.process_request(handler)
+        self.assertIsNotNone(result)
+        self.assertIn("401", result[0])
+
+    def test_valid_bearer_token_passes(self):
+        """测试有效 Bearer token 通过认证"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None, token_verifier=lambda t: t == "secret")
+        handler = type("MockHandler", (), {
+            "environ": {"HTTP_AUTHORIZATION": "Bearer secret"}
+        })()
+        result = middleware.process_request(handler)
+        self.assertIsNone(result, "合法 Bearer token 应通过认证")
+
+    def test_invalid_bearer_token_returns_401(self):
+        """测试无效 Bearer token 返回 401"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None, token_verifier=lambda t: t == "secret")
+        handler = type("MockHandler", (), {
+            "environ": {"HTTP_AUTHORIZATION": "Bearer wrong"}
+        })()
+        result = middleware.process_request(handler)
+        self.assertIsNotNone(result)
+        self.assertIn("401", result[0])
+
+    def test_unauthorized_response_is_valid_json(self):
+        """测试 401 响应是合法 JSON（无注入风险）"""
+        from litefs.middleware.security import AuthMiddleware
+        middleware = AuthMiddleware(None)
+        handler = type("MockHandler", (), {"environ": {}})()
+        result = middleware.process_request(handler)
+        self.assertIsNotNone(result)
+        import json
+        body = json.loads(result[2].decode("utf-8"))
+        self.assertIn("error", body)
+
+    def test_jwt_manager_integration(self):
+        """测试 JWT 管理器集成"""
+        from litefs.middleware.security import AuthMiddleware
+
+        class MockJWTManager:
+            def decode(self, token):
+                if token == "valid_jwt":
+                    return {"user_id": 1, "exp": 9999999999}
+                raise ValueError("Invalid token")
+
+        middleware = AuthMiddleware(None, jwt_manager=MockJWTManager())
+        self.assertTrue(middleware._verify_token("valid_jwt"))
+        self.assertFalse(middleware._verify_token("invalid_jwt"))
+
+    def test_custom_verifier_takes_priority_over_jwt(self):
+        """测试自定义验证器优先于 JWT 管理器"""
+        from litefs.middleware.security import AuthMiddleware
+
+        class MockJWTManager:
+            def decode(self, token):
+                return {"user_id": 1}
+
+        # 自定义验证器只接受 "custom_valid"，JWT 管理器可以解码任何 token
+        middleware = AuthMiddleware(
+            None,
+            token_verifier=lambda t: t == "custom_valid",
+            jwt_manager=MockJWTManager(),
+        )
+        self.assertTrue(middleware._verify_token("custom_valid"))
+        self.assertFalse(middleware._verify_token("jwt_valid"))
 
 
 class TestSecurityMiddleware(unittest.TestCase):

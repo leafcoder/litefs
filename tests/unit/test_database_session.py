@@ -19,10 +19,8 @@ class TestDatabaseSession(unittest.TestCase):
     def tearDown(self):
         """测试后清理"""
         self.session_store.close()
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
-        if os.path.exists(self.temp_dir):
-            os.rmdir(self.temp_dir)
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_create_session(self):
         """测试创建 Session"""
@@ -135,6 +133,54 @@ class TestDatabaseSession(unittest.TestCase):
             self.assertEqual(retrieved_session.data["user_id"], 123)
             self.assertEqual(retrieved_session.data["cart"], ["item1", "item2"])
             self.assertEqual(retrieved_session.data["preferences"], {"theme": "dark", "language": "zh"})
+
+    def test_no_debug_print_in_source(self):
+        """测试源码中不包含调试 print 语句（安全修复验证）"""
+        import inspect
+        from litefs.session.db import DatabaseSession
+        source = inspect.getsource(DatabaseSession)
+        self.assertNotIn('print(f"调试', source, "DatabaseSession 不应包含调试 print 语句")
+        self.assertNotIn("调试：数据库路径", source, "不应泄露数据库路径")
+        self.assertNotIn("调试：存储 Session", source, "不应泄露 Session 数据")
+        self.assertNotIn("调试：查询 Session", source, "不应泄露查询结果")
+        self.assertNotIn("调试：表", source, "不应泄露表结构")
+
+    def test_no_print_output_on_init(self):
+        """测试初始化时不产生 print 输出"""
+        import io
+        import sys
+        import tempfile
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            captured = io.StringIO()
+            old_stdout = sys.stdout
+            sys.stdout = captured
+            try:
+                store = DatabaseSession(db_path=os.path.join(tmp_dir, "test_no_print.db"))
+                store.close()
+            finally:
+                sys.stdout = old_stdout
+            output = captured.getvalue()
+            self.assertEqual(output, "", "初始化时不应有任何 print 输出")
+        finally:
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def test_no_print_output_on_save(self):
+        """测试保存 Session 时不产生 print 输出"""
+        import io
+        import sys
+        captured = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured
+        try:
+            session = self.session_store.create()
+            session.data["sensitive"] = "password123"
+            self.session_store.save(session)
+        finally:
+            sys.stdout = old_stdout
+        output = captured.getvalue()
+        self.assertEqual(output, "", "保存 Session 时不应有任何 print 输出")
 
 
 if __name__ == "__main__":

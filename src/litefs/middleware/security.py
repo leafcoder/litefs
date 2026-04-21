@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from typing import List, Optional
+import json
+from typing import Callable, List, Optional
 
 from .base import Middleware
 
@@ -87,19 +88,31 @@ class AuthMiddleware(Middleware):
     """
     认证中间件
 
-    基于请求头的简单认证中间件
+    基于 Bearer Token 的认证中间件，支持自定义验证函数和 JWT 集成
     """
 
-    def __init__(self, app, auth_header: str = "Authorization"):
+    def __init__(
+        self,
+        app,
+        auth_header: str = "Authorization",
+        token_verifier: Optional[Callable[[str], bool]] = None,
+        jwt_manager=None,
+    ):
         """
         初始化认证中间件
 
         Args:
             app: Litefs 应用实例
             auth_header: 认证头名称，默认为 'Authorization'
+            token_verifier: 自定义令牌验证函数，接收 token 字符串，返回 bool。
+                            如果未提供，将尝试使用 jwt_manager 或拒绝所有请求。
+            jwt_manager: JWT 管理器实例（litefs.auth.jwt.JWTManager），
+                         如果提供且未指定 token_verifier，将用于验证 JWT token
         """
         super(AuthMiddleware, self).__init__(app)
         self.auth_header = auth_header
+        self.token_verifier = token_verifier
+        self.jwt_manager = jwt_manager
 
     def process_request(self, request_handler):
         """
@@ -119,14 +132,44 @@ class AuthMiddleware(Middleware):
         if not auth_token:
             return self._create_unauthorized_response("Missing authentication token")
 
-        if not self._verify_token(auth_token):
+        # 提取 Bearer token
+        token = self._extract_bearer_token(auth_token)
+        if token is None:
+            return self._create_unauthorized_response(
+                "Invalid authorization header format. Expected: Bearer <token>"
+            )
+
+        if not self._verify_token(token):
             return self._create_unauthorized_response("Invalid authentication token")
 
+        return None
+
+    def _extract_bearer_token(self, auth_token: str) -> Optional[str]:
+        """
+        从 Authorization 头中提取 Bearer Token
+
+        Args:
+            auth_token: Authorization 头的值
+
+        Returns:
+            Bearer token 字符串，格式不正确时返回 None
+        """
+        parts = auth_token.split(" ", 1)
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            return parts[1].strip()
+        # 也允许直接传入 token（兼容不带 Bearer 前缀的情况）
+        if len(parts) == 1 and auth_token.strip():
+            return auth_token.strip()
         return None
 
     def _verify_token(self, token: str) -> bool:
         """
         验证令牌
+
+        验证优先级:
+        1. 自定义 token_verifier 函数
+        2. jwt_manager 实例
+        3. 默认拒绝所有请求（安全默认值）
 
         Args:
             token: 认证令牌
@@ -134,7 +177,24 @@ class AuthMiddleware(Middleware):
         Returns:
             如果令牌有效返回 True，否则返回 False
         """
-        return True
+        # 优先使用自定义验证函数
+        if self.token_verifier is not None:
+            try:
+                return bool(self.token_verifier(token))
+            except Exception:
+                return False
+
+        # 使用 JWT 管理器验证
+        if self.jwt_manager is not None:
+            try:
+                payload = self.jwt_manager.decode(token)
+                return payload is not None
+            except Exception:
+                return False
+
+        # 安全默认值：如果没有配置验证器，拒绝所有请求
+        # 使用方必须显式提供 token_verifier 或 jwt_manager
+        return False
 
     def _create_unauthorized_response(self, message: str):
         """
@@ -151,6 +211,6 @@ class AuthMiddleware(Middleware):
             ("Content-Type", "application/json; charset=utf-8"),
             ("WWW-Authenticate", 'Bearer realm="Litefs"'),
         ]
-        content = f'{{"error": "{message}"}}'.encode("utf-8")
+        content = json.dumps({"error": message}).encode("utf-8")
 
         return status, headers, content

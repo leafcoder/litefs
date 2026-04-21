@@ -117,13 +117,10 @@ class TestDatabaseCache(unittest.TestCase):
 
     def test_complex_data_types(self):
         """测试复杂数据类型"""
-        import pickle
-        
         data = {
             "list": [1, 2, 3],
             "dict": {"a": 1, "b": 2},
-            "tuple": (1, 2, 3),
-            "set": {1, 2, 3},
+            "nested": {"inner": {"deep": [4, 5, 6]}},
         }
         
         self.cache.put("complex", data)
@@ -132,6 +129,90 @@ class TestDatabaseCache(unittest.TestCase):
         if result:
             self.assertEqual(result["list"], [1, 2, 3])
             self.assertEqual(result["dict"], {"a": 1, "b": 2})
+            self.assertEqual(result["nested"]["inner"]["deep"], [4, 5, 6])
+
+    def test_no_pickle_in_source(self):
+        """测试源码中不包含 pickle（安全修复验证）"""
+        import inspect
+        from litefs.cache.db import DatabaseCache
+        source = inspect.getsource(DatabaseCache)
+        # pickle.dumps 和 pickle.loads 不应出现（注释中的说明除外）
+        self.assertNotIn("pickle.dumps", source, "DatabaseCache 不应使用 pickle.dumps")
+        self.assertNotIn("pickle.loads", source, "DatabaseCache 不应使用 pickle.loads")
+
+    def test_json_serialization_used(self):
+        """测试使用 JSON 序列化（替代 pickle）"""
+        import inspect
+        from litefs.cache.db import DatabaseCache
+        source = inspect.getsource(DatabaseCache)
+        self.assertIn("json.dumps", source, "DatabaseCache 应使用 json.dumps 序列化")
+        self.assertIn("json.loads", source, "DatabaseCache 应使用 json.loads 反序列化")
+
+    def test_serialize_deserialize_dict(self):
+        """测试字典的序列化/反序列化"""
+        data = {"key": "value", "number": 42, "nested": {"a": 1}}
+        serialized = self.cache._serialize(data)
+        self.assertIsInstance(serialized, str)
+        deserialized = self.cache._deserialize(serialized)
+        self.assertEqual(deserialized, data)
+
+    def test_serialize_deserialize_list(self):
+        """测试列表的序列化/反序列化"""
+        data = [1, "two", 3.0, {"four": 4}]
+        serialized = self.cache._serialize(data)
+        deserialized = self.cache._deserialize(serialized)
+        self.assertEqual(deserialized, data)
+
+    def test_deserialize_corrupt_data_returns_error(self):
+        """测试损坏数据反序列化抛出 ValueError"""
+        with self.assertRaises(ValueError):
+            self.cache._deserialize("not_valid_base64!!!")
+
+    def test_get_corrupt_data_returns_none(self):
+        """测试获取损坏缓存数据返回 None 而非崩溃"""
+        # 直接写入损坏数据到数据库
+        self.cache._cursor.execute(
+            f"INSERT OR REPLACE INTO {self.cache._table_name} "
+            "(key, value, timestamp, expiration) VALUES (?, ?, ?, ?)",
+            ("corrupt_key", "not_valid_base64!!!", 0, 9999999999)
+        )
+        self.cache._conn.commit()
+        # get() 应返回 None 而非抛出异常
+        result = self.cache.get("corrupt_key")
+        self.assertIsNone(result)
+
+    def test_unicode_values(self):
+        """测试 Unicode 字符串的序列化/反序列化"""
+        data = {"chinese": "中文测试", "emoji": "🎉", "japanese": "こんにちは"}
+        self.cache.put("unicode", data)
+        result = self.cache.get("unicode")
+        self.assertIsNotNone(result)
+        if result:
+            self.assertEqual(result["chinese"], "中文测试")
+            self.assertEqual(result["emoji"], "🎉")
+            self.assertEqual(result["japanese"], "こんにちは")
+
+    def test_value_column_is_text(self):
+        """测试 value 列类型为 TEXT（非 BLOB，适配 JSON 序列化）"""
+        self.cache._cursor.execute(
+            f"PRAGMA table_info({self.cache._table_name})"
+        )
+        columns = {row[1]: row[2] for row in self.cache._cursor.fetchall()}
+        self.assertEqual(columns.get("value"), "TEXT", "value 列应为 TEXT 类型")
+
+    def test_get_many_with_corrupt_data(self):
+        """测试批量获取时损坏数据被跳过"""
+        self.cache.put("good_key", {"status": "ok"})
+        # 写入损坏数据
+        self.cache._cursor.execute(
+            f"INSERT OR REPLACE INTO {self.cache._table_name} "
+            "(key, value, timestamp, expiration) VALUES (?, ?, ?, ?)",
+            ("bad_key", "not_valid_base64!!!", 0, 9999999999)
+        )
+        self.cache._conn.commit()
+        result = self.cache.get_many(["good_key", "bad_key"])
+        self.assertIn("good_key", result)
+        self.assertNotIn("bad_key", result)
 
 
 if __name__ == "__main__":
