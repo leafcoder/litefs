@@ -215,5 +215,135 @@ class TestDatabaseCache(unittest.TestCase):
         self.assertNotIn("bad_key", result)
 
 
+class TestDatabaseCacheCleanup(unittest.TestCase):
+    """测试 DatabaseCache 的概率性清理机制"""
+
+    def setUp(self):
+        """测试前准备"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.temp_dir, "test_cache_cleanup.db")
+
+    def tearDown(self):
+        """测试后清理"""
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
+
+    def test_default_cleanup_parameters(self):
+        """测试默认清理参数"""
+        cache = DatabaseCache(db_path=self.db_path)
+        self.assertEqual(cache._cleanup_probability, 0.01)
+        self.assertEqual(cache._cleanup_threshold, 1000)
+        self.assertEqual(cache._operation_count, 0)
+        cache.close()
+
+    def test_custom_cleanup_parameters(self):
+        """测试自定义清理参数"""
+        cache = DatabaseCache(
+            db_path=self.db_path,
+            cleanup_probability=0.05,
+            cleanup_threshold=100
+        )
+        self.assertEqual(cache._cleanup_probability, 0.05)
+        self.assertEqual(cache._cleanup_threshold, 100)
+        cache.close()
+
+    def test_cleanup_probability_disabled(self):
+        """测试禁用概率性清理"""
+        cache = DatabaseCache(
+            db_path=self.db_path,
+            cleanup_probability=0.0,
+            cleanup_threshold=0
+        )
+        
+        # 添加过期数据
+        cache.put("expired_key", "value", expiration=-1)
+        
+        # 执行多次操作，不应该触发清理
+        for i in range(100):
+            cache.get(f"key_{i}")
+        
+        # 过期数据应该仍然存在
+        cache._cursor.execute(
+            f"SELECT COUNT(*) FROM {cache._table_name} WHERE key = ?",
+            ("expired_key",)
+        )
+        count = cache._cursor.fetchone()[0]
+        self.assertEqual(count, 1)
+        
+        cache.close()
+
+    def test_cleanup_threshold_triggered(self):
+        """测试阈值触发清理"""
+        cache = DatabaseCache(
+            db_path=self.db_path,
+            cleanup_probability=0.0,
+            cleanup_threshold=10
+        )
+        
+        # 添加过期数据
+        cache.put("expired_key", "value", expiration=-1)
+        
+        # 执行超过阈值的操作
+        for i in range(15):
+            cache.get(f"key_{i}")
+        
+        # 过期数据应该被清理
+        cache._cursor.execute(
+            f"SELECT COUNT(*) FROM {cache._table_name} WHERE key = ?",
+            ("expired_key",)
+        )
+        count = cache._cursor.fetchone()[0]
+        self.assertEqual(count, 0)
+        
+        cache.close()
+
+    def test_operation_count_reset_after_cleanup(self):
+        """测试清理后操作计数重置"""
+        cache = DatabaseCache(
+            db_path=self.db_path,
+            cleanup_probability=0.0,
+            cleanup_threshold=5
+        )
+        
+        # 执行达到阈值的操作，应该触发清理并重置计数
+        for i in range(5):
+            cache.get(f"key_{i}")
+        
+        # 第5次操作时触发清理，操作计数重置为0
+        self.assertEqual(cache._operation_count, 0)
+        
+        # 再执行一次操作，操作计数应该从0增加到1
+        cache.get("another_key")
+        self.assertEqual(cache._operation_count, 1)
+        
+        cache.close()
+
+    def test_force_cleanup(self):
+        """测试强制清理"""
+        cache = DatabaseCache(
+            db_path=self.db_path,
+            cleanup_probability=0.0,
+            cleanup_threshold=0
+        )
+        
+        # 添加过期数据
+        cache.put("expired_key", "value", expiration=-1)
+        
+        # 强制清理
+        cache._cleanup_expired(force=True)
+        
+        # 过期数据应该被清理
+        cache._cursor.execute(
+            f"SELECT COUNT(*) FROM {cache._table_name} WHERE key = ?",
+            ("expired_key",)
+        )
+        count = cache._cursor.fetchone()[0]
+        self.assertEqual(count, 0)
+        
+        cache.close()
+
+
 if __name__ == "__main__":
     unittest.main()
