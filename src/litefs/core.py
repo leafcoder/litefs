@@ -188,7 +188,7 @@ def is_port_available(host: str, port: int) -> bool:
 
 class Litefs(object):
 
-    def __init__(self, **kwargs: Dict[str, Any]) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         self.config = config = make_config(**kwargs)
         level = logging.DEBUG if config.debug else logging.INFO
         self.logger = make_logger(__name__, log=config.log, level=level)
@@ -892,8 +892,8 @@ class Litefs(object):
                     try:
                         if hasattr(self.server, 'shutdown'):
                             self.server.shutdown()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_error(self.logger, "Error shutting down server in signal handler: %s" % str(e))
                 sys.exit(0)
             
             signal.signal(signal.SIGINT, signal_handler)
@@ -929,20 +929,20 @@ class Litefs(object):
                 if ws_instance:
                     try:
                         ws_instance.stop()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_error(self.logger, "Error stopping WebSocket: %s" % str(e))
                 if hasattr(self, 'server') and self.server:
                     try:
                         if hasattr(self.server, 'shutdown'):
                             self.server.shutdown()
                         self.server.server_close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_error(self.logger, "Error closing server: %s" % str(e))
                 try:
                     from .database import DatabaseManager
                     DatabaseManager.close_all()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_error(self.logger, "Error closing database connections: %s" % str(e))
         else:
             child_proc = None
             
@@ -951,12 +951,13 @@ class Litefs(object):
                     try:
                         child_proc.terminate()
                         child_proc.wait(timeout=5)
-                    except Exception:
+                    except Exception as e:
+                        log_error(self.logger, "Error terminating child process: %s" % str(e))
                         try:
                             child_proc.kill()
                             child_proc.wait()
-                        except Exception:
-                            pass
+                        except Exception as e2:
+                            log_error(self.logger, "Error killing child process: %s" % str(e2))
                 sys.exit(0)
             
             signal.signal(signal.SIGINT, parent_signal_handler)
@@ -1036,8 +1037,8 @@ class Litefs(object):
                             except subprocess.TimeoutExpired:
                                 child_proc.kill()
                                 child_proc.wait()
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                log_error(self.logger, "Error terminating child process on file change: %s" % str(e))
                             break
                     
                     exit_code = child_proc.returncode
@@ -1058,12 +1059,13 @@ class Litefs(object):
                         try:
                             child_proc.terminate()
                             child_proc.wait(timeout=5)
-                        except Exception:
+                        except Exception as e:
+                            log_error(self.logger, "Error terminating child process: %s" % str(e))
                             try:
                                 child_proc.kill()
                                 child_proc.wait()
-                            except Exception:
-                                pass
+                            except Exception as e2:
+                                log_error(self.logger, "Error killing child process: %s" % str(e2))
 
 
 def _cmd_args(args):

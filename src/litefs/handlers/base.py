@@ -440,12 +440,12 @@ class BaseRequestHandler:
         return self._environ.get("CONTENT_TYPE")
 
     @property
-    def charset(self, default="UTF-8"):
+    def charset(self):
         content_type = self.content_type
         if content_type:
             _, params = parse_header(content_type)
-            return params.get("charset", default)
-        return default
+            return params.get("charset", "UTF-8")
+        return "UTF-8"
 
     @property
     def content_length(self):

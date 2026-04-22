@@ -220,7 +220,9 @@ class JWTManager:
             
             return payload
             
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to decode JWT token: %s", e)
             return None
     
     def create_access_token(self, payload: Dict[str, Any]) -> str:
@@ -272,7 +274,9 @@ class JWTManager:
                 ttl = ttl + 60 if ttl > 0 else 3600
             else:
                 ttl = 3600
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to parse token payload for revocation, using default TTL: %s", e)
             ttl = 3600
 
         self._blacklist.add(token, expires_in=ttl)
