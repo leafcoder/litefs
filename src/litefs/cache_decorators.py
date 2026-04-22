@@ -18,19 +18,6 @@ from functools import wraps
 from datetime import timedelta
 
 
-class _TTLCacheEntry:
-    """带 TTL 的缓存条目（内部使用）"""
-
-    __slots__ = ('value', 'expires_at')
-
-    def __init__(self, value: Any, expires_at: float):
-        self.value = value
-        self.expires_at = expires_at
-
-    def is_expired(self) -> bool:
-        return time.time() > self.expires_at
-
-
 class MemoryCacheStore:
     """
     内存缓存存储
@@ -44,46 +31,23 @@ class MemoryCacheStore:
 
         self.max_size = max_size
         self._cache = _MemoryCache(max_size=max_size)
-        self._ttl_entries: Dict[str, _TTLCacheEntry] = {}
         self._lock = threading.Lock()
 
     def get(self, key: str) -> Optional[Any]:
         with self._lock:
-            # 检查 TTL
-            ttl_entry = self._ttl_entries.get(key)
-            if ttl_entry is not None:
-                if ttl_entry.is_expired():
-                    self._cache.delete(key)
-                    del self._ttl_entries[key]
-                    return None
             return self._cache.get(key)
 
     def set(self, key: str, value: Any, ttl: int):
         with self._lock:
-            if len(self._cache) >= self.max_size:
-                self._cleanup()
-            self._cache.put(key, value)
-            self._ttl_entries[key] = _TTLCacheEntry(value, time.time() + ttl)
+            self._cache.put(key, value, expiration=ttl)
 
     def delete(self, key: str):
         with self._lock:
             self._cache.delete(key)
-            self._ttl_entries.pop(key, None)
 
     def clear(self):
         with self._lock:
             self._cache.clear()
-            self._ttl_entries.clear()
-
-    def _cleanup(self):
-        current_time = time.time()
-        expired_keys = [
-            key for key, entry in self._ttl_entries.items()
-            if entry.is_expired()
-        ]
-        for key in expired_keys:
-            self._cache.delete(key)
-            del self._ttl_entries[key]
 
     def get_stats(self) -> dict:
         with self._lock:

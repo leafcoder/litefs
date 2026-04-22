@@ -10,9 +10,10 @@
 生产环境可实现 BaseUserStore 接口对接数据库。
 """
 
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import ClassVar, Dict, List, Optional, Set
 
 
 @dataclass
@@ -21,17 +22,19 @@ class Permission:
     name: str
     description: str = ''
 
-    _permissions: Dict[str, 'Permission'] = field(default_factory=dict, repr=False)
+    # Class-level registry (ClassVar prevents dataclass from treating these as fields)
+    _registry: ClassVar[Dict[str, 'Permission']] = {}
+    _registry_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __post_init__(self):
-        if not hasattr(Permission, '_registry'):
-            Permission._registry = {}
-        Permission._registry[self.name] = self
+        with Permission._registry_lock:
+            Permission._registry[self.name] = self
 
     @classmethod
     def get_by_name(cls, name: str) -> Optional['Permission']:
         """根据名称获取权限"""
-        return cls._registry.get(name) if hasattr(cls, '_registry') else None
+        with cls._registry_lock:
+            return cls._registry.get(name)
 
     @classmethod
     def create(cls, name: str, description: str = '') -> 'Permission':
@@ -46,12 +49,13 @@ class Role:
     description: str = ''
     permissions: List[Permission] = field(default_factory=list)
 
-    _roles: Dict[str, 'Role'] = field(default_factory=dict, repr=False)
+    # Class-level registry (ClassVar prevents dataclass from treating these as fields)
+    _registry: ClassVar[Dict[str, 'Role']] = {}
+    _registry_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __post_init__(self):
-        if not hasattr(Role, '_registry'):
-            Role._registry = {}
-        Role._registry[self.name] = self
+        with Role._registry_lock:
+            Role._registry[self.name] = self
 
     def add_permission(self, permission: Permission):
         """添加权限"""
@@ -73,7 +77,8 @@ class Role:
     @classmethod
     def get_by_name(cls, name: str) -> Optional['Role']:
         """根据名称获取角色"""
-        return cls._registry.get(name) if hasattr(cls, '_registry') else None
+        with cls._registry_lock:
+            return cls._registry.get(name)
 
     @classmethod
     def create(cls, name: str, description: str = '', permissions: List[Permission] = None) -> 'Role':
@@ -170,49 +175,57 @@ class MemoryUserStore(BaseUserStore):
         self._users: Dict[int, User] = {}
         self._users_by_username: Dict[str, User] = {}
         self._next_id: int = 1
+        self._lock = threading.Lock()
 
     def get_by_id(self, user_id: int) -> Optional[User]:
-        return self._users.get(user_id)
+        with self._lock:
+            return self._users.get(user_id)
 
     def get_by_username(self, username: str) -> Optional[User]:
-        return self._users_by_username.get(username)
+        with self._lock:
+            return self._users_by_username.get(username)
 
     def create(self, username: str, password_hash: str, email: str = None, roles: List[Role] = None) -> User:
-        user_id = self._next_id
-        user = User(
-            id=user_id,
-            username=username,
-            password_hash=password_hash,
-            email=email,
-            roles=roles or [],
-        )
-        self._users[user_id] = user
-        self._users_by_username[username] = user
-        self._next_id += 1
-        return user
+        with self._lock:
+            user_id = self._next_id
+            user = User(
+                id=user_id,
+                username=username,
+                password_hash=password_hash,
+                email=email,
+                roles=roles or [],
+            )
+            self._users[user_id] = user
+            self._users_by_username[username] = user
+            self._next_id += 1
+            return user
 
     def delete(self, user_id: int) -> bool:
-        if user_id in self._users:
-            user = self._users[user_id]
-            del self._users[user_id]
-            self._users_by_username.pop(user.username, None)
-            return True
-        return False
+        with self._lock:
+            if user_id in self._users:
+                user = self._users[user_id]
+                del self._users[user_id]
+                self._users_by_username.pop(user.username, None)
+                return True
+            return False
 
     def list_all(self) -> List[User]:
-        return list(self._users.values())
+        with self._lock:
+            return list(self._users.values())
 
 
 # 全局默认存储实例
 _default_store: Optional[BaseUserStore] = None
+_default_store_lock = threading.Lock()
 
 
 def get_user_store() -> BaseUserStore:
     """获取全局用户存储实例"""
     global _default_store
-    if _default_store is None:
-        _default_store = MemoryUserStore()
-    return _default_store
+    with _default_store_lock:
+        if _default_store is None:
+            _default_store = MemoryUserStore()
+        return _default_store
 
 
 def set_user_store(store: BaseUserStore):
@@ -235,7 +248,8 @@ def set_user_store(store: BaseUserStore):
         set_user_store(DatabaseUserStore(db_session))
     """
     global _default_store
-    _default_store = store
+    with _default_store_lock:
+        _default_store = store
 
 
 def init_default_roles_and_permissions():

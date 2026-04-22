@@ -336,6 +336,30 @@ class Litefs(object):
         """
         self.db_manager.drop_all(name)
 
+    def _handle_error_parts(self, request_handler, error):
+        """Process an exception and return normalized error parts.
+
+        Tries middleware exception handler first, then HttpError, then generic 500.
+
+        Returns:
+            tuple: (status_line, headers, content) from _parse_result_tuple if middleware handled it
+                   (first element is a string — the WSGI status line).
+            tuple: (status_code, content_type, status_text, body_text) if no middleware handled it
+                   (first element is an int — the HTTP status code).
+        """
+        if request_handler is not None:
+            middleware_result = self.middleware_manager.process_exception(request_handler, error)
+            if middleware_result is not None:
+                return _parse_result_tuple(middleware_result)
+
+        from .exceptions import HttpError
+
+        if isinstance(error, HttpError):
+            return (error.status_code, "text/html; charset=utf-8", error.message, error.message)
+        else:
+            log_error(self.logger, str(error))
+            return (500, "text/html; charset=utf-8", "500 Internal Server Error", "Internal Server Error")
+
     def wsgi(self):
         """
         返回符合 PEP 3333 规范的 WSGI application callable
@@ -371,25 +395,19 @@ class Litefs(object):
                 return _serialize_content(content, is_json)
 
             except Exception as e:
-                middleware_result = self.middleware_manager.process_exception(request_handler, e)
-                if middleware_result is not None:
-                    status, headers, content = _parse_result_tuple(middleware_result)
+                result = self._handle_error_parts(request_handler, e)
+                if len(result) == 3 and isinstance(result[0], str):
+                    # Middleware handled it — result is (status_line, headers, content)
+                    status, headers, content = result
                     start_response(status, headers)
                     return _serialize_content(content, "application/json" in dict(headers).get("Content-Type", ""))
 
-                from .exceptions import HttpError
-
-                if isinstance(e, HttpError):
-                    status = f"{e.status_code} {e.message}"
-                    headers = [("Content-Type", "text/html; charset=utf-8")]
-                    start_response(status, headers)
-                    return [e.message.encode("utf-8")]
-                else:
-                    log_error(self.logger, str(e))
-                    status = "500 Internal Server Error"
-                    headers = [("Content-Type", "text/html; charset=utf-8")]
-                    start_response(status, headers)
-                    return [b"500 Internal Server Error"]
+                # Error parts — result is (status_code, content_type, status_text, body_text)
+                status_code, content_type, status_text, body_text = result
+                status = f"{status_code} {status_text}"
+                headers = [("Content-Type", content_type)]
+                start_response(status, headers)
+                return [body_text.encode("utf-8")]
 
         return application
 
@@ -452,33 +470,25 @@ class Litefs(object):
                 await _send_asgi_response(send, status, headers, content)
 
             except Exception as e:
-                if request_handler:
-                    middleware_result = self.middleware_manager.process_exception(request_handler, e)
-                    if middleware_result is not None:
-                        status, headers, content = _parse_result_tuple(middleware_result)
-                        await _send_asgi_response(send, status, headers, content)
-                        return
+                result = self._handle_error_parts(request_handler, e)
+                if len(result) == 3 and isinstance(result[0], str):
+                    # Middleware handled it — result is (status_line, headers, content)
+                    status, headers, content = result
+                    await _send_asgi_response(send, status, headers, content)
+                    return
 
-                from .exceptions import HttpError
-
-                if isinstance(e, HttpError):
-                    status_code = e.status_code
-                    message = e.message
-                else:
-                    log_error(self.logger, str(e))
-                    status_code = 500
-                    message = "Internal Server Error"
-
+                # Error parts — result is (status_code, content_type, status_text, body_text)
+                status_code, content_type, status_text, body_text = result
                 await send({
                     'type': 'http.response.start',
                     'status': status_code,
                     'headers': [
-                        (b'content-type', b'text/plain; charset=utf-8'),
+                        (b'content-type', content_type.encode('utf-8')),
                     ],
                 })
                 await send({
                     'type': 'http.response.body',
-                    'body': message.encode('utf-8'),
+                    'body': body_text.encode('utf-8'),
                 })
 
         return application
