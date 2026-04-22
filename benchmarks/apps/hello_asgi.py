@@ -15,7 +15,7 @@ from litefs.routing import get
 
 DEFAULT_PORT = 8080
 
-app = Litefs(host="0.0.0.0", port=DEFAULT_PORT)
+app = Litefs(host="0.0.0.0", port=DEFAULT_PORT, session_secure=True)
 
 
 @get("/")

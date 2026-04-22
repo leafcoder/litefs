@@ -13,7 +13,7 @@ from litefs.core import Litefs
 from litefs.routing import get
 from litefs.server.asyncio import run_asyncio
 
-app = Litefs(host="0.0.0.0", port=8080)
+app = Litefs(host="0.0.0.0", port=8080, session_secure=True)
 
 
 @get("/")
