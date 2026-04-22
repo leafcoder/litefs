@@ -544,8 +544,10 @@ class TestRateLimitMiddleware(unittest.TestCase):
         handler = MockRequestHandler()
         result = self.middleware.process_request(handler)
         self.assertIsNotNone(result)
-        self.assertIn("error", result[2].decode('utf-8'))
-        self.assertIn("Rate limit exceeded", result[2].decode('utf-8'))
+        from litefs.handlers import Response
+        self.assertIsInstance(result, Response)
+        self.assertIn("error", result.content)
+        self.assertIn("Rate limit exceeded", result.content['error'])
     
     def test_different_ip(self):
         """测试不同 IP"""
@@ -564,7 +566,9 @@ class TestRateLimitMiddleware(unittest.TestCase):
             # 每个 IP 只能请求 5 次，所以第 6 个 IP 会被限流
             if i >= 5:
                 self.assertIsNotNone(result)
-                self.assertIn("Rate limit exceeded", result[2].decode('utf-8'))
+                from litefs.handlers import Response
+                self.assertIsInstance(result, Response)
+                self.assertIn("Rate limit exceeded", result.content['error'])
             else:
                 self.assertIsNone(result, f"IP 192.168.1.{i} 应该被允许")
 
