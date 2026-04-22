@@ -8,6 +8,7 @@ OAuth2 认证管理
 """
 
 import time
+import urllib.parse
 from typing import Any, Callable, Dict, Optional
 
 from .providers import (
@@ -247,43 +248,43 @@ class OAuth2:
     ) -> Optional[OAuth2UserInfo]:
         """
         完成授权并获取用户信息
-        
+
         Args:
             request: 请求对象
             provider_name: 提供商名称（可选，从状态中获取）
             **kwargs: 额外参数
-            
+
         Returns:
             用户信息或 None
         """
         code = self._get_code(request)
         state = self._get_state(request)
-        
+
         if not code:
             return None
-        
+
         state_data = self._state.verify(state)
         if not state_data:
             return None
-        
+
         provider_name = provider_name or state_data.get('provider')
         provider = self._providers.get(provider_name)
-        
+
         if not provider:
             return None
-        
+
         token_data = provider.get_access_token(
             code=code,
             redirect_uri=state_data.get('redirect_uri')
         )
-        
+
         if 'error' in token_data:
             return None
-        
+
         access_token = token_data.get('access_token')
         if not access_token:
             return None
-        
+
         if provider_name == 'wechat':
             openid = token_data.get('openid')
             user_info = provider.get_user_info(access_token, openid=openid)
@@ -291,11 +292,177 @@ class OAuth2:
             user_info = provider.get_user_info(access_token, code=code)
         else:
             user_info = provider.get_user_info(access_token)
-        
+
         if user_info and self._user_mapper:
             return self._user_mapper(user_info)
-        
+
         return user_info
+
+    async def authorize_user_async(
+        self,
+        request,
+        provider_name: str = None,
+        **kwargs
+    ) -> Optional[OAuth2UserInfo]:
+        """
+        异步完成授权并获取用户信息
+
+        使用 aiohttp 进行异步 HTTP 请求，不会阻塞请求处理线程。
+        如果未安装 aiohttp，回退到同步方式。
+
+        Args:
+            request: 请求对象
+            provider_name: 提供商名称（可选，从状态中获取）
+            **kwargs: 额外参数
+
+        Returns:
+            用户信息或 None
+        """
+        code = self._get_code(request)
+        state = self._get_state(request)
+
+        if not code:
+            return None
+
+        state_data = self._state.verify(state)
+        if not state_data:
+            return None
+
+        provider_name = provider_name or state_data.get('provider')
+        provider = self._providers.get(provider_name)
+
+        if not provider:
+            return None
+
+        token_data = await provider._async_request(
+            provider.access_token_url,
+            method='POST',
+            data=self._build_token_request_data(provider, code, state_data.get('redirect_uri')),
+            headers={'Accept': 'application/json'} if provider_name == 'github' else None,
+        )
+
+        if 'error' in token_data:
+            return None
+
+        access_token = token_data.get('access_token')
+        if not access_token:
+            return None
+
+        if provider_name == 'wechat':
+            openid = token_data.get('openid')
+            user_info = await self._get_user_info_async(provider, access_token, provider_name, openid=openid, code=code)
+        elif provider_name == 'wecom':
+            user_info = await self._get_user_info_async(provider, access_token, provider_name, code=code)
+        else:
+            user_info = await self._get_user_info_async(provider, access_token, provider_name)
+
+        if user_info and self._user_mapper:
+            return self._user_mapper(user_info)
+
+        return user_info
+
+    def _build_token_request_data(self, provider, code: str, redirect_uri: str = None) -> Dict:
+        """构建获取 access token 的请求数据"""
+        if provider.name == 'wechat':
+            return {
+                'appid': provider.client_id,
+                'secret': provider.client_secret,
+                'code': code,
+                'grant_type': 'authorization_code',
+            }
+        elif provider.name == 'wecom':
+            return {
+                'corpid': provider.client_id,
+                'corpsecret': provider.client_secret,
+            }
+        else:
+            data = {
+                'client_id': provider.client_id,
+                'client_secret': provider.client_secret,
+                'code': code,
+                'redirect_uri': redirect_uri or provider.redirect_uri,
+            }
+            if provider.name == 'google':
+                data['grant_type'] = 'authorization_code'
+            return data
+
+    async def _get_user_info_async(
+        self,
+        provider,
+        access_token: str,
+        provider_name: str,
+        openid: str = None,
+        code: str = None,
+    ) -> Optional[OAuth2UserInfo]:
+        """异步获取用户信息"""
+        if provider_name == 'wechat' and openid:
+            params = {'access_token': access_token, 'openid': openid}
+            url = f"{provider.userinfo_url}?{urllib.parse.urlencode(params)}"
+            user_data = await provider._async_request(url)
+            if 'errcode' in user_data:
+                return None
+            return OAuth2UserInfo(
+                provider=provider.name,
+                provider_user_id=str(user_data.get('unionid') or user_data.get('openid', '')),
+                username=user_data.get('nickname', ''),
+                name=user_data.get('nickname'),
+                avatar_url=user_data.get('headimgurl'),
+                raw_data=user_data,
+            )
+
+        if provider_name == 'wecom' and code:
+            params = {'access_token': access_token, 'code': code}
+            url = f"{provider.userinfo_url}?{urllib.parse.urlencode(params)}"
+            user_data = await provider._async_request(url)
+            if 'errcode' in user_data and user_data['errcode'] != 0:
+                return None
+            return OAuth2UserInfo(
+                provider=provider.name,
+                provider_user_id=str(user_data.get('UserId', '')),
+                username=user_data.get('UserId', ''),
+                name=user_data.get('name'),
+                raw_data=user_data,
+            )
+
+        # GitHub / Google
+        headers = {'Authorization': f'Bearer {access_token}'}
+        if provider_name == 'github':
+            headers['Accept'] = 'application/vnd.github.v3+json'
+
+        user_data = await provider._async_request(provider.userinfo_url, headers=headers)
+        if 'error' in user_data:
+            return None
+
+        if provider_name == 'github':
+            emails = await provider._async_request(
+                'https://api.github.com/user/emails', headers=headers
+            )
+            primary_email = None
+            if isinstance(emails, list):
+                for email_info in emails:
+                    if email_info.get('primary') and email_info.get('verified'):
+                        primary_email = email_info.get('email')
+                        break
+            return OAuth2UserInfo(
+                provider=provider.name,
+                provider_user_id=str(user_data.get('id', '')),
+                username=user_data.get('login', ''),
+                email=primary_email or user_data.get('email'),
+                name=user_data.get('name') or user_data.get('login'),
+                avatar_url=user_data.get('avatar_url'),
+                raw_data=user_data,
+            )
+
+        # Google
+        return OAuth2UserInfo(
+            provider=provider.name,
+            provider_user_id=str(user_data.get('sub', '')),
+            username=user_data.get('email', '').split('@')[0],
+            email=user_data.get('email'),
+            name=user_data.get('name'),
+            avatar_url=user_data.get('picture'),
+            raw_data=user_data,
+        )
     
     def _get_code(self, request) -> Optional[str]:
         """从请求中获取授权码"""

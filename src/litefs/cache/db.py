@@ -53,7 +53,9 @@ class DatabaseCache(CacheBackendBase):
         self._conn = None
         self._cursor = None
         self._operation_count = 0
-        
+        self._pending_writes = 0
+        self._batch_size = kwargs.pop('batch_size', 0)  # 0 means commit on every write
+
         self._initialize_database()
 
     def _initialize_database(self):
@@ -174,13 +176,13 @@ class DatabaseCache(CacheBackendBase):
         
         self._cursor.execute(
             f"""
-            INSERT OR REPLACE INTO {self._table_name} 
-            (key, value, timestamp, expiration) 
+            INSERT OR REPLACE INTO {self._table_name}
+            (key, value, timestamp, expiration)
             VALUES (?, ?, ?, ?)
             """,
             (key, serialized_value, current_time, expire_timestamp)
         )
-        self._conn.commit()
+        self._maybe_commit()
 
     def get(self, key: str) -> Optional[Any]:
         """
@@ -226,7 +228,7 @@ class DatabaseCache(CacheBackendBase):
             f"DELETE FROM {self._table_name} WHERE key = ?",
             (key,)
         )
-        self._conn.commit()
+        self._maybe_commit()
 
     def delete_pattern(self, pattern: str) -> int:
         """
@@ -245,7 +247,7 @@ class DatabaseCache(CacheBackendBase):
             f"DELETE FROM {self._table_name} WHERE key LIKE ?",
             (pattern,)
         )
-        self._conn.commit()
+        self._maybe_commit()
         return self._cursor.rowcount
 
     def exists(self, key: str) -> bool:
@@ -290,7 +292,7 @@ class DatabaseCache(CacheBackendBase):
             f"UPDATE {self._table_name} SET expiration = ? WHERE key = ?",
             (expire_timestamp, key)
         )
-        self._conn.commit()
+        self._maybe_commit()
         return self._cursor.rowcount > 0
 
     def ttl(self, key: str) -> int:
@@ -329,8 +331,9 @@ class DatabaseCache(CacheBackendBase):
             return
             
         self._cursor.execute(f"DELETE FROM {self._table_name}")
-        self._conn.commit()
+        self._maybe_commit()
         self._operation_count = 0
+        self._pending_writes = 0
 
     def __len__(self) -> int:
         """
@@ -403,13 +406,13 @@ class DatabaseCache(CacheBackendBase):
         
         self._cursor.executemany(
             f"""
-            INSERT OR REPLACE INTO {self._table_name} 
-            (key, value, timestamp, expiration) 
+            INSERT OR REPLACE INTO {self._table_name}
+            (key, value, timestamp, expiration)
             VALUES (?, ?, ?, ?)
             """,
             data
         )
-        self._conn.commit()
+        self._maybe_commit()
 
     def delete_many(self, keys: list) -> None:
         """
@@ -426,7 +429,34 @@ class DatabaseCache(CacheBackendBase):
             f"DELETE FROM {self._table_name} WHERE key IN ({placeholders})",
             keys
         )
-        self._conn.commit()
+        self._maybe_commit()
+
+    def _maybe_commit(self):
+        """
+        根据批量大小决定是否提交事务
+
+        当 _batch_size 为 0 时（默认），每次写入立即提交，保持原有行为。
+        当 _batch_size > 0 时，累积到指定次数后批量提交。
+        """
+        if self._batch_size <= 0:
+            self._conn.commit()
+            return
+
+        self._pending_writes += 1
+        if self._pending_writes >= self._batch_size:
+            self._conn.commit()
+            self._pending_writes = 0
+
+    def flush(self):
+        """
+        强制提交所有待写入的事务
+
+        在批量模式下，调用此方法确保所有挂起的写入已持久化。
+        在即时提交模式下，此方法无额外效果。
+        """
+        if self._conn:
+            self._conn.commit()
+            self._pending_writes = 0
 
     def close(self) -> None:
         """

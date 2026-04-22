@@ -131,30 +131,30 @@ class OAuth2Provider(ABC):
         headers: Dict = None
     ) -> Dict[str, Any]:
         """
-        发送 HTTP 请求
-        
+        发送 HTTP 请求（同步）
+
         Args:
             url: 请求 URL
             method: 请求方法
             data: 请求数据
             headers: 请求头
-            
+
         Returns:
             响应数据
         """
         import json
-        
+
         try:
             import urllib.request
             import urllib.error
-            
+
             req_headers = {
                 'Accept': 'application/json',
                 'User-Agent': 'Litefs-OAuth2/1.0',
             }
             if headers:
                 req_headers.update(headers)
-            
+
             if method == 'GET':
                 if data:
                     url = f"{url}?{urllib.parse.urlencode(data)}"
@@ -162,13 +162,69 @@ class OAuth2Provider(ABC):
             else:
                 body = urllib.parse.urlencode(data).encode('utf-8') if data else b''
                 req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
-            
+
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read().decode('utf-8'))
-                
+
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8') if e.fp else ''
             return {'error': f'HTTP {e.code}', 'error_description': error_body}
+        except Exception as e:
+            return {'error': str(e)}
+
+    async def _async_request(
+        self,
+        url: str,
+        method: str = 'GET',
+        data: Dict = None,
+        headers: Dict = None
+    ) -> Dict[str, Any]:
+        """
+        发送 HTTP 请求（异步）
+
+        需要 aiohttp 库，如果未安装则回退到同步请求。
+
+        Args:
+            url: 请求 URL
+            method: 请求方法
+            data: 请求数据
+            headers: 请求头
+
+        Returns:
+            响应数据
+        """
+        import json
+        import logging
+
+        try:
+            import aiohttp
+        except ImportError:
+            logging.getLogger(__name__).warning(
+                "aiohttp is not installed, falling back to synchronous OAuth2 request. "
+                "Install aiohttp for async support: pip install aiohttp"
+            )
+            return self._request(url, method=method, data=data, headers=headers)
+
+        req_headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'Litefs-OAuth2/1.0',
+        }
+        if headers:
+            req_headers.update(headers)
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                if method == 'GET':
+                    if data:
+                        url = f"{url}?{urllib.parse.urlencode(data)}"
+                    async with session.get(url, headers=req_headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                        return await resp.json(content_type=None)
+                else:
+                    async with session.request(
+                        method, url, data=data, headers=req_headers,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as resp:
+                        return await resp.json(content_type=None)
         except Exception as e:
             return {'error': str(e)}
     

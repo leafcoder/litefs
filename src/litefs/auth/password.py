@@ -17,6 +17,12 @@ from typing import Optional, Tuple, Dict
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
+try:
+    import aiohttp
+    HAS_AIOHTTP = True
+except ImportError:
+    HAS_AIOHTTP = False
+
 
 try:
     import bcrypt
@@ -215,7 +221,7 @@ def check_password_breach(password: str, use_cache: bool = True, timeout: int = 
             _PASSWORD_BREACH_CACHE[cache_key] = (result, time.time())
         return result
         
-    except (URLError, HTTPError, Exception) as e:
+    except (URLError, HTTPError) as e:
         import warnings
         warnings.warn(f"无法连接到 HIBP API: {e}. 使用本地常见密码检查作为降级方案。")
         
@@ -228,6 +234,11 @@ def check_password_breach(password: str, use_cache: bool = True, timeout: int = 
         
         result = sha1_hash in common_hashes
         return result
+    except Exception as e:
+        import warnings
+        import logging
+        logging.getLogger(__name__).warning("Unexpected error checking password breach: %s", e)
+        return False
 
 
 def clear_breach_cache() -> None:
@@ -281,7 +292,141 @@ def get_breach_count(password: str, timeout: int = _REQUEST_TIMEOUT) -> int:
         
         return 0
         
-    except (URLError, HTTPError, Exception) as e:
+    except (URLError, HTTPError) as e:
         import warnings
         warnings.warn(f"无法连接到 HIBP API: {e}")
+        return -1
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Unexpected error getting breach count: %s", e)
+        return -1
+
+
+async def check_password_breach_async(password: str, use_cache: bool = True, timeout: int = _REQUEST_TIMEOUT) -> bool:
+    """
+    异步检查密码是否在已知泄露数据库中
+
+    使用 Have I Been Pwned (HIBP) API 的 k-anonymity 模型，
+    异步版本不会阻塞请求处理线程。
+
+    Args:
+        password: 密码
+        use_cache: 是否使用缓存（默认 True）
+        timeout: API 请求超时时间（秒，默认 5）
+
+    Returns:
+        True 表示已泄露，False 表示安全
+
+    Raises:
+        无异常抛出，网络错误时返回 False 并记录警告
+
+    Example:
+        >>> is_breached = await check_password_breach_async("password123")
+        >>> if is_breached:
+        ...     print("密码已泄露，请更换")
+    """
+    import logging
+
+    if not HAS_AIOHTTP:
+        logging.getLogger(__name__).warning(
+            "aiohttp is not installed, falling back to synchronous check_password_breach(). "
+            "Install aiohttp for async support: pip install aiohttp"
+        )
+        return check_password_breach(password, use_cache=use_cache, timeout=timeout)
+
+    if not password:
+        return False
+
+    sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+    hash_prefix = sha1_hash[:5]
+    hash_suffix = sha1_hash[5:]
+
+    if use_cache:
+        cache_key = hash_prefix
+        if cache_key in _PASSWORD_BREACH_CACHE:
+            cached_result, cached_time = _PASSWORD_BREACH_CACHE[cache_key]
+            if time.time() - cached_time < _CACHE_TTL:
+                return cached_result
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                _HIBP_API_URL.format(hash_prefix),
+                headers={'User-Agent': _HIBP_USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as response:
+                response_data = await response.text()
+
+        for line in response_data.splitlines():
+            parts = line.strip().split(':')
+            if len(parts) == 2:
+                suffix, count = parts
+                if suffix == hash_suffix:
+                    result = True
+                    if use_cache:
+                        _PASSWORD_BREACH_CACHE[cache_key] = (result, time.time())
+                    return result
+
+        result = False
+        if use_cache:
+            _PASSWORD_BREACH_CACHE[cache_key] = (result, time.time())
+        return result
+
+    except Exception as e:
+        logging.getLogger(__name__).warning("Async HIBP API check failed: %s", e)
+        return False
+
+
+async def get_breach_count_async(password: str, timeout: int = _REQUEST_TIMEOUT) -> int:
+    """
+    异步获取密码在泄露数据库中的出现次数
+
+    Args:
+        password: 密码
+        timeout: API 请求超时时间（秒，默认 5）
+
+    Returns:
+        泄露次数，0 表示未泄露，-1 表示查询失败
+
+    Example:
+        >>> count = await get_breach_count_async("password123")
+        >>> if count > 0:
+        ...     print(f"密码已泄露 {count} 次")
+    """
+    import logging
+
+    if not HAS_AIOHTTP:
+        logging.getLogger(__name__).warning(
+            "aiohttp is not installed, falling back to synchronous get_breach_count(). "
+            "Install aiohttp for async support: pip install aiohttp"
+        )
+        return get_breach_count(password, timeout=timeout)
+
+    if not password:
+        return 0
+
+    sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+    hash_prefix = sha1_hash[:5]
+    hash_suffix = sha1_hash[5:]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                _HIBP_API_URL.format(hash_prefix),
+                headers={'User-Agent': _HIBP_USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as response:
+                response_data = await response.text()
+
+        for line in response_data.splitlines():
+            parts = line.strip().split(':')
+            if len(parts) == 2:
+                suffix, count = parts
+                if suffix == hash_suffix:
+                    return int(count)
+
+        return 0
+
+    except Exception as e:
+        logging.getLogger(__name__).warning("Async HIBP API check failed: %s", e)
         return -1
