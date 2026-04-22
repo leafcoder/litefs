@@ -20,6 +20,10 @@ class TestMakeEnviron(unittest.TestCase):
         """设置测试环境"""
         self.server = HTTPServer(('localhost', 9090), lambda *args: None)
 
+    def tearDown(self):
+        """清理测试环境"""
+        self.server.server_close()
+
     def test_basic_environ(self):
         """测试基本环境变量"""
         request_line = b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n"

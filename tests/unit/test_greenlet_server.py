@@ -185,7 +185,8 @@ class TestHTTPServer:
         # 验证服务器已创建
         assert server is not None
         assert server.server_address == ('localhost', 8000)
-    
+        server.server_close()
+
     def test_http_server_with_custom_params(self):
         """测试自定义参数初始化"""
         from litefs.server.greenlet import HTTPServer
@@ -195,6 +196,7 @@ class TestHTTPServer:
         
         assert server is not None
         assert server.server_address == ('0.0.0.0', 9000)
+        server.server_close()
 
 
 @pytest.mark.skipif(not HAS_GREENLET, reason="greenlet 未安装")
@@ -211,7 +213,8 @@ class TestProcessHTTPServer:
         # 验证服务器已创建
         assert server is not None
         assert server.server_address == ('localhost', 8000)
-    
+        server.server_close()
+
     def test_process_server_with_processes(self):
         """测试带进程数的服务器初始化"""
         from litefs.server.greenlet import ProcessHTTPServer
@@ -221,6 +224,7 @@ class TestProcessHTTPServer:
         
         assert server is not None
         assert server.server_address == ('localhost', 8000)
+        server.server_close()
 
 
 @pytest.mark.skipif(not HAS_GREENLET, reason="greenlet 未安装")

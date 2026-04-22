@@ -16,10 +16,7 @@ def test_wsgi_interface():
     application = app.wsgi()
     
     # 测试 application 是否可调用
-    if not callable(application):
-        print("ERROR: application is not callable")
-        return False
-    
+    assert callable(application)
     print("OK: application is callable")
     
     # 测试 environ 字典
@@ -47,66 +44,37 @@ def test_wsgi_interface():
     def start_response(status, headers):
         response_started.append((status, headers))
     
-    try:
-        result = application(environ, start_response)
-        
-        # 检查返回值是否可迭代
-        if not hasattr(result, '__iter__'):
-            print("ERROR: application did not return an iterable")
-            return False
-        
-        print("OK: application returned an iterable")
-        
-        # 检查 start_response 是否被调用
-        if not response_started:
-            print("ERROR: start_response was not called")
-            return False
-        
-        print("OK: start_response was called")
-        
-        # 检查响应状态
-        status, headers = response_started[0]
-        if not isinstance(status, str):
-            print("ERROR: status is not a string")
-            return False
-        
-        print("OK: status is a string:", status)
-        
-        # 检查响应头
-        if not isinstance(headers, list):
-            print("ERROR: headers is not a list")
-            return False
-        
-        print("OK: headers is a list")
-        
-        for header in headers:
-            if not isinstance(header, (list, tuple)):
-                print("ERROR: header is not a tuple/list")
-                return False
-            
-            if len(header) != 2:
-                print("ERROR: header does not have 2 elements")
-                return False
-        
-        print("OK: all headers are tuples with 2 elements")
-        
-        # 检查响应体
-        for chunk in result:
-            if not isinstance(chunk, bytes):
-                print("ERROR: response chunk is not bytes:", type(chunk))
-                return False
-        
-        print("OK: all response chunks are bytes")
-        
-        print("\nAll WSGI tests passed!")
-        return True
-        
-    except Exception as e:
-        print("ERROR: Exception during WSGI test:", str(e))
-        import traceback
-        traceback.print_exc()
-        return False
+    result = application(environ, start_response)
+    
+    # 检查返回值是否可迭代
+    assert hasattr(result, '__iter__'), "application did not return an iterable"
+    print("OK: application returned an iterable")
+    
+    # 检查 start_response 是否被调用
+    assert response_started, "start_response was not called"
+    print("OK: start_response was called")
+    
+    # 检查响应状态
+    status, headers = response_started[0]
+    assert isinstance(status, str)
+    print("OK: status is a string:", status)
+    
+    # 检查响应头
+    assert isinstance(headers, list)
+    print("OK: headers is a list")
+    
+    for header in headers:
+        assert isinstance(header, (list, tuple)), "header is not a tuple/list"
+        assert len(header) == 2, "header does not have 2 elements"
+    
+    print("OK: all headers are tuples with 2 elements")
+    
+    # 检查响应体
+    for chunk in result:
+        assert isinstance(chunk, bytes), f"response chunk is not bytes: {type(chunk)}"
+    
+    print("OK: all response chunks are bytes")
+    print("\nAll WSGI tests passed!")
 
 if __name__ == '__main__':
-    success = test_wsgi_interface()
-    sys.exit(0 if success else 1)
+    test_wsgi_interface()

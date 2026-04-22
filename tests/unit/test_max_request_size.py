@@ -17,6 +17,15 @@ from litefs.exceptions import HttpError
 class TestMaxRequestSize(unittest.TestCase):
     """测试 max_request_size 配置功能"""
 
+    def tearDown(self):
+        if hasattr(self, '_server') and self._server is not None:
+            self._server.server_close()
+
+    def _make_server(self, addr=('localhost', 9090)):
+        server = HTTPServer(addr, lambda *args: None)
+        self._server = server
+        return server
+
     def test_default_config(self):
         """测试默认配置"""
         config = make_config(webroot='./examples/basic/site')
@@ -34,20 +43,20 @@ class TestMaxRequestSize(unittest.TestCase):
 
     def test_httpserver_default(self):
         """测试 HTTPServer 默认值"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         
         self.assertEqual(server.max_request_size, 10485760)
 
     def test_httpserver_custom(self):
         """测试 HTTPServer 自定义值"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         server.max_request_size = 20971520
         
         self.assertEqual(server.max_request_size, 20971520)
 
     def test_small_request_accepted(self):
         """测试小请求被接受"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         small_request = b"GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100\r\n\r\n"
         rw = BytesIO(small_request)
         
@@ -57,7 +66,7 @@ class TestMaxRequestSize(unittest.TestCase):
 
     def test_large_request_rejected(self):
         """测试大请求被拒绝"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         server.max_request_size = 20971520
         large_request = b"GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 20971521\r\n\r\n"
         rw = BytesIO(large_request)
@@ -69,7 +78,7 @@ class TestMaxRequestSize(unittest.TestCase):
 
     def test_boundary_request_accepted(self):
         """测试边界请求被接受"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         server.max_request_size = 1024
         boundary_request = b"GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1024\r\n\r\n"
         rw = BytesIO(boundary_request)
@@ -80,7 +89,7 @@ class TestMaxRequestSize(unittest.TestCase):
 
     def test_boundary_request_rejected(self):
         """测试边界请求被拒绝"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         server.max_request_size = 1024
         boundary_request = b"GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1025\r\n\r\n"
         rw = BytesIO(boundary_request)
@@ -92,7 +101,7 @@ class TestMaxRequestSize(unittest.TestCase):
 
     def test_no_content_length(self):
         """测试没有 Content-Length 的请求"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         request = b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
         rw = BytesIO(request)
         
@@ -102,7 +111,7 @@ class TestMaxRequestSize(unittest.TestCase):
 
     def test_zero_content_length(self):
         """测试 Content-Length 为 0 的请求"""
-        server = HTTPServer(('localhost', 9090), lambda *args: None)
+        server = self._make_server()
         request = b"GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"
         rw = BytesIO(request)
         

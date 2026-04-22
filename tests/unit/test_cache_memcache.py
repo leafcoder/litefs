@@ -59,12 +59,13 @@ class TestMemcacheCache:
         """测试不使用现有客户端（pymemcache）"""
         # 这个测试验证在没有 pymemcache 时的行为
         from litefs.cache.memcache import MemcacheCache
-        
+
         # 应该可以创建实例，但使用时会失败
         cache = MemcacheCache(servers=['localhost:11211'])
         assert cache is not None
         # 验证缓存对象已创建（应该有_mc 属性）
         assert hasattr(cache, '_mc')
+        cache.close()
     
     def test_make_key(self, cache):
         """测试生成带前缀的键"""
@@ -273,42 +274,44 @@ class TestMemcacheCacheIntegration:
     def test_real_memcache_connection(self):
         """测试真实的 Memcache 连接"""
         from litefs.cache.memcache import MemcacheCache
-        
+
         # 使用真实的 Memcache 服务器
         cache = MemcacheCache(servers=['localhost:11211'])
-        
+
         # 测试存储和获取
         cache.put('test', 'value')
         result = cache.get('test')
         assert result == 'value'
-        
+
         # 清理测试数据
         cache.delete('test')
+        cache.close()
     
     def test_real_memcache_expiration(self):
         """测试真实的 Memcache 过期"""
         from litefs.cache.memcache import MemcacheCache
         import time
-        
+
         # 使用真实的 Memcache 服务器测试过期
         cache = MemcacheCache(servers=['localhost:11211'])
-        
+
         # 存储 1 秒后过期的数据
         cache.put('test_expire', 'value', expiration=1)
-        
+
         # 立即获取应该存在
         result = cache.get('test_expire')
         assert result == 'value'
-        
+
         # 等待过期
         time.sleep(2)
-        
+
         # 过期后应该不存在
         result = cache.get('test_expire')
         assert result is None
-        
+
         # 清理测试数据
         cache.delete('test_expire')
+        cache.close()
 
 
 if __name__ == '__main__':

@@ -37,9 +37,7 @@ def test_scaffold_generation():
         
         for dir_path in expected_dirs:
             full_path = project_path / dir_path
-            if not full_path.exists():
-                print(f"  ✗ 目录不存在: {dir_path}")
-                return False
+            assert full_path.exists(), f"目录不存在: {dir_path}"
             print(f"  ✓ 目录存在: {dir_path}")
         
         # 检查文件
@@ -57,12 +55,9 @@ def test_scaffold_generation():
         
         for file_path in expected_files:
             full_path = project_path / file_path
-            if not full_path.exists():
-                print(f"  ✗ 文件不存在: {file_path}")
-                return False
+            assert full_path.exists(), f"文件不存在: {file_path}"
             print(f"  ✓ 文件存在: {file_path}")
         
-        return True
 
 
 if __name__ == "__main__":

@@ -38,11 +38,8 @@ def test_wsgi_import():
         return False
     
     # 测试 application 是否可调用
-    if not callable(application):
-        print("ERROR: application is not callable")
-        return False
-    
-    print("OK: application is callable")
+        assert callable(application), "application is not callable"
+        print("OK: application is callable")
     
     print("\nBasic WSGI interface tests passed!")
     print("\nNote: Full WSGI testing requires installing dependencies:")
@@ -51,7 +48,6 @@ def test_wsgi_import():
     print("  gunicorn -w 4 -b :8000 wsgi_example:application")
     print("  uwsgi --http :8000 --wsgi-file wsgi_example.py")
     
-    return True
 
 if __name__ == '__main__':
     success = test_wsgi_import()
