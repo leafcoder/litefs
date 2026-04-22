@@ -209,7 +209,7 @@ litefs runserver
 ### 使用新功能
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.middleware import EnhancedLoggingMiddleware
 from litefs.exceptions import NotFound
 from litefs.context import g

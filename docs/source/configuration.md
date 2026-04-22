@@ -34,7 +34,7 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 ### 代码配置
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs(
     host='0.0.0.0',
@@ -70,7 +70,7 @@ cache_backend: tree
 使用配置文件：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs(config_file='config.yaml')
 app.run()

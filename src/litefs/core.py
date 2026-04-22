@@ -40,6 +40,97 @@ from ._version import __version__
 from .plugins import PluginManager, PluginLoader
 
 
+def _guess_content_type(content) -> str:
+    """根据内容类型猜测 Content-Type"""
+    if isinstance(content, (dict, list, tuple)):
+        return "application/json; charset=utf-8"
+    if isinstance(content, str) and content.startswith('<'):
+        return "text/html; charset=utf-8"
+    if isinstance(content, bytes):
+        return "application/octet-stream"
+    return "text/html; charset=utf-8"
+
+
+def _serialize_content(content, is_json: bool = False):
+    """
+    将响应内容序列化为 bytes 列表
+
+    统一 WSGI/ASGI 的内容序列化逻辑，消除重复代码。
+
+    Args:
+        content: 响应内容（任意类型）
+        is_json: Content-Type 是否包含 application/json
+
+    Returns:
+        list[bytes]: 序列化后的字节列表
+    """
+    import json
+    from collections.abc import Iterable
+
+    if isinstance(content, (dict,)):
+        return [json.dumps(content, ensure_ascii=False).encode("utf-8")]
+
+    if isinstance(content, (list, tuple)):
+        if is_json:
+            return [json.dumps(content, ensure_ascii=False, default=str).encode("utf-8")]
+        result = []
+        for item in content:
+            if isinstance(item, str):
+                result.append(item.encode("utf-8"))
+            elif isinstance(item, bytes):
+                result.append(item)
+            else:
+                result.append(str(item).encode("utf-8"))
+        return result
+
+    if isinstance(content, str):
+        if is_json:
+            return [json.dumps(content, ensure_ascii=False).encode("utf-8")]
+        return [content.encode("utf-8")]
+
+    if isinstance(content, bytes):
+        return [content]
+
+    if content is None:
+        return [b""]
+
+    # 可迭代对象（生成器等）
+    if isinstance(content, Iterable):
+        def _gen():
+            for item in content:
+                if isinstance(item, str):
+                    yield item.encode("utf-8")
+                elif isinstance(item, bytes):
+                    yield item
+                else:
+                    yield str(item).encode("utf-8")
+        return list(_gen())
+
+    return [str(content).encode("utf-8")]
+
+
+def _parse_result_tuple(result):
+    """
+    解析处理函数返回的结果元组
+
+    Args:
+        result: 处理函数的返回值
+
+    Returns:
+        (status, headers, content) 三元组
+    """
+    if (
+        isinstance(result, (list, tuple))
+        and len(result) == 3
+        and isinstance(result[0], str)
+        and isinstance(result[1], list)
+    ):
+        return result[0], result[1], result[2]
+    content = result
+    content_type = _guess_content_type(content)
+    return "200 OK", [("Content-Type", content_type)], content
+
+
 def make_config(**kwargs: Dict[str, Any]) -> Config:
     """
     创建配置对象
@@ -250,8 +341,8 @@ class Litefs(object):
         返回符合 PEP 3333 规范的 WSGI application callable
 
         用法:
-            import litefs
-            app = litefs.Litefs()
+            from litefs.core import Litefs
+            app = Litefs()
             application = app.wsgi()
 
         在 gunicorn 中使用:
@@ -262,154 +353,29 @@ class Litefs(object):
         """
 
         def application(environ, start_response):
-            """
-            WSGI application callable
-
-            Args:
-                environ: WSGI 环境变量字典
-                start_response: 开始响应的 callable
-
-            Returns:
-                可迭代的 bytes
-            """
             try:
                 request_handler = WSGIRequestHandler(self, environ)
 
+                # 中间件请求处理
                 middleware_result = self.middleware_manager.process_request(request_handler)
                 if middleware_result is not None:
-                    if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
-                        status, headers, content = middleware_result
-                        start_response(status, headers)
-                    else:
-                        content = middleware_result
-                        if isinstance(content, (dict, list, tuple)):
-                            status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
-                        elif isinstance(content, str) and content.startswith('<'):
-                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
-                        elif isinstance(content, bytes):
-                            status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
-                        else:
-                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
-                        start_response(status, headers)
+                    status, headers, content = _parse_result_tuple(middleware_result)
+                    start_response(status, headers)
+                    return _serialize_content(content, "application/json" in dict(headers).get("Content-Type", ""))
 
-                    if isinstance(content, (str, bytes, dict, list, tuple, type(None))):
-                        if isinstance(content, str):
-                            return [content.encode("utf-8")]
-                        elif isinstance(content, bytes):
-                            return [content]
-                        elif isinstance(content, dict):
-                            import json
-
-                            content = json.dumps(content, ensure_ascii=False)
-                            return [content.encode("utf-8")]
-                        elif isinstance(content, (list, tuple)):
-                            import json
-
-                            content = json.dumps(content, ensure_ascii=False, default=str)
-                            return [content.encode("utf-8")]
-                        else:
-                            return [b""]
-                    else:
-                        return [str(content).encode("utf-8")]
-
+                # 业务处理
                 handler_result = request_handler.handler()
+                status, headers, content = _parse_result_tuple(handler_result)
+                start_response(status, headers)
+                is_json = "application/json" in dict(headers).get("Content-Type", "")
+                return _serialize_content(content, is_json)
 
-                if (
-                    isinstance(handler_result, (list, tuple))
-                    and len(handler_result) == 3
-                    and isinstance(handler_result[0], str)
-                    and isinstance(handler_result[1], list)
-                ):
-                    status, headers, content = handler_result
-                    start_response(status, headers)
-                else:
-                    content = handler_result
-                    if isinstance(content, (dict, list, tuple)):
-                        status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
-                    elif isinstance(content, str) and content.startswith('<'):
-                        status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
-                    elif isinstance(content, bytes):
-                        status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
-                    else:
-                        status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
-                    start_response(status, headers)
-
-                headers_dict = dict(headers)
-                content_type = headers_dict.get("Content-Type", "")
-                is_json = "application/json" in content_type
-
-                from collections.abc import Iterable
-
-                if not isinstance(
-                    content, (str, bytes, dict, list, tuple, type(None))
-                ) and isinstance(content, Iterable):
-
-                    def content_generator():
-                        for item in content:
-                            if isinstance(item, str):
-                                yield item.encode("utf-8")
-                            elif isinstance(item, bytes):
-                                yield item
-                            else:
-                                yield str(item).encode("utf-8")
-
-                    return content_generator()
-                elif isinstance(content, dict):
-                    import json
-
-                    content = json.dumps(content, ensure_ascii=False)
-                    return [content.encode("utf-8")]
-                elif isinstance(content, (list, tuple)):
-                    if is_json:
-                        import json
-
-                        content = json.dumps(content, ensure_ascii=False, default=str)
-                        return [content.encode("utf-8")]
-                    else:
-                        result = []
-                        for item in content:
-                            if isinstance(item, str):
-                                result.append(item.encode("utf-8"))
-                            elif isinstance(item, bytes):
-                                result.append(item)
-                            else:
-                                result.append(str(item).encode("utf-8"))
-                        return result
-                elif isinstance(content, str):
-                    if is_json:
-                        import json
-
-                        content = json.dumps(content, ensure_ascii=False)
-                        return [content.encode("utf-8")]
-                    return [content.encode("utf-8")]
-                elif isinstance(content, bytes):
-                    return [content]
-                else:
-                    return [str(content).encode("utf-8")]
             except Exception as e:
                 middleware_result = self.middleware_manager.process_exception(request_handler, e)
                 if middleware_result is not None:
-                    if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
-                        status, headers, content = middleware_result
-                        start_response(status, headers)
-                    else:
-                        content = middleware_result
-                        if isinstance(content, (dict, list, tuple)):
-                            status, headers = "200 OK", [("Content-Type", "application/json; charset=utf-8")]
-                        elif isinstance(content, str) and content.startswith('<'):
-                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
-                        elif isinstance(content, bytes):
-                            status, headers = "200 OK", [("Content-Type", "application/octet-stream")]
-                        else:
-                            status, headers = "200 OK", [("Content-Type", "text/html; charset=utf-8")]
-                        start_response(status, headers)
-
-                    if isinstance(content, str):
-                        return [content.encode("utf-8")]
-                    elif isinstance(content, bytes):
-                        return [content]
-                    else:
-                        return [str(content).encode("utf-8")]
+                    status, headers, content = _parse_result_tuple(middleware_result)
+                    start_response(status, headers)
+                    return _serialize_content(content, "application/json" in dict(headers).get("Content-Type", ""))
 
                 from .exceptions import HttpError
 
@@ -432,8 +398,8 @@ class Litefs(object):
         返回符合 ASGI 3.0 规范的 ASGI application callable
 
         用法:
-            import litefs
-            app = litefs.Litefs()
+            from litefs.core import Litefs
+            app = Litefs()
             application = app.asgi()
 
         在 uvicorn 中使用:
@@ -443,15 +409,28 @@ class Litefs(object):
             daphne asgi_example:application
         """
 
-        async def application(scope, receive, send):
-            """
-            ASGI application callable
+        async def _send_asgi_response(send, status, headers, content):
+            """发送 ASGI 响应"""
+            status_code = int(status.split()[0])
+            asgi_headers = []
+            for k, v in headers:
+                if k.lower() != 'content-length':
+                    asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
 
-            Args:
-                scope: 包含请求信息的字典
-                receive: 接收消息的异步函数
-                send: 发送消息的异步函数
-            """
+            content_bytes_list = _serialize_content(content, "application/json" in dict(headers).get("Content-Type", ""))
+            body = b''.join(content_bytes_list)
+
+            await send({
+                'type': 'http.response.start',
+                'status': status_code,
+                'headers': asgi_headers,
+            })
+            await send({
+                'type': 'http.response.body',
+                'body': body,
+            })
+
+        async def application(scope, receive, send):
             # 只处理 HTTP 请求
             if scope['type'] != 'http':
                 return
@@ -460,227 +439,24 @@ class Litefs(object):
             try:
                 request_handler = ASGIRequestHandler(self, scope, receive, send)
 
+                # 中间件请求处理
                 middleware_result = self.middleware_manager.process_request(request_handler)
                 if middleware_result is not None:
-                    if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
-                        status, headers, content = middleware_result
-                    else:
-                        content = middleware_result
-                        status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
+                    status, headers, content = _parse_result_tuple(middleware_result)
+                    await _send_asgi_response(send, status, headers, content)
+                    return
 
-                    # 解析状态码
-                    status_code = int(status.split()[0])
-                    
-                    # 转换 headers 为 ASGI 格式（移除 Content-Length，由 ASGI 服务器处理）
-                    asgi_headers = []
-                    for k, v in headers:
-                        if k.lower() != 'content-length':
-                            asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
-                    
-                    # 处理 content
-                    if isinstance(content, (str, bytes, dict, list, tuple, type(None))):
-                        if isinstance(content, str):
-                            content_bytes = content.encode("utf-8")
-                        elif isinstance(content, bytes):
-                            content_bytes = content
-                        elif isinstance(content, dict):
-                            import json
-                            content_bytes = json.dumps(content, ensure_ascii=False).encode("utf-8")
-                        elif isinstance(content, (list, tuple)):
-                            import json
-                            content_bytes = json.dumps(content, ensure_ascii=False, default=str).encode("utf-8")
-                        else:
-                            content_bytes = b""
-                        
-                        # 发送响应
-                        await send({
-                            'type': 'http.response.start',
-                            'status': status_code,
-                            'headers': asgi_headers,
-                        })
-                        await send({
-                            'type': 'http.response.body',
-                            'body': content_bytes,
-                        })
-                    else:
-                        # 处理可迭代对象
-                        await send({
-                            'type': 'http.response.start',
-                            'status': status_code,
-                            'headers': asgi_headers,
-                        })
-                        
-                        from collections.abc import Iterable
-                        if isinstance(content, Iterable):
-                            for item in content:
-                                if isinstance(item, str):
-                                    await send({
-                                        'type': 'http.response.body',
-                                        'body': item.encode("utf-8"),
-                                        'more_body': True,
-                                    })
-                                elif isinstance(item, bytes):
-                                    await send({
-                                        'type': 'http.response.body',
-                                        'body': item,
-                                        'more_body': True,
-                                    })
-                                else:
-                                    await send({
-                                        'type': 'http.response.body',
-                                        'body': str(item).encode("utf-8"),
-                                        'more_body': True,
-                                    })
-                        
-                        # 发送结束消息
-                        await send({
-                            'type': 'http.response.body',
-                            'body': b'',
-                        })
-
+                # 业务处理
                 handler_result = await request_handler.handler()
+                status, headers, content = _parse_result_tuple(handler_result)
+                await _send_asgi_response(send, status, headers, content)
 
-                if (
-                    isinstance(handler_result, (list, tuple))
-                    and len(handler_result) == 3
-                    and isinstance(handler_result[0], str)
-                    and isinstance(handler_result[1], list)
-                ):
-                    status, headers, content = handler_result
-                else:
-                    content = handler_result
-                    status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
-
-                # 解析状态码
-                status_code = int(status.split()[0])
-                
-                # 转换 headers 为 ASGI 格式（移除 Content-Length，由 ASGI 服务器处理）
-                asgi_headers = []
-                for k, v in headers:
-                    if k.lower() != 'content-length':
-                        asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
-                
-                # 处理 content
-                from collections.abc import Iterable
-                if not isinstance(
-                    content, (str, bytes, dict, list, tuple, type(None))
-                ) and isinstance(content, Iterable):
-                    # 流式响应
-                    await send({
-                        'type': 'http.response.start',
-                        'status': status_code,
-                        'headers': asgi_headers,
-                    })
-                    
-                    for item in content:
-                        if isinstance(item, str):
-                            await send({
-                                'type': 'http.response.body',
-                                'body': item.encode("utf-8"),
-                                'more_body': True,
-                            })
-                        elif isinstance(item, bytes):
-                            await send({
-                                'type': 'http.response.body',
-                                'body': item,
-                                'more_body': True,
-                            })
-                        else:
-                            await send({
-                                'type': 'http.response.body',
-                                'body': str(item).encode("utf-8"),
-                                'more_body': True,
-                            })
-                    
-                    # 发送结束消息
-                    await send({
-                        'type': 'http.response.body',
-                        'body': b'',
-                    })
-                else:
-                    # 普通响应
-                    if isinstance(content, dict):
-                        import json
-                        content_bytes = json.dumps(content, ensure_ascii=False).encode("utf-8")
-                    elif isinstance(content, (list, tuple)):
-                        headers_dict = dict(headers)
-                        content_type = headers_dict.get("Content-Type", "")
-                        is_json = "application/json" in content_type
-                        if is_json:
-                            import json
-                            content_bytes = json.dumps(content, ensure_ascii=False, default=str).encode("utf-8")
-                        else:
-                            result = []
-                            for item in content:
-                                if isinstance(item, str):
-                                    result.append(item.encode("utf-8"))
-                                elif isinstance(item, bytes):
-                                    result.append(item)
-                                else:
-                                    result.append(str(item).encode("utf-8"))
-                            content_bytes = b''.join(result)
-                    elif isinstance(content, str):
-                        headers_dict = dict(headers)
-                        content_type = headers_dict.get("Content-Type", "")
-                        is_json = "application/json" in content_type
-                        if is_json:
-                            import json
-                            content_bytes = json.dumps(content, ensure_ascii=False).encode("utf-8")
-                        else:
-                            content_bytes = content.encode("utf-8")
-                    elif isinstance(content, bytes):
-                        content_bytes = content
-                    else:
-                        content_bytes = str(content).encode("utf-8")
-                    
-                    # 发送响应
-                    await send({
-                        'type': 'http.response.start',
-                        'status': status_code,
-                        'headers': asgi_headers,
-                    })
-                    await send({
-                        'type': 'http.response.body',
-                        'body': content_bytes,
-                    })
             except Exception as e:
-                # 确保 request_handler 存在
                 if request_handler:
                     middleware_result = self.middleware_manager.process_exception(request_handler, e)
                     if middleware_result is not None:
-                        if isinstance(middleware_result, (list, tuple)) and len(middleware_result) == 3:
-                            status, headers, content = middleware_result
-                        else:
-                            content = middleware_result
-                            status, headers = "200 OK", [("Content-Type", "text/plain; charset=utf-8")]
-
-                        # 解析状态码
-                        status_code = int(status.split()[0])
-                        
-                        # 转换 headers 为 ASGI 格式（移除 Content-Length）
-                        asgi_headers = []
-                        for k, v in headers:
-                            if k.lower() != 'content-length':
-                                asgi_headers.append((k.encode('utf-8'), v.encode('utf-8')))
-                        
-                        # 处理 content
-                        if isinstance(content, str):
-                            content_bytes = content.encode("utf-8")
-                        elif isinstance(content, bytes):
-                            content_bytes = content
-                        else:
-                            content_bytes = str(content).encode("utf-8")
-                        
-                        # 发送响应
-                        await send({
-                            'type': 'http.response.start',
-                            'status': status_code,
-                            'headers': asgi_headers,
-                        })
-                        await send({
-                            'type': 'http.response.body',
-                            'body': content_bytes,
-                        })
+                        status, headers, content = _parse_result_tuple(middleware_result)
+                        await _send_asgi_response(send, status, headers, content)
                         return
 
                 from .exceptions import HttpError
@@ -692,8 +468,7 @@ class Litefs(object):
                     log_error(self.logger, str(e))
                     status_code = 500
                     message = "Internal Server Error"
-                
-                # 发送错误响应
+
                 await send({
                     'type': 'http.response.start',
                     'status': status_code,

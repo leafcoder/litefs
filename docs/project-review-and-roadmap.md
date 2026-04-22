@@ -330,7 +330,7 @@ docs/
 ```python
 # tests/conftest.py
 import pytest
-from litefs import Litefs
+from litefs.core import Litefs
 
 @pytest.fixture
 def app():

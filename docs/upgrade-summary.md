@@ -20,7 +20,7 @@
 
 **使用示例**:
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.middleware import EnhancedLoggingMiddleware
 
 app = Litefs()

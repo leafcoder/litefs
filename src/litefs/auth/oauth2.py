@@ -218,7 +218,7 @@ class OAuth2:
         Returns:
             重定向响应
         """
-        from litefs import Response
+        from litefs.handlers import Response
         
         provider = self._providers.get(provider_name)
         if not provider:

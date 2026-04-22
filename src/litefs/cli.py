@@ -181,7 +181,7 @@ def runserver(
         kwargs["config_file"] = config
     
     try:
-        from litefs import Litefs
+        from litefs.core import Litefs
         from litefs.middleware import (
             CORSMiddleware,
             LoggingMiddleware,
@@ -231,7 +231,7 @@ def shell():
     print("输入 'exit()' 或按 Ctrl+D 退出\n")
     
     try:
-        from litefs import Litefs
+        from litefs.core import Litefs
         import code
         import importlib
         

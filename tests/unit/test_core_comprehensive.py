@@ -9,7 +9,7 @@ import socket
 import tempfile
 import os
 from unittest.mock import Mock, MagicMock, patch, PropertyMock
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.config import Config
 from litefs.exceptions import HttpError
 from litefs.routing import Router
@@ -372,7 +372,7 @@ class TestLitefsUtilities:
     
     def test_get_version(self):
         """测试获取版本"""
-        from litefs import __version__
+        from litefs._version import __version__
         
         assert __version__ is not None
         assert isinstance(__version__, str)

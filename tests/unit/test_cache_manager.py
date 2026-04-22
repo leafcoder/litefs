@@ -158,7 +158,7 @@ class TestCacheManager(unittest.TestCase):
 
     def test_cache_persists_across_litefs_instances(self):
         """测试缓存在多个 Litefs 实例间共享"""
-        from litefs import Litefs
+        from litefs.core import Litefs
 
         # 重置缓存
         CacheManager.reset_cache()

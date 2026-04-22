@@ -4,7 +4,9 @@
 """
 增强的缓存装饰器
 
-提供灵活的缓存机制，支持函数缓存、响应缓存等
+提供灵活的缓存机制，支持函数缓存、响应缓存等。
+
+缓存后端委托给 litefs.cache.MemoryCache，统一缓存基础设施。
 """
 
 import hashlib
@@ -16,112 +18,74 @@ from functools import wraps
 from datetime import timedelta
 
 
-class CacheEntry:
-    """缓存条目"""
-    
+class _TTLCacheEntry:
+    """带 TTL 的缓存条目（内部使用）"""
+
+    __slots__ = ('value', 'expires_at')
+
     def __init__(self, value: Any, expires_at: float):
-        """
-        初始化缓存条目
-        
-        Args:
-            value: 缓存值
-            expires_at: 过期时间戳
-        """
         self.value = value
         self.expires_at = expires_at
-    
+
     def is_expired(self) -> bool:
-        """检查是否过期"""
         return time.time() > self.expires_at
 
 
 class MemoryCacheStore:
-    """内存缓存存储"""
-    
+    """
+    内存缓存存储
+
+    委托给 litefs.cache.MemoryCache 作为底层存储，
+    在其之上添加 TTL 过期管理能力。
+    """
+
     def __init__(self, max_size: int = 1000):
-        """
-        初始化内存缓存存储
-        
-        Args:
-            max_size: 最大缓存数量
-        """
+        from .cache import MemoryCache as _MemoryCache
+
         self.max_size = max_size
-        self._cache: Dict[str, CacheEntry] = {}
+        self._cache = _MemoryCache(max_size=max_size)
+        self._ttl_entries: Dict[str, _TTLCacheEntry] = {}
         self._lock = threading.Lock()
-    
+
     def get(self, key: str) -> Optional[Any]:
-        """
-        获取缓存值
-        
-        Args:
-            key: 缓存键
-            
-        Returns:
-            缓存值，如果不存在或已过期则返回 None
-        """
         with self._lock:
-            entry = self._cache.get(key)
-            
-            if entry is None:
-                return None
-            
-            if entry.is_expired():
-                del self._cache[key]
-                return None
-            
-            return entry.value
-    
+            # 检查 TTL
+            ttl_entry = self._ttl_entries.get(key)
+            if ttl_entry is not None:
+                if ttl_entry.is_expired():
+                    self._cache.delete(key)
+                    del self._ttl_entries[key]
+                    return None
+            return self._cache.get(key)
+
     def set(self, key: str, value: Any, ttl: int):
-        """
-        设置缓存值
-        
-        Args:
-            key: 缓存键
-            value: 缓存值
-            ttl: 过期时间（秒）
-        """
         with self._lock:
-            # 如果缓存已满，清理过期条目
             if len(self._cache) >= self.max_size:
                 self._cleanup()
-            
-            expires_at = time.time() + ttl
-            self._cache[key] = CacheEntry(value, expires_at)
-    
+            self._cache.put(key, value)
+            self._ttl_entries[key] = _TTLCacheEntry(value, time.time() + ttl)
+
     def delete(self, key: str):
-        """
-        删除缓存值
-        
-        Args:
-            key: 缓存键
-        """
         with self._lock:
-            if key in self._cache:
-                del self._cache[key]
-    
+            self._cache.delete(key)
+            self._ttl_entries.pop(key, None)
+
     def clear(self):
-        """清空所有缓存"""
         with self._lock:
             self._cache.clear()
-    
+            self._ttl_entries.clear()
+
     def _cleanup(self):
-        """清理过期条目"""
         current_time = time.time()
         expired_keys = [
-            key for key, entry in self._cache.items()
+            key for key, entry in self._ttl_entries.items()
             if entry.is_expired()
         ]
-        
         for key in expired_keys:
-            del self._cache[key]
-    
+            self._cache.delete(key)
+            del self._ttl_entries[key]
+
     def get_stats(self) -> dict:
-        """
-        获取缓存统计信息
-        
-        Returns:
-            统计信息字典
-        """
         with self._lock:
             return {
                 'total_entries': len(self._cache),

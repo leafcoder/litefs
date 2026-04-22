@@ -180,21 +180,21 @@ class TestModels(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        from litefs.auth.models import User, Role, Permission
+        from litefs.auth.models import User, Role, Permission, MemoryUserStore, set_user_store
         self.User = User
         self.Role = Role
         self.Permission = Permission
-        User._registry = {}
-        User._registry_by_username = {}
-        User._next_id = 1
         Role._registry = {}
         Permission._registry = {}
+        # 每个测试使用全新的内存存储
+        self._store = MemoryUserStore()
+        set_user_store(self._store)
     
     def test_create_user(self):
         """测试创建用户"""
         from litefs.auth.password import hash_password
         
-        user = self.User.create(
+        user = self._store.create(
             username='testuser',
             password_hash=hash_password('password123'),
         )
@@ -207,12 +207,12 @@ class TestModels(unittest.TestCase):
         """测试根据用户名获取用户"""
         from litefs.auth.password import hash_password
         
-        self.User.create(
+        self._store.create(
             username='testuser',
             password_hash=hash_password('password123'),
         )
         
-        user = self.User.get_by_username('testuser')
+        user = self._store.get_by_username('testuser')
         
         self.assertIsNotNone(user)
         self.assertEqual(user.username, 'testuser')
@@ -235,7 +235,7 @@ class TestModels(unittest.TestCase):
         perm = self.Permission.create('user:read', '查看用户')
         role = self.Role.create('user', '普通用户', [perm])
         
-        user = self.User.create(
+        user = self._store.create(
             username='testuser',
             password_hash=hash_password('password123'),
             roles=[role],

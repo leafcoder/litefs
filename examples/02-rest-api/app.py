@@ -25,7 +25,8 @@ from urllib.parse import parse_qs
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs, Response
+from litefs.core import Litefs
+from litefs.handlers import Response
 from litefs.routing import get, post, put, delete, patch
 from litefs.auth import Auth, init_default_roles_and_permissions
 from litefs.auth.models import User, Role

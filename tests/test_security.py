@@ -126,7 +126,7 @@ class TestCSRFMiddleware(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         from litefs.middleware import CSRFMiddleware
-        from litefs import Litefs
+        from litefs.core import Litefs
         
         self.app = Litefs()
         self.middleware = CSRFMiddleware(self.app)

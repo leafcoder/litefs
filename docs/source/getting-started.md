@@ -20,7 +20,7 @@ python setup.py install
 ### 使用装饰器风格
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get, post
 
 app = Litefs(
@@ -89,7 +89,7 @@ def custom_response(request):
 ### 使用方法链风格
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 
@@ -136,7 +136,7 @@ python app.py
 创建 `wsgi.py`：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 

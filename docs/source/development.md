@@ -387,7 +387,7 @@ make docs-serve
 ### 基本用法
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 ```
@@ -434,7 +434,7 @@ app = Litefs(
 
 .. code-block:: python
 
-    from litefs import Litefs
+    from litefs.core import Litefs
     
     app = Litefs()
 

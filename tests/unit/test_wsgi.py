@@ -4,7 +4,7 @@
 import sys
 sys.dont_write_bytecode = True
 
-import litefs
+from litefs.core import Litefs
 
 def test_wsgi_interface():
     """
@@ -12,7 +12,7 @@ def test_wsgi_interface():
     """
     print("Testing WSGI interface...")
     
-    app = litefs.Litefs(webroot='./examples/basic/site')
+    app = Litefs(webroot='./examples/basic/site')
     application = app.wsgi()
     
     # 测试 application 是否可调用

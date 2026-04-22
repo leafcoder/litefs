@@ -7,7 +7,7 @@ Litefs 提供了 OpenAPI 3.0 规范的自动生成功能，并集成 Swagger UI 
 ### 1. 初始化 OpenAPI
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.openapi import OpenAPI
 
 app = Litefs(host='0.0.0.0', port=8080)

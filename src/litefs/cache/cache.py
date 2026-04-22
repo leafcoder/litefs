@@ -276,12 +276,15 @@ class TreeCache(CacheBackendBase):
     def __len__(self):
         return len(self.data)
 
-    def put(self, key, val):
+    def put(self, key, val, expiration=None):
         current_time = time.time()
         
         # 检查是否需要清理
         if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
+        
+        # 使用传入的 expiration 或默认的 expiration_time
+        effective_expiration = expiration if expiration is not None else self.expiration_time
         
         timestamp = int(current_time)
         if key not in self.data:
@@ -298,7 +301,8 @@ class TreeCache(CacheBackendBase):
             """,
                 (timestamp, key),
             )
-        self.data[key] = [val, timestamp]
+        # 存储 [值, 时间戳, 过期时间] 三元组
+        self.data[key] = [val, timestamp, effective_expiration]
 
     def get(self, key):
         current_time = time.time()
@@ -310,8 +314,8 @@ class TreeCache(CacheBackendBase):
         ret = self.data.get(key)
         if ret is None:
             return None
-        val, timestamp = ret
-        if int(current_time - timestamp) > self.expiration_time:
+        val, timestamp, expiration = ret[0], ret[1], ret[2] if len(ret) > 2 else self.expiration_time
+        if int(current_time - timestamp) > expiration:
             del self.data[key]
             return None
         return val
@@ -352,16 +356,16 @@ class TreeCache(CacheBackendBase):
         if current_time - self.clean_time < self.clean_period:
             return
         
-        # 使用批量删除，避免先查询再删除
+        # 使用批量删除，避免先查询再删除（默认过期时间）
         self.conn.execute(
             "DELETE FROM cache WHERE timestamp < ?;",
             (int(current_time - self.expiration_time),)
         )
         
-        # 清理内存缓存，使用列表推导式提高效率
+        # 清理内存缓存，考虑每条记录的独立过期时间
         expired_keys = [
             k for k, v in self.data.items()
-            if current_time - v[1] > self.expiration_time
+            if current_time - v[1] > (v[2] if len(v) > 2 else self.expiration_time)
         ]
         for key in expired_keys:
             del self.data[key]
@@ -400,7 +404,7 @@ class MemoryCache(CacheBackendBase):
     def __len__(self):
         return len(self._cache)
 
-    def put(self, key, val):
+    def put(self, key, val, expiration=None):
         if key in self._cache:
             del self._cache[key]
         elif len(self._cache) >= self._max_size:

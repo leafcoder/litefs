@@ -13,7 +13,7 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.server.asyncio import run_asyncio
 
 # 创建应用

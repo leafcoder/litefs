@@ -67,7 +67,7 @@ class TestProcessServer(unittest.TestCase):
 import sys
 sys.path.insert(0, '/home/zhanglei3/Desktop/dev/litefs/src')
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs(host='{self.host}', port={self.port})
 
@@ -108,7 +108,7 @@ app.run(processes=1)
 import sys
 sys.path.insert(0, '/home/zhanglei3/Desktop/dev/litefs/src')
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs(host='{self.host}', port={self.port})
 
@@ -151,7 +151,7 @@ app.run(processes=2)
 import sys
 sys.path.insert(0, '/home/zhanglei3/Desktop/dev/litefs/src')
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs(host='{self.host}', port={self.port})
 

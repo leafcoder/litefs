@@ -4,21 +4,19 @@
 """
 表单验证系统
 
-提供强大的表单验证功能
+提供强大的表单验证功能。
+
+验证器说明：
+- 本模块的 Validator 子类（Required/Length/Email/URL/Number/Regex/Choice/Function）
+  用于 Form + Field 声明式表单验证场景
+- litefs.validators 模块的 Validator 子类用于命令式/程序化验证场景
+- ValidationError 统一使用 litefs.exceptions.ValidationError
 """
 
 import re
 from typing import Any, Optional, List, Dict, Callable
-from datetime import datetime
 
-
-class ValidationError(Exception):
-    """验证错误异常"""
-    
-    def __init__(self, message: str, field: Optional[str] = None):
-        self.message = message
-        self.field = field
-        super().__init__(message)
+from .exceptions import ValidationError
 
 
 class Validator:

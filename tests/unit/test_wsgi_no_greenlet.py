@@ -12,13 +12,10 @@ def test_wsgi_without_greenlet():
     """
     print("Testing WSGI interface without greenlet...")
     
-    # 临时移除 greenlet 导入
-    import litefs
-    original_greenlet = litefs.greenlet if hasattr(litefs, 'greenlet') else None
-    
     try:
         # 创建应用（不启动服务器，只测试 WSGI 接口）
-        app = litefs.Litefs(webroot='./demo/site')
+        from litefs.core import Litefs
+        app = Litefs(webroot='./demo/site')
         print("OK: Litefs instance created")
         
         # 获取 WSGI application

@@ -20,7 +20,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))

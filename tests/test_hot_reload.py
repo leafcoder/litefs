@@ -19,7 +19,7 @@ import requests
 # 添加 litefs 到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 
 
@@ -53,7 +53,7 @@ class TestHotReload(unittest.TestCase):
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 
 app = Litefs(host='localhost', port=9998)
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 
 app = Litefs(host='localhost', port=9998)
@@ -139,7 +139,7 @@ debug: true
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 
 app = Litefs(host='localhost', port=9998)

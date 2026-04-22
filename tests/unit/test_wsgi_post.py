@@ -8,7 +8,7 @@ from io import BytesIO
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-import litefs
+from litefs.core import Litefs
 from litefs.handlers import WSGIRequestHandler
 
 
@@ -17,7 +17,7 @@ class TestWSGIRequestHandlerPost(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.app = litefs.Litefs(webroot='./examples/basic/site')
+        self.app = Litefs(webroot='./examples/basic/site')
 
     def test_urlencoded_form_post(self):
         """测试 application/x-www-form-urlencoded 表单 POST"""

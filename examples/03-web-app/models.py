@@ -182,7 +182,7 @@ class Database:
             
             for i, (title, content, category) in enumerate([
                 ('欢迎使用 Litefs 博客系统', 'Litefs 是一个轻量级的 Python Web 框架，本博客系统展示了其完整的 Web 开发能力。\n\n## 功能特性\n\n- 用户注册与登录\n- 文章发布与管理\n- 评论系统\n- 访问统计\n\n感谢使用！', '公告'),
-                ('Litefs 框架入门指南', '## 安装\n\n```bash\npip install litefs\n```\n\n## 快速开始\n\n```python\nfrom litefs import Litefs\n\napp = Litefs()\n\n@app.route(\'/\')\ndef index(request):\n    return \'Hello World\'\n\napp.run()\n```\n\n更多内容请查看官方文档。', '教程'),
+                ('Litefs 框架入门指南', '## 安装\n\n```bash\npip install litefs\n```\n\n## 快速开始\n\n```python\nfrom litefs.core import Litefs\n\napp = Litefs()\n\n@app.route(\'/\')\ndef index(request):\n    return \'Hello World\'\n\napp.run()\n```\n\n更多内容请查看官方文档。', '教程'),
                 ('Python Web 开发最佳实践', '## 1. 项目结构\n\n保持项目结构清晰，分离关注点。\n\n## 2. 安全性\n\n- 使用 HTTPS\n- 防止 SQL 注入\n- 防止 XSS 攻击\n- 使用 CSRF 保护\n\n## 3. 性能优化\n\n- 使用缓存\n- 数据库优化\n- 异步处理', '技术'),
             ], 1):
                 post = Post(

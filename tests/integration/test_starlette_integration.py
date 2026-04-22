@@ -13,7 +13,7 @@ import os
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 # 创建 Litefs 应用
 app = Litefs()

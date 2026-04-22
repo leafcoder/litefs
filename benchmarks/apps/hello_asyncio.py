@@ -9,7 +9,7 @@ logging.disable(logging.CRITICAL)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 from litefs.server.asyncio import run_asyncio
 

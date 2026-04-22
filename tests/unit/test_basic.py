@@ -13,16 +13,16 @@ class TestBasicFunctionality(unittest.TestCase):
 
     def test_version(self):
         """测试版本号"""
-        import litefs
+        from litefs._version import __version__
         
-        self.assertIsNotNone(litefs.__version__)
-        self.assertIsInstance(litefs.__version__, str)
+        self.assertIsNotNone(__version__)
+        self.assertIsInstance(__version__, str)
 
     def test_make_config(self):
         """测试 make_config 函数"""
-        import litefs
+        from litefs.core import make_config
         
-        config = litefs.make_config()
+        config = make_config()
         
         self.assertIsNotNone(config)
         self.assertEqual(config.host, 'localhost')
@@ -30,9 +30,9 @@ class TestBasicFunctionality(unittest.TestCase):
 
     def test_make_logger(self):
         """测试 make_logger 函数"""
-        import litefs
+        from litefs.utils import make_logger
         
-        logger = litefs.make_logger('test', level=20)
+        logger = make_logger('test', level=20)
         
         self.assertIsNotNone(logger)
         self.assertEqual(logger.name, 'test')
@@ -49,7 +49,7 @@ class TestBasicFunctionality(unittest.TestCase):
 
     def test_import_modules(self):
         """测试导入模块"""
-        from litefs import Litefs
+        from litefs.core import Litefs
         from litefs.cache import MemoryCache, TreeCache
         from litefs.session import Session
         from litefs.middleware import Middleware, MiddlewareManager

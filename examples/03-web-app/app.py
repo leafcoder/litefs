@@ -23,7 +23,8 @@ from functools import wraps
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs, Response
+from litefs.core import Litefs
+from litefs.handlers import Response
 from litefs.routing import get, post
 from litefs.middleware.csrf import CSRFMiddleware
 from litefs.middleware.logging import LoggingMiddleware

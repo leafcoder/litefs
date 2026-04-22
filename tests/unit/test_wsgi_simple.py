@@ -13,14 +13,14 @@ def test_wsgi_import():
     print("Testing WSGI interface import...")
     
     try:
-        import litefs
-        print("OK: litefs module imported successfully")
+        from litefs.core import Litefs
+        print("OK: litefs.core module imported successfully")
     except ImportError as e:
-        print("ERROR: Failed to import litefs:", str(e))
+        print("ERROR: Failed to import litefs.core:", str(e))
         return False
     
     try:
-        app = litefs.Litefs(webroot='./demo/site')
+        app = Litefs(webroot='./demo/site')
         print("OK: Litefs instance created")
     except Exception as e:
         print("ERROR: Failed to create Litefs instance:", str(e))

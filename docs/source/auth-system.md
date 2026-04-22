@@ -17,7 +17,7 @@ pip install bcrypt
 ### 基本配置
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.auth import Auth
 
 app = Litefs()
@@ -65,7 +65,7 @@ Litefs 支持 OAuth2 社交登录，目前支持以下提供商：
 #### 配置 OAuth2
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.auth.oauth2 import OAuth2
 from litefs.auth.providers import GitHubProvider, GoogleProvider
 
@@ -327,7 +327,7 @@ Authorization: Bearer <access_token>
 ## 完整示例
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.auth import Auth
 from litefs.auth.models import User, Role, Permission, init_default_roles_and_permissions
 from litefs.auth.password import hash_password

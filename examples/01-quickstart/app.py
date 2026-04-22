@@ -16,7 +16,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get, post
 from litefs.middleware.logging import LoggingMiddleware
 from litefs.session.session import MemorySessionStore
