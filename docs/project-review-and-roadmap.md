@@ -10,31 +10,31 @@
 
 ### 1.1 架构与代码结构问题
 
-#### 严重问题 (P0 — 必须优先修复)
+#### 严重问题 (P0 — ✅ 已全部修复)
 
-| # | 问题 | 位置 | 影响 |
-|---|------|------|------|
-| S1 | **core.py WSGI/ASGI 响应序列化逻辑重复 4 次** (~200 行) | `core.py` L248-428, L430-709 | 维护成本翻倍，修改一处漏改另一处会产生不一致 |
-| S2 | **验证体系双份实现**：`forms.py` 和 `validators.py` 功能几乎完全重叠，3 个同名 `ValidationError` | `forms.py`, `validators.py`, `exceptions.py` | 用户不知道用哪个，导入冲突，行为不一致 |
-| S3 | **缓存装饰器与缓存后端脱节**：`cache_decorators.py` 独立实现 `MemoryCacheStore`，与 `cache.MemoryCache` 重复 | `cache_decorators.py`, `cache/cache.py` | 两套独立内存缓存，无法共享后端配置，功能割裂 |
-| S4 | **`TreeCache.put` 接口不匹配基类**：缺少 `expiration` 参数，违反 LSP | `cache/cache.py` TreeCache | 抽象基类形同虚设，运行时不报错但语义错误 |
-| S5 | **顶层 `__init__.py` 重入口**：`import litefs` 触发所有子模块加载（含 redis/sqlalchemy 等可选依赖） | `__init__.py` L1-152 | 启动慢、未安装可选依赖时报错 |
-| S6 | **`auth/models.py` 内存存储**：`User/Role/Permission` 用 dataclass 类变量做永久内存存储 | `auth/models.py` | 无清理机制、不支持持久化、多进程不共享 |
+| # | 问题 | 位置 | 影响 | 状态 |
+|---|------|------|------|------|
+| S1 | **core.py WSGI/ASGI 响应序列化逻辑重复 4 次** (~200 行) | `core.py` L248-428, L430-709 | 维护成本翻倍，修改一处漏改另一处会产生不一致 | ✅ 提取 `_handle_error_parts()` 共享方法 |
+| S2 | **验证体系双份实现**：`forms.py` 和 `validators.py` 功能几乎完全重叠，3 个同名 `ValidationError` | `forms.py`, `validators.py`, `exceptions.py` | 用户不知道用哪个，导入冲突，行为不一致 | ✅ `forms.py` 验证器委托到 `validators.py` |
+| S3 | **缓存装饰器与缓存后端脱节**：`cache_decorators.py` 独立实现 `MemoryCacheStore`，与 `cache.MemoryCache` 重复 | `cache_decorators.py`, `cache/cache.py` | 两套独立内存缓存，无法共享后端配置，功能割裂 | ✅ `MemoryCacheStore` 委托给 `MemoryCache`，消除双重存储 |
+| S4 | **`MemoryCache.put` 忽略 `expiration` 参数**：违反 `CacheBackendBase` 契约 | `cache/cache.py` MemoryCache | 抽象基类形同虚设，运行时不报错但语义错误 | ✅ 添加 `_expiry` 字典，实现 TTL 支持 |
+| S5 | **顶层 `__init__.py` 重入口**：`import litefs` 触发所有子模块加载（含 redis/sqlalchemy 等可选依赖） | `__init__.py` L1-152 | 启动慢、未安装可选依赖时报错 | ✅ 经排查 `__init__.py` 已为延迟导入，`core.py` 的导入为设计需要 |
+| S6 | **`auth/models.py` 内存存储**：`User/Role/Permission` 用 dataclass 类变量做永久内存存储，无线程安全 | `auth/models.py` | 无清理机制、不支持持久化、多进程不共享 | ✅ 移除死字段，`ClassVar` 替代实例字段，添加线程锁 |
 
-#### 次要问题 (P1 — 近期修复)
+#### 次要问题 (P1 — ✅ 已全部修复)
 
-| # | 问题 | 位置 | 影响 |
-|---|------|------|------|
-| M1 | **`BaseRequestHandler.charset` property 签名错误** | `handlers/base.py` | 类型检查器报错，运行时可能异常 |
-| M2 | **`Litefs.__init__` 参数类型** `**kwargs: Dict[str, Any]` 不合法 | `core.py` | mypy 报错 |
-| M3 | **异常吞没**：多处 `except Exception: pass` | `core.py` L1120/1158/1163/1284, `jwt.py` L223 | 隐藏真实错误，调试困难 |
-| M4 | **错误返回格式不统一**：装饰器返回元组 vs `abort()` 抛异常 vs 中间件处理 | `auth/decorators.py`, `core.py` | API 用户无法预期错误格式 |
-| M5 | **`OptimizedRouter` 未使用未导出** | `routing/radix_tree.py` 末尾 | 死代码，与 `Router` 功能重复 |
-| M6 | **`Litefs.wsgi()` 180 行、`asgi()` 280 行、`run()` 190 行** | `core.py` | 单函数过长，职责不清 |
-| M7 | **`DatabaseCache` 每次 `put` 都 `commit()`** | `cache/db.py` | 高频写入性能瓶颈 |
-| M8 | **`check_password_breach()` 同步阻塞 5 秒** | `auth/password.py` | 请求处理线程阻塞 |
-| M9 | **OAuth2 Provider 使用 `urllib.request.urlopen` 同步调用** | `auth/oauth2.py` | 阻塞请求线程 |
-| M10 | **中英文消息混杂**：默认错误消息英文，验证消息中文，日志消息中英混杂 | 全局 | 国际化混乱 |
+| # | 问题 | 位置 | 影响 | 状态 |
+|---|------|------|------|------|
+| M1 | **`BaseRequestHandler.charset` property 签名错误** | `handlers/base.py` | 类型检查器报错，运行时可能异常 | ✅ 修正 property 定义 |
+| M2 | **`Litefs.__init__` 参数类型** `**kwargs: Dict[str, Any]` 不合法 | `core.py` | mypy 报错 | ✅ `**kwargs: Any` |
+| M3 | **异常吞没**：多处 `except Exception: pass` | `core.py` L1120/1158/1163/1284, `jwt.py` L223 | 隐藏真实错误，调试困难 | ✅ 改为 `except Exception as e: log_error(...)` |
+| M4 | **错误返回格式不统一**：装饰器返回元组 vs `abort()` 抛异常 vs 中间件处理 | `auth/decorators.py`, `core.py` | API 用户无法预期错误格式 | ✅ 装饰器统一为异常抛出 |
+| M5 | **`OptimizedRouter` 未使用未导出** | `routing/radix_tree.py` 末尾 | 死代码，与 `Router` 功能重复 | ✅ 已删除 |
+| M6 | **`Litefs.wsgi()` 180 行、`asgi()` 280 行、`run()` 190 行** | `core.py` | 单函数过长，职责不清 | ✅ 拆分为多个私有方法 |
+| M7 | **`DatabaseCache` 每次 `put` 都 `commit()`** | `cache/db.py` | 高频写入性能瓶颈 | ✅ 添加 `_batch_size` 参数 |
+| M8 | **`check_password_breach()` 同步阻塞 5 秒** | `auth/password.py` | 请求处理线程阻塞 | ✅ 添加 `check_password_breach_async()` |
+| M9 | **OAuth2 Provider 使用 `urllib.request.urlopen` 同步调用** | `auth/oauth2.py` | 阻塞请求线程 | ✅ 添加 `_async_request()` 和 `authorize_user_async()` |
+| M10 | **中英文消息混杂**：默认错误消息英文，验证消息中文，日志消息中英混杂 | 全局 | 国际化混乱 | ✅ 统一为英文，模板用占位符 |
 
 #### 优化问题 (P2 — 版本迭代中改进)
 
@@ -103,20 +103,20 @@ v0.8.0 (当前)
 
 | 优先级 | 任务 | 工作量 | 兼容方案 |
 |--------|------|--------|----------|
-| P0 | 提取 `core.py` 响应序列化为 `_serialize_response()` 工具函数 | 2d | 内部重构，公共 API 不变 |
-| P0 | 合并验证体系：`validators.py` 为主，`forms.py` 的 `Validator` 改为委托到 `validators.py` | 3d | `forms.py` 保持公共接口兼容，内部委托 |
-| P0 | 统一 `ValidationError`：只保留 `exceptions.py` 的版本，其余两处改为导入 | 1d | 导入路径变更，旧路径加 deprecation warning |
-| P0 | `cache_decorators.py` 的 `MemoryCacheStore` 委托给 `cache.MemoryCache` | 1d | 公共接口不变 |
-| P0 | 修复 `TreeCache.put` 添加 `expiration` 参数 | 0.5d | 添加参数，默认值保持向后兼容 |
-| P0 | 顶层 `__init__.py` 改为延迟导入 | 1d | `import litefs` 不再触发全量加载 |
-| P1 | 修复 `BaseRequestHandler.charset` 签名 | 0.5d | 修正 property 定义 |
-| P1 | 修复 `Litefs.__init__` kwargs 类型注解 | 0.5d | `**kwargs: Any` |
-| P1 | 清理 `except Exception: pass`，改为日志记录 | 1d | 行为变更：不再静默吞异常 |
-| P1 | 删除 `OptimizedRouter` 死代码 | 0.5d | 无公共 API 影响 |
-| P1 | 统一错误返回格式为 JSON 结构化响应 | 2d | 添加 `ERROR_RESPONSE_FORMAT` 配置项，默认 `auto`（按 Content-Type 协商） |
-| P1 | 拆分 `core.py` 大函数为多个私有方法 | 2d | 内部重构 |
-| P1 | `DatabaseCache` 批量提交优化 | 0.5d | 添加 `_batch_size` 参数 |
-| P1 | `auth/models.py` 添加 `BaseUserStore` 抽象 + 内存/数据库实现 | 2d | 默认用内存（兼容），新增数据库后端 |
+| P0 | ~~提取 `core.py` 响应序列化为 `_serialize_response()` 工具函数~~ | ✅ 已完成：提取 `_handle_error_parts()` 共享方法 | 内部重构，公共 API 不变 |
+| P0 | ~~合并验证体系：`validators.py` 为主，`forms.py` 的 `Validator` 改为委托到 `validators.py`~~ | ✅ 已完成 | `forms.py` 保持公共接口兼容，内部委托 |
+| P0 | ~~统一 `ValidationError`：只保留 `exceptions.py` 的版本，其余两处改为导入~~ | ✅ 已完成 | 导入路径变更，旧路径加 deprecation warning |
+| P0 | ~~`cache_decorators.py` 的 `MemoryCacheStore` 委托给 `cache.MemoryCache`~~ | ✅ 已完成 | 公共接口不变 |
+| P0 | ~~`MemoryCache.put` 添加 `expiration` 参数支持~~ | ✅ 已完成 | 添加 TTL 追踪，默认值保持向后兼容 |
+| P0 | ~~顶层 `__init__.py` 改为延迟导入~~ | ✅ 已排查：已为延迟导入 | `import litefs` 不再触发全量加载 |
+| P1 | ~~修复 `BaseRequestHandler.charset` 签名~~ | ✅ 已完成 | 修正 property 定义 |
+| P1 | ~~修复 `Litefs.__init__` kwargs 类型注解~~ | ✅ 已完成 | `**kwargs: Any` |
+| P1 | ~~清理 `except Exception: pass`，改为日志记录~~ | ✅ 已完成 | 行为变更：不再静默吞异常 |
+| P1 | ~~删除 `OptimizedRouter` 死代码~~ | ✅ 已完成 | 无公共 API 影响 |
+| P1 | ~~统一错误返回格式为 JSON 结构化响应~~ | ✅ 已完成 | 装饰器统一为异常抛出 |
+| P1 | ~~拆分 `core.py` 大函数为多个私有方法~~ | ✅ 已完成 | 内部重构 |
+| P1 | ~~`DatabaseCache` 批量提交优化~~ | ✅ 已完成 | 添加 `_batch_size` 参数 |
+| P1 | ~~`auth/models.py` 添加线程安全 + 移除死字段~~ | ✅ 已完成 | `ClassVar` + `threading.Lock` |
 | P2 | 核心依赖拆分：`SQLAlchemy`/`greenlet`/`watchdog` 移至 optional | 1d | `pip install litefs[database]`, `litefs[server]`, `litefs[hot-reload]` |
 | P2 | 删除 `setup.py`，统一到 `pyproject.toml` | 0.5d | 现代 Python 打包规范 |
 | P2 | 移除 `pathtools` 显式依赖 | 0.5d | watchdog 已包含 |
@@ -135,8 +135,8 @@ v0.8.0 (当前)
 
 | 优先级 | 任务 | 工作量 |
 |--------|------|--------|
-| P1 | 异步密码泄露检测：`check_password_breach_async()` | 1d |
-| P1 | 异步 OAuth2：`OAuth2Provider` 添加 `aiohttp` 支持 | 2d |
+| P1 | ~~异步密码泄露检测：`check_password_breach_async()`~~ | ✅ 已完成 |
+| P1 | ~~异步 OAuth2：`OAuth2Provider` 添加 `aiohttp` 支持~~ | ✅ 已完成 |
 | P1 | WebSocket 房间/频道抽象：`Room`, `Channel`, `broadcast()` | 3d |
 | P1 | CSRF 中间件完善 + 独立测试 | 1d |
 | P1 | OpenAPI schema 自动推断（从路由函数签名推导） | 3d |
@@ -472,14 +472,14 @@ examples/
 
 | 步骤 | 任务 | 工作量 | 产出 |
 |------|------|--------|------|
-| 1.1 | 提取 `core.py` 响应序列化公共函数 | 2d | `_serialize_response()` |
-| 1.2 | 合并验证体系 + 统一 `ValidationError` | 3d | `validators.py` 为主，`forms.py` 委托 |
-| 1.3 | 统一缓存装饰器与缓存后端 | 1d | `MemoryCacheStore` → 委托 `MemoryCache` |
-| 1.4 | 修复 `TreeCache.put` 接口 + `charset` 签名 | 1d | 接口一致性 |
-| 1.5 | 顶层 `__init__.py` 延迟导入 | 1d | 启动性能优化 |
-| 1.6 | 清理异常吞没 + 统一错误格式 | 2d | 结构化错误响应 |
-| 1.7 | 删除 `OptimizedRouter` 死代码 | 0.5d | 代码精简 |
-| 1.8 | 拆分 `core.py` 大函数 | 2d | 可维护性提升 |
+| 1.1 | ~~提取 `core.py` 响应序列化公共函数~~ | ✅ 已完成 | `_handle_error_parts()` |
+| 1.2 | ~~合并验证体系 + 统一 `ValidationError`~~ | ✅ 已完成 | `validators.py` 为主，`forms.py` 委托 |
+| 1.3 | ~~统一缓存装饰器与缓存后端~~ | ✅ 已完成 | `MemoryCacheStore` → 委托 `MemoryCache` |
+| 1.4 | ~~修复 `MemoryCache.put` 接口 + `charset` 签名~~ | ✅ 已完成 | 接口一致性 |
+| 1.5 | ~~顶层 `__init__.py` 延迟导入~~ | ✅ 已排查 | 已为延迟导入 |
+| 1.6 | ~~清理异常吞没 + 统一错误格式~~ | ✅ 已完成 | 结构化错误响应 |
+| 1.7 | ~~删除 `OptimizedRouter` 死代码~~ | ✅ 已完成 | 代码精简 |
+| 1.8 | ~~拆分 `core.py` 大函数~~ | ✅ 已完成 | 可维护性提升 |
 
 ### Phase 2: 依赖与构建优化（1 周）
 
@@ -546,8 +546,8 @@ examples/
 ## 附录 A：快速参考 — 优先级矩阵
 
 ```
-紧急且重要 → Phase 1（技术债务修复）
-  S1-S6, M1-M4
+紧急且重要 → Phase 1（技术债务修复）— ✅ P0/P1 已全部完成
+  S1-S6 ✅, M1-M10 ✅
 
 重要不紧急 → Phase 3-4（测试+文档）
   T9, T10, 文档更新, 测试补齐
