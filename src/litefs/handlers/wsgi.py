@@ -23,6 +23,15 @@ class WSGIRequestHandler(BaseRequestHandler):
     符合 PEP 3333 规范，处理 WSGI environ 并返回标准响应
     """
 
+    @staticmethod
+    def _reset_input_stream(wsgi_input):
+        """重置 WSGI 输入流位置，使后续中间件可重新读取请求体。"""
+        if hasattr(wsgi_input, 'seek'):
+            try:
+                wsgi_input.seek(0)
+            except (OSError, AttributeError):
+                pass
+
     def __init__(self, app, environ):
         super(WSGIRequestHandler, self).__init__(app, environ)
         self._environ = self._normalize_environ(environ)
@@ -48,8 +57,7 @@ class WSGIRequestHandler(BaseRequestHandler):
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         post_content = wsgi_input.read(content_length)
-                        if hasattr(wsgi_input, 'seek'):
-                            wsgi_input.seek(0)
+                        self._reset_input_stream(wsgi_input)
                         post_content = post_content.decode("utf-8")
                         self._post = parse_form(post_content)
             elif content_type_raw.startswith("multipart/form-data"):
@@ -66,15 +74,13 @@ class WSGIRequestHandler(BaseRequestHandler):
                                 wsgi_input, boundary, content_length,
                                 getattr(app.config, "max_upload_size", 52428800)
                             )
-                            if hasattr(wsgi_input, 'seek'):
-                                wsgi_input.seek(0)
+                            self._reset_input_stream(wsgi_input)
             else:
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         self._body = wsgi_input.read(content_length)
-                        if hasattr(wsgi_input, 'seek'):
-                            wsgi_input.seek(0)
+                        self._reset_input_stream(wsgi_input)
                         self._body = self._body.decode("utf-8")
 
         self._session_id, self._session = self._get_session()
