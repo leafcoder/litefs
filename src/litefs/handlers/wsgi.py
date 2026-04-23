@@ -48,6 +48,8 @@ class WSGIRequestHandler(BaseRequestHandler):
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         post_content = wsgi_input.read(content_length)
+                        if hasattr(wsgi_input, 'seek'):
+                            wsgi_input.seek(0)
                         post_content = post_content.decode("utf-8")
                         self._post = parse_form(post_content)
             elif content_type_raw.startswith("multipart/form-data"):
@@ -64,11 +66,15 @@ class WSGIRequestHandler(BaseRequestHandler):
                                 wsgi_input, boundary, content_length,
                                 getattr(app.config, "max_upload_size", 52428800)
                             )
+                            if hasattr(wsgi_input, 'seek'):
+                                wsgi_input.seek(0)
             else:
                 if content_length > 0:
                     wsgi_input = self._environ.get("wsgi.input")
                     if wsgi_input:
                         self._body = wsgi_input.read(content_length)
+                        if hasattr(wsgi_input, 'seek'):
+                            wsgi_input.seek(0)
                         self._body = self._body.decode("utf-8")
 
         self._session_id, self._session = self._get_session()
