@@ -360,6 +360,29 @@ class Litefs(object):
             log_error(self.logger, str(error))
             return (500, "text/html; charset=utf-8", "500 Internal Server Error", "Internal Server Error")
 
+    async def _async_handle_error_parts(self, request_handler, error):
+        """Async version of _handle_error_parts for ASGI path.
+
+        Tries async middleware exception handler first, then HttpError, then generic 500.
+
+        Returns:
+            Same format as _handle_error_parts.
+        """
+        if request_handler is not None:
+            middleware_result = await self.middleware_manager.async_process_exception(
+                request_handler, error
+            )
+            if middleware_result is not None:
+                return _parse_result_tuple(middleware_result)
+
+        from .exceptions import HttpError
+
+        if isinstance(error, HttpError):
+            return (error.status_code, "text/html; charset=utf-8", error.message, error.message)
+        else:
+            log_error(self.logger, str(error))
+            return (500, "text/html; charset=utf-8", "500 Internal Server Error", "Internal Server Error")
+
     def wsgi(self):
         """
         返回符合 PEP 3333 规范的 WSGI application callable
@@ -458,7 +481,7 @@ class Litefs(object):
                 request_handler = ASGIRequestHandler(self, scope, receive, send)
 
                 # 中间件请求处理
-                middleware_result = self.middleware_manager.process_request(request_handler)
+                middleware_result = await self.middleware_manager.async_process_request(request_handler)
                 if middleware_result is not None:
                     status, headers, content = _parse_result_tuple(middleware_result)
                     await _send_asgi_response(send, status, headers, content)
@@ -470,7 +493,7 @@ class Litefs(object):
                 await _send_asgi_response(send, status, headers, content)
 
             except Exception as e:
-                result = self._handle_error_parts(request_handler, e)
+                result = await self._async_handle_error_parts(request_handler, e)
                 if len(result) == 3 and isinstance(result[0], str):
                     # Middleware handled it — result is (status_line, headers, content)
                     status, headers, content = result

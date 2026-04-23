@@ -134,6 +134,11 @@ def app():
     def tuple_handler(request):
         return {'status': 'created', 'id': 42}
 
+    @app.add_get('/start-response', name='start_response_test')
+    def start_response_handler(request):
+        request.start_response(201, [('Content-Type', 'text/plain')])
+        return 'Created via start_response'
+
     @app.add_get('/async-handler', name='async_handler')
     async def async_handler(request):
         await asyncio.sleep(0)
@@ -279,6 +284,13 @@ class TestASGIIntegrationResponseTypes:
         assert data['status'] == 'created'
         assert data['id'] == 42
 
+    @pytest.mark.asyncio
+    async def test_start_response_without_session(self, asgi_app):
+        """测试 start_response 在未加载会话时不崩溃"""
+        resp = await invoke(asgi_app, make_scope('GET', '/start-response'))
+        assert resp.status == 201
+        assert b'Created via start_response' in resp.body
+
 
 class TestASGIIntegrationRequestBody:
     """请求体解析测试"""
@@ -380,9 +392,7 @@ class TestASGIIntegrationErrorHandling:
     @pytest.mark.asyncio
     async def test_http_error_returns_correct_status(self, asgi_app):
         resp = await invoke(asgi_app, make_scope('GET', '/http-error'))
-        # HttpError raised inside handler is caught by the generic exception path
-        # and results in a 500 (the ASGI error handling doesn't distinguish HttpError)
-        assert resp.status == 500
+        assert resp.status == 403
 
     @pytest.mark.asyncio
     async def test_unmatched_route_returns_404(self, asgi_app):

@@ -540,13 +540,12 @@ class BaseRequestHandler:
 
     def _handle_response_object(self, result, app, http_status_codes):
         """处理 Response 对象类型的返回值"""
-        # 保存会话
-        session_key = self._session_id or self.session.id
-        if self._session_modified:
+        session_key = self._save_session_to_store()
+        if session_key and self._session_modified:
             app.sessions.put(session_key, self.session)
 
-        # 设置 session cookie
-        result.headers.append(("Set-Cookie", self._build_session_cookie_header(session_key)))
+        if session_key:
+            result.headers.append(("Set-Cookie", self._build_session_cookie_header(session_key)))
 
         status_code = result.status_code
         status_text = http_status_codes.get(status_code, "Unknown")
@@ -557,18 +556,18 @@ class BaseRequestHandler:
 
     def _handle_headers_responsed(self, result, app, http_status_codes):
         """处理已经调用过 start_response 的情况"""
-        # 保存会话
-        session_key = self._session_id or self.session.id
-        app.sessions.put(session_key, self.session)
+        session_key = self._save_session_to_store()
+        if session_key and self._session_modified:
+            app.sessions.put(session_key, self.session)
 
-        # 设置 session cookie
-        self.set_cookie(
-            app.config.session_name, session_key,
-            path="/",
-            secure=app.config.session_secure,
-            httponly=app.config.session_http_only,
-            samesite=app.config.session_same_site
-        )
+        if session_key:
+            self.set_cookie(
+                app.config.session_name, session_key,
+                path="/",
+                secure=app.config.session_secure,
+                httponly=app.config.session_http_only,
+                samesite=app.config.session_same_site
+            )
 
         status_code = int(self._status_code)
         status_text = http_status_codes.get(status_code, "Unknown")
