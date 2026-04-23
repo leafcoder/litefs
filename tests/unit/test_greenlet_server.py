@@ -178,24 +178,24 @@ class TestHTTPServer:
     def test_http_server_init(self):
         """测试 HTTP 服务器初始化"""
         from litefs.server.greenlet import HTTPServer
-        
+
         app = Mock()
-        server = HTTPServer(('localhost', 8000), app)
-        
+        server = HTTPServer(('localhost', 0), app)
+
         # 验证服务器已创建
         assert server is not None
-        assert server.server_address == ('localhost', 8000)
+        assert server.server_address[0] == 'localhost'
         server.server_close()
 
     def test_http_server_with_custom_params(self):
         """测试自定义参数初始化"""
         from litefs.server.greenlet import HTTPServer
-        
+
         app = Mock()
-        server = HTTPServer(('0.0.0.0', 9000), app)
-        
+        server = HTTPServer(('0.0.0.0', 0), app)
+
         assert server is not None
-        assert server.server_address == ('0.0.0.0', 9000)
+        assert server.server_address[0] == '0.0.0.0'
         server.server_close()
 
 
@@ -206,24 +206,24 @@ class TestProcessHTTPServer:
     def test_process_server_init(self):
         """测试多进程服务器初始化"""
         from litefs.server.greenlet import ProcessHTTPServer
-        
+
         app = Mock()
-        server = ProcessHTTPServer(('localhost', 8000), app)
-        
+        server = ProcessHTTPServer(('localhost', 0), app)
+
         # 验证服务器已创建
         assert server is not None
-        assert server.server_address == ('localhost', 8000)
+        assert server.server_address[0] == 'localhost'
         server.server_close()
 
     def test_process_server_with_processes(self):
         """测试带进程数的服务器初始化"""
         from litefs.server.greenlet import ProcessHTTPServer
-        
+
         app = Mock()
-        server = ProcessHTTPServer(('localhost', 8000), app)
-        
+        server = ProcessHTTPServer(('localhost', 0), app)
+
         assert server is not None
-        assert server.server_address == ('localhost', 8000)
+        assert server.server_address[0] == 'localhost'
         server.server_close()
 
 
