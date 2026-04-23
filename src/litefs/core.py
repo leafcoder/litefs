@@ -336,10 +336,27 @@ class Litefs(object):
         """
         self.db_manager.drop_all(name)
 
+    def _build_error_parts(self, error):
+        """Build error parts from exception when no middleware handled it.
+
+        Args:
+            error: The exception that occurred.
+
+        Returns:
+            tuple: (status_code, content_type, status_text, body_text)
+        """
+        from .exceptions import HttpError
+
+        if isinstance(error, HttpError):
+            return (error.status_code, "text/html; charset=utf-8", error.message, error.message)
+        else:
+            log_error(self.logger, str(error))
+            return (500, "text/html; charset=utf-8", "500 Internal Server Error", "Internal Server Error")
+
     def _handle_error_parts(self, request_handler, error):
         """Process an exception and return normalized error parts.
 
-        Tries middleware exception handler first, then HttpError, then generic 500.
+        Tries middleware exception handler first, then falls back to common logic.
 
         Returns:
             tuple: (status_line, headers, content) from _parse_result_tuple if middleware handled it
@@ -352,18 +369,12 @@ class Litefs(object):
             if middleware_result is not None:
                 return _parse_result_tuple(middleware_result)
 
-        from .exceptions import HttpError
-
-        if isinstance(error, HttpError):
-            return (error.status_code, "text/html; charset=utf-8", error.message, error.message)
-        else:
-            log_error(self.logger, str(error))
-            return (500, "text/html; charset=utf-8", "500 Internal Server Error", "Internal Server Error")
+        return self._build_error_parts(error)
 
     async def _async_handle_error_parts(self, request_handler, error):
         """Async version of _handle_error_parts for ASGI path.
 
-        Tries async middleware exception handler first, then HttpError, then generic 500.
+        Tries async middleware exception handler first, then falls back to common logic.
 
         Returns:
             Same format as _handle_error_parts.
@@ -375,13 +386,7 @@ class Litefs(object):
             if middleware_result is not None:
                 return _parse_result_tuple(middleware_result)
 
-        from .exceptions import HttpError
-
-        if isinstance(error, HttpError):
-            return (error.status_code, "text/html; charset=utf-8", error.message, error.message)
-        else:
-            log_error(self.logger, str(error))
-            return (500, "text/html; charset=utf-8", "500 Internal Server Error", "Internal Server Error")
+        return self._build_error_parts(error)
 
     def wsgi(self):
         """
