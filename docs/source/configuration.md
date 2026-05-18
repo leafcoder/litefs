@@ -24,10 +24,54 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``session_backend`` | str | ``memory`` | 会话后端（memory/redis/database/memcache） |
 | ``session_expiration_time`` | int | ``3600`` | 会话过期时间（秒） |
 | ``session_name`` | str | ``litefs_session`` | 会话 cookie 名称 |
-| ``session_secure`` | bool | ``false`` | 是否使用安全 cookie |
+| ``session_secure`` | bool | ``环境感知`` | 是否使用安全 cookie（生产环境默认 True，开发环境默认 False） |
 | ``session_http_only`` | bool | ``true`` | 是否仅 HTTP 访问 cookie |
 | ``session_same_site`` | str | ``Lax`` | SameSite 策略（Strict, Lax, None） |
 | ``cache_backend`` | str | ``tree`` | 缓存后端（memory, tree, redis, database, memcache） |
+
+## 环境感知配置
+
+Litefs 支持环境感知配置，根据运行环境自动调整安全设置。
+
+### session_secure 配置
+
+``session_secure`` 配置项支持环境感知：
+
+* **生产环境**（``debug=False``）：默认 ``True``，强制使用 HTTPS
+* **开发环境**（``debug=True``）：默认 ``False``，允许 HTTP（便于本地开发）
+
+```python
+from litefs.core import Litefs
+
+# 生产环境 - session_secure 自动设置为 True
+app = Litefs(
+    host='0.0.0.0',
+    port=8080,
+    debug=False  # 生产环境
+)
+
+# 开发环境 - session_secure 自动设置为 False
+app = Litefs(
+    host='localhost',
+    port=9090,
+    debug=True  # 开发环境
+)
+
+# 强制指定（不推荐）
+app = Litefs(
+    host='0.0.0.0',
+    port=8080,
+    debug=False,
+    session_secure=False  # 强制禁用（不安全）
+)
+```
+
+**安全建议：**
+
+1. **生产环境**必须使用 HTTPS 并设置 ``session_secure=True``
+2. **开发环境**可以使用 HTTP 和 ``session_secure=False``
+3. 不要在生产环境强制设置 ``session_secure=False``
+4. 系统会在不安全配置时发出警告
 
 ## 使用方法
 

@@ -59,11 +59,47 @@
 * 支持批量操作 (``set_many``, ``get_many``, ``delete_many``)
 * 支持复杂数据类型（需 JSON 序列化）
 * 文件数据库支持持久化存储
+* **概率性清理机制**：避免每次操作都执行清理，提升性能
+* **智能清理策略**：支持概率触发和阈值触发两种方式
+
+**清理机制详解：**
+
+DatabaseCache 使用智能的概率性清理策略，避免传统缓存每次操作都执行清理的性能问题：
+
+1. **概率性清理**：每次操作有 1% 的概率触发清理（可配置）
+2. **阈值触发清理**：当操作计数达到阈值（默认1000次）时强制清理
+3. **可配置参数**：
+   - ``cleanup_probability``：清理概率（默认 0.01，即 1%）
+   - ``cleanup_threshold``：清理阈值（默认 1000 次操作）
+
+```python
+from litefs.cache import DatabaseCache
+
+# 使用默认清理策略
+cache = DatabaseCache(db_path="cache.db")
+
+# 自定义清理策略
+cache = DatabaseCache(
+    db_path="cache.db",
+    cleanup_probability=0.05,  # 5% 概率触发清理
+    cleanup_threshold=500      # 每500次操作强制清理
+)
+
+# 禁用自动清理（仅手动清理）
+cache = DatabaseCache(
+    db_path="cache.db",
+    cleanup_probability=0.0,
+    cleanup_threshold=0
+)
+# 手动触发清理
+cache._cleanup_expired(force=True)
+```
 
 **适用场景：**
 * 需要持久化的缓存
 * 单机应用
 * 不想额外安装 Redis 的场景
+* 中等访问频率的应用（概率性清理效果最佳）
 
 ### MemcacheCache（Memcache 缓存）
 
