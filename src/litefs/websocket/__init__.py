@@ -11,7 +11,7 @@ WebSocket 模块
 - 认证集成
 
 使用示例：
-    from litefs import Litefs
+    from litefs.core import Litefs
     
     app = Litefs()
     

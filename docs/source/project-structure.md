@@ -67,8 +67,13 @@ src/litefs/
 │
 ├── handlers/               # 请求处理器
 │   ├── __init__.py
-│   ├── request.py          # 请求处理
-│   └── request_enhanced.py # 增强请求处理
+│   ├── base.py             # 请求处理器基类
+│   ├── wsgi.py             # WSGI 请求处理器
+│   ├── asgi.py             # ASGI 请求处理器
+│   ├── socket.py           # Socket 请求处理器
+│   ├── response.py         # HTTP 响应对象
+│   ├── form.py             # 表单数据解析
+│   └── enhanced.py         # 增强请求处理
 │
 ├── middleware/             # 中间件
 │   ├── __init__.py

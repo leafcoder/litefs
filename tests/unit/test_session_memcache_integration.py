@@ -26,6 +26,8 @@ def memcache_session():
         session._mc.delete('test:session:cleanup')
     except:
         pass
+    finally:
+        session.close()
 
 
 @pytest.fixture
@@ -226,6 +228,7 @@ class TestMemcacheSessionExpiration:
         # 过期后应该不存在
         result = short_ttl_session.get('test_short')
         assert result is None
+        short_ttl_session.close()
 
 
 class TestMemcacheSessionIntegration:

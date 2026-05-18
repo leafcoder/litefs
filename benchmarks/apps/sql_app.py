@@ -10,11 +10,11 @@ logging.disable(logging.CRITICAL)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 from litefs.orm import Model, Field, SQLiteDB
 
-app = Litefs(host="0.0.0.0", port=8080)
+app = Litefs(host="0.0.0.0", port=8080, session_secure=True)
 
 # 使用绝对路径的数据库
 DB_PATH = os.path.join(os.path.dirname(__file__), "benchmark.db")

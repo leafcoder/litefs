@@ -12,12 +12,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from litefs import (
-    EmailValidator,
-    URLValidator,
-    EmailFieldValidator,
-    URLFieldValidator
-)
+from litefs.validators import EmailValidator, URLValidator
+from litefs.forms import Email as EmailFieldValidator, URL as URLFieldValidator
 
 
 def test_import_no_conflict():

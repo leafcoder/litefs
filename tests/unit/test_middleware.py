@@ -8,7 +8,7 @@ from unittest.mock import Mock, MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.middleware import (
     Middleware,
     MiddlewareManager,
@@ -266,11 +266,11 @@ class TestRateLimitMiddleware(unittest.TestCase):
         
         result = middleware.process_request(request_handler)
         self.assertIsNotNone(result)
-        self.assertIsInstance(result, tuple)
+        from litefs.handlers import Response
+        self.assertIsInstance(result, Response)
         
-        status, headers, content = result
-        self.assertEqual(status, '429 Too Many Requests')
-        self.assertIn('Retry-After', dict(headers))
+        self.assertEqual(result.status_code, 429)
+        self.assertIn('Retry-After', dict(result.headers))
 
 
 class TestThrottleMiddleware(unittest.TestCase):
@@ -298,10 +298,10 @@ class TestThrottleMiddleware(unittest.TestCase):
         
         result = middleware.process_request(request_handler)
         self.assertIsNotNone(result)
-        self.assertIsInstance(result, tuple)
+        from litefs.handlers import Response
+        self.assertIsInstance(result, Response)
         
-        status, headers, content = result
-        self.assertEqual(status, '429 Too Many Requests')
+        self.assertEqual(result.status_code, 429)
 
 
 class TestLitefsMiddlewareIntegration(unittest.TestCase):

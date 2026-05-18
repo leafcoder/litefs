@@ -46,7 +46,7 @@
 ### 基本使用
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.middleware import EnhancedLoggingMiddleware
 
 app = Litefs()
@@ -97,7 +97,7 @@ app.add_middleware(EnhancedLoggingMiddleware,
 每个请求都会自动生成唯一的 Request ID：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import route
 from litefs.middleware import EnhancedLoggingMiddleware
 
@@ -125,7 +125,7 @@ app.run()
 自动过滤敏感参数：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import post
 from litefs.middleware import EnhancedLoggingMiddleware
 
@@ -161,7 +161,7 @@ app.run()
 使用性能装饰器记录函数执行时间：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import route
 from litefs.middleware import EnhancedLoggingMiddleware, log_performance
 import time
@@ -188,7 +188,7 @@ app.run()
 启用 JSON 格式的结构化日志：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.middleware import EnhancedLoggingMiddleware
 import logging
 
@@ -224,7 +224,7 @@ app.run()
 使用 `RequestContextLogger` 记录带请求 ID 的日志：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import route
 from litefs.middleware import EnhancedLoggingMiddleware, RequestContextLogger
 

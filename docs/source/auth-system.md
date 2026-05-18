@@ -17,7 +17,7 @@ pip install bcrypt
 ### 基本配置
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.auth import Auth
 
 app = Litefs()
@@ -65,7 +65,7 @@ Litefs 支持 OAuth2 社交登录，目前支持以下提供商：
 #### 配置 OAuth2
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.auth.oauth2 import OAuth2
 from litefs.auth.providers import GitHubProvider, GoogleProvider
 
@@ -190,6 +190,85 @@ valid, errors = validate_password_strength('WeakPass')
 if not valid:
     print(f'Password errors: {errors}')
 ```
+
+### 密码泄露检查
+
+Litefs 提供密码泄露检查功能，通过 Have I Been Pwned (HIBP) API 检查密码是否在已知泄露数据库中。
+
+**功能特点：**
+* 使用 HIBP API 的 k-anonymity 模型，保护密码隐私
+* 支持智能缓存，减少 API 调用
+* 提供泄露次数查询
+* 网络故障时自动降级到本地检查
+
+**基本使用：**
+
+```python
+from litefs.auth.password import check_password_breach, get_breach_count
+
+# 检查密码是否泄露
+is_breached = check_password_breach("password123")
+if is_breached:
+    print("警告：此密码已在数据泄露中出现，请更换密码")
+
+# 获取泄露次数
+count = get_breach_count("password123")
+if count > 0:
+    print(f"此密码已在 {count} 次数据泄露中出现")
+```
+
+**高级配置：**
+
+```python
+from litefs.auth.password import check_password_breach, clear_breach_cache
+
+# 禁用缓存，强制查询 API
+is_breached = check_password_breach("password123", use_cache=False)
+
+# 设置超时时间（秒）
+is_breached = check_password_breach("password123", timeout=10)
+
+# 清空缓存
+clear_breach_cache()
+```
+
+**集成到注册流程：**
+
+```python
+from litefs.auth.password import (
+    hash_password,
+    validate_password_strength,
+    check_password_breach
+)
+
+def register(username, password):
+    # 验证密码强度
+    valid, errors = validate_password_strength(password)
+    if not valid:
+        return {'error': '密码强度不足', 'details': errors}
+    
+    # 检查密码是否泄露
+    if check_password_breach(password):
+        return {'error': '此密码已在数据泄露中出现，请使用其他密码'}
+    
+    # 创建用户
+    user = User.create(
+        username=username,
+        password_hash=hash_password(password)
+    )
+    
+    return {'success': True, 'user_id': user.id}
+```
+
+**隐私保护机制：**
+
+HIBP API 使用 k-anonymity 模型保护密码隐私：
+1. 计算密码的 SHA-1 哈希
+2. 只发送哈希的前 5 个字符到 API
+3. API 返回所有以这 5 个字符开头的哈希后缀
+4. 在本地检查完整哈希是否在返回列表中
+
+这种方式确保完整密码哈希永远不会发送到 API，保护用户隐私。
 
 ### 用户模型
 
@@ -327,7 +406,7 @@ Authorization: Bearer <access_token>
 ## 完整示例
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.auth import Auth
 from litefs.auth.models import User, Role, Permission, init_default_roles_and_permissions
 from litefs.auth.password import hash_password

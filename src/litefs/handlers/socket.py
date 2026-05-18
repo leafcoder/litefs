@@ -10,18 +10,16 @@
 
 import itertools
 import json
-from hashlib import sha256
 from http.cookies import SimpleCookie
 from io import BytesIO, DEFAULT_BUFFER_SIZE, StringIO
-from os import urandom
 from tempfile import TemporaryFile
 from urllib.parse import unquote_plus
 
 from ..exceptions import HttpError
 from ..session import Session
 from ..utils import gmt_date, log_debug, log_error, render_error
-from .base_handler import BaseRequestHandler
-from .form_parser import parse_form, parse_header, parse_multipart_stream
+from .base import BaseRequestHandler
+from .form import parse_form, parse_header, parse_multipart_stream
 from .response import (
     DEFAULT_STATUS_MESSAGE,
     default_content_type,
@@ -135,17 +133,6 @@ class SocketRequestHandler(BaseRequestHandler):
         sessions.put(session_id, session)
         return None, session
 
-    def _new_session_id(self):
-        app = self._app
-        sessions = app.sessions
-        while True:
-            token = urandom(32)
-            session_id = sha256(token).hexdigest()
-            session = sessions.get(session_id)
-            if session is None:
-                break
-        return session_id
-
     @property
     def config(self):
         return self._app.config
@@ -233,24 +220,6 @@ class SocketRequestHandler(BaseRequestHandler):
     @property
     def referer(self):
         return self.environ.get("HTTP_REFERER")
-
-    @property
-    def headers(self):
-        """
-        获取所有请求头
-
-        Returns:
-            包含所有请求头的字典
-        """
-        headers = {}
-        for key, value in self.environ.items():
-            if key.startswith('HTTP_'):
-                header_name = key[5:].replace('_', '-').lower()
-                headers[header_name] = value
-            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
-                header_name = key.replace('_', '-').lower()
-                headers[header_name] = value
-        return headers
 
     @property
     def cookie(self):

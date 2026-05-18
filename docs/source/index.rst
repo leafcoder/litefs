@@ -111,7 +111,7 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 
 .. code-block:: python
 
-   from litefs import Litefs
+   from litefs.core import Litefs
    from litefs.routing import get, post
 
    app = Litefs(
@@ -140,7 +140,7 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 
 .. code-block:: python
 
-   from litefs import Litefs
+   from litefs.core import Litefs
 
    app = Litefs()
 
@@ -160,7 +160,7 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 
 .. code-block:: python
 
-   from litefs import Litefs
+   from litefs.core import Litefs
 
    app = Litefs()
 
@@ -183,7 +183,7 @@ WSGI 部署
 
 .. code-block:: python
 
-   from litefs import Litefs
+   from litefs.core import Litefs
    from litefs.routing import get
 
    app = Litefs()

@@ -10,13 +10,13 @@ logging.disable(logging.CRITICAL)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get
 
 # 默认端口
 DEFAULT_PORT = 8080
 
-app = Litefs(host="0.0.0.0", port=DEFAULT_PORT)
+app = Litefs(host="0.0.0.0", port=DEFAULT_PORT, session_secure=True)
 
 
 @get("/")

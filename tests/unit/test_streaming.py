@@ -8,7 +8,8 @@
 import unittest
 import time
 from io import BytesIO
-from litefs import Litefs, Response
+from litefs.core import Litefs
+from litefs.handlers import Response
 from litefs.handlers import WSGIRequestHandler
 
 

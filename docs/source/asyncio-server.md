@@ -27,7 +27,7 @@ Litefs 现在提供了基于 asyncio 的 HTTP 服务器实现，与原有的 gre
 ### 基本使用
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.server.asyncio import run_asyncio
 
 app = Litefs()

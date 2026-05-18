@@ -29,7 +29,7 @@
 
 **实现方案**:
 ```python
-from litefs import WebSocket
+from litefs.websocket import WebSocket
 
 @WebSocket.route('/ws/chat')
 async def chat_room(websocket):

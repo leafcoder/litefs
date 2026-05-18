@@ -7,7 +7,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from litefs.handlers.request import parse_form
+from litefs.handlers import parse_form
 
 
 class TestParseForm(unittest.TestCase):

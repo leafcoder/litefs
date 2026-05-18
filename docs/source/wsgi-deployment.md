@@ -5,7 +5,7 @@
 创建 ``wsgi.py``：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 

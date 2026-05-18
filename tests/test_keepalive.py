@@ -16,7 +16,7 @@ import pytest
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.server.asyncio import run_asyncio
 
 
@@ -92,7 +92,7 @@ import os
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.server.asyncio import run_asyncio
 
 app = Litefs(host='127.0.0.1', port={port}, debug=True)
@@ -269,7 +269,7 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs(host='127.0.0.1', port={port}, debug=True)
 

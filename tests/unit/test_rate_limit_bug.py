@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.middleware import RateLimitMiddleware
 
 

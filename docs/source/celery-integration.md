@@ -13,7 +13,7 @@ pip install celery redis
 ### 1. 初始化 Celery
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.tasks import Celery
 
 app = Litefs(

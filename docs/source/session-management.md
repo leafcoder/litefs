@@ -11,6 +11,57 @@
 * 支持过期时间自动清理
 * 支持复杂的数据类型
 * 线程安全
+* **连接池支持**：基于 SQLAlchemy 的高性能连接池
+* **并发优化**：支持多线程并发访问
+
+**连接池配置：**
+
+DatabaseSession 支持通过 SQLAlchemy 连接池优化性能，避免频繁创建和关闭数据库连接：
+
+```python
+from litefs.session import DatabaseSession
+
+# 使用默认连接池配置
+session_store = DatabaseSession(
+    db_path="/path/to/sessions.db",
+    table_name="sessions",
+    session_timeout=3600
+)
+
+# 自定义连接池配置
+session_store = DatabaseSession(
+    db_path="/path/to/sessions.db",
+    pool_size=10,           # 连接池大小（默认 5）
+    max_overflow=20,        # 最大溢出连接数（默认 10）
+    pool_timeout=60,        # 获取连接超时时间（默认 30 秒）
+    pool_recycle=1800,      # 连接回收时间（默认 3600 秒）
+    use_pool=True           # 是否使用连接池（默认 True）
+)
+
+# 禁用连接池（使用传统连接方式）
+session_store = DatabaseSession(
+    db_path="/path/to/sessions.db",
+    use_pool=False
+)
+```
+
+**连接池参数说明：**
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| ``pool_size`` | 5 | 连接池保持的连接数 |
+| ``max_overflow`` | 10 | 允许的最大溢出连接数 |
+| ``pool_timeout`` | 30 | 获取连接的超时时间（秒） |
+| ``pool_recycle`` | 3600 | 连接回收时间（秒） |
+| ``use_pool`` | True | 是否使用连接池 |
+
+**性能提升：**
+
+使用连接池后，DatabaseSession 的性能显著提升：
+- 减少数据库连接创建/关闭开销
+- 支持高并发访问
+- 避免连接泄漏
+- 自动管理连接生命周期
 
 **使用示例：**
 
@@ -21,7 +72,9 @@ from litefs.session import DatabaseSession
 session_store = DatabaseSession(
     db_path="/path/to/sessions.db",
     table_name="sessions",
-    session_timeout=3600
+    session_timeout=3600,
+    pool_size=10,
+    max_overflow=20
 )
 
 # 创建 Session

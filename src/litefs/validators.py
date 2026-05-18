@@ -4,25 +4,18 @@
 """
 表单验证模块
 
-提供表单数据验证功能，支持多种验证规则
+提供表单数据验证功能，支持多种验证规则。
+
+验证器说明：
+- 本模块的 Validator 子类用于命令式/程序化验证场景
+- litefs.forms 模块的 Validator 子类用于 Form + Field 声明式表单验证场景
+- ValidationError 统一使用 litefs.exceptions.ValidationError
 """
 
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-
-class ValidationError(Exception):
-    """验证错误异常"""
-
-    def __init__(self, message: str, field: Optional[str] = None):
-        self.message = message
-        self.field = field
-        super().__init__(self.message)
-
-    def __str__(self):
-        if self.field:
-            return f"{self.field}: {self.message}"
-        return self.message
+from .exceptions import ValidationError
 
 
 class Validator:

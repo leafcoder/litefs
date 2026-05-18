@@ -14,7 +14,7 @@ Litefs 提供完整的 WebSocket 支持，包括：
 ### 基本使用
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 
@@ -124,7 +124,7 @@ def handler(ws):
 ### 聊天室
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 
@@ -176,7 +176,7 @@ if __name__ == '__main__':
 ```python
 import time
 import threading
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 

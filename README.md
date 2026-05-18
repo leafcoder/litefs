@@ -84,7 +84,7 @@ python setup.py install
 #### 装饰器风格
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.routing import get, post
 
 app = Litefs(host='0.0.0.0', port=8080, debug=True)
@@ -110,7 +110,7 @@ app.run()
 #### 方法链风格
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 
@@ -131,7 +131,7 @@ app.run()
 创建 `wsgi.py`：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 

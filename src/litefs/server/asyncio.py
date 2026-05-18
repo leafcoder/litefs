@@ -18,7 +18,7 @@ from email.message import Message
 import time
 
 from ..exceptions import HttpError
-from ..handlers.request import ASGIRequestHandler
+from ..handlers import ASGIRequestHandler
 from ..utils import log_error
 
 

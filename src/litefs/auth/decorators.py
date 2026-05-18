@@ -14,10 +14,10 @@ from typing import Callable, Optional
 def permission_required(*permissions: str) -> Callable:
     """
     权限验证装饰器
-    
+
     Args:
         *permissions: 需要的权限列表
-        
+
     Returns:
         装饰器函数
     """
@@ -25,21 +25,23 @@ def permission_required(*permissions: str) -> Callable:
         @functools.wraps(func)
         def wrapper(request, *args, **kwargs):
             if not hasattr(request, 'user') or request.user is None:
-                return {'error': '需要登录'}, 401
-            
+                from ..exceptions import Unauthorized
+                raise Unauthorized(message='Authentication required')
+
             user_permissions = set()
-            
+
             roles = getattr(request.user, 'roles', [])
             for role in roles:
                 role_perms = getattr(role, 'permissions', [])
                 for perm in role_perms:
                     perm_name = perm.name if hasattr(perm, 'name') else str(perm)
                     user_permissions.add(perm_name)
-            
+
             for perm in permissions:
                 if perm not in user_permissions:
-                    return {'error': '权限不足'}, 403
-            
+                    from ..exceptions import Forbidden
+                    raise Forbidden(message='Insufficient permissions')
+
             return func(request, *args, **kwargs)
         return wrapper
     return decorator
@@ -48,12 +50,12 @@ def permission_required(*permissions: str) -> Callable:
 def current_user(func: Callable) -> Callable:
     """
     当前用户装饰器
-    
+
     将当前用户作为第一个参数传递给处理函数。
-    
+
     Args:
         func: 处理函数
-        
+
     Returns:
         装饰后的函数
     """
@@ -67,10 +69,10 @@ def current_user(func: Callable) -> Callable:
 def admin_required(func: Callable) -> Callable:
     """
     管理员权限装饰器
-    
+
     Args:
         func: 处理函数
-        
+
     Returns:
         装饰后的函数
     """
@@ -81,10 +83,10 @@ def admin_required(func: Callable) -> Callable:
 def owner_or_admin_required(get_owner_id: Callable) -> Callable:
     """
     所有者或管理员权限装饰器
-    
+
     Args:
         get_owner_id: 获取所有者 ID 的函数
-        
+
     Returns:
         装饰器函数
     """
@@ -92,20 +94,22 @@ def owner_or_admin_required(get_owner_id: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(request, *args, **kwargs):
             if not hasattr(request, 'user') or request.user is None:
-                return {'error': '需要登录'}, 401
-            
+                from ..exceptions import Unauthorized
+                raise Unauthorized(message='Authentication required')
+
             user = request.user
             user_roles = getattr(user, 'roles', [])
             user_role_names = [r.name if hasattr(r, 'name') else str(r) for r in user_roles]
-            
+
             if 'admin' in user_role_names:
                 return func(request, *args, **kwargs)
-            
+
             owner_id = get_owner_id(request, *args, **kwargs)
-            
+
             if str(user.id) == str(owner_id):
                 return func(request, *args, **kwargs)
-            
-            return {'error': '权限不足'}, 403
+
+            from ..exceptions import Forbidden
+            raise Forbidden(message='Insufficient permissions')
         return wrapper
     return decorator

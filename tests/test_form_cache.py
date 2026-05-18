@@ -137,7 +137,7 @@ class TestParseFormWithCache(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        from litefs.handlers.request import parse_form
+        from litefs.handlers import parse_form
         
         self.parse_form = parse_form
     

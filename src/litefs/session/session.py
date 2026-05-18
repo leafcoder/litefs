@@ -4,6 +4,8 @@
 from collections import UserDict
 from typing import Any, Optional
 
+from .base import SessionStoreBase
+
 
 class Session(UserDict):
     """
@@ -38,7 +40,7 @@ class Session(UserDict):
         return False
 
 
-class MemorySessionStore:
+class MemorySessionStore(SessionStoreBase):
     """
     内存 Session 存储
     

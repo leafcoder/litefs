@@ -21,7 +21,7 @@ HTTP Keep-Alive（也称为持久连接）允许在单个 TCP 连接上发送和
 AsyncIO 版本的 Keep-Alive 实现：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.server.asyncio import run_asyncio
 
 app = Litefs()
@@ -40,7 +40,7 @@ if __name__ == '__main__':
 Greenlet 版本的 Keep-Alive 实现：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 

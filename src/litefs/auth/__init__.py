@@ -53,7 +53,7 @@ from .jwt import JWTManager, create_token, decode_token
 from .password import hash_password, verify_password
 from .middleware import AuthMiddleware, login_required, role_required
 from .decorators import permission_required, current_user
-from .models import User, Role, Permission, init_default_roles_and_permissions
+from .models import User, Role, Permission, init_default_roles_and_permissions, BaseUserStore, MemoryUserStore, get_user_store, set_user_store
 from .oauth2 import OAuth2, OAuth2State, create_oauth2_blueprint
 from .providers import (
     OAuth2Provider,
@@ -80,6 +80,10 @@ __all__ = [
     'User',
     'Role',
     'Permission',
+    'BaseUserStore',
+    'MemoryUserStore',
+    'get_user_store',
+    'set_user_store',
     'init_default_roles_and_permissions',
     'OAuth2',
     'OAuth2State',
@@ -169,65 +173,68 @@ class Auth:
         data = request.json or {}
         username = data.get('username')
         password = data.get('password')
-        
+
         if not username or not password:
             return {'error': '用户名和密码不能为空'}, 400
-        
-        user = User.get_by_username(username)
+
+        store = get_user_store()
+        user = store.get_by_username(username)
         if not user or not verify_password(password, user.password_hash):
             return {'error': '用户名或密码错误'}, 401
-        
+
         access_token = self._jwt.create_access_token({'sub': user.id, 'username': user.username})
         refresh_token = self._jwt.create_refresh_token({'sub': user.id})
-        
+
         return {
             'access_token': access_token,
             'refresh_token': refresh_token,
             'token_type': 'Bearer',
             'expires_in': self.access_token_expires,
         }
-    
+
     def register_handler(self, request):
         """注册处理"""
         data = request.json or {}
         username = data.get('username')
         password = data.get('password')
         email = data.get('email')
-        
+
         if not username or not password:
             return {'error': '用户名和密码不能为空'}, 400
-        
-        if User.get_by_username(username):
+
+        store = get_user_store()
+        if store.get_by_username(username):
             return {'error': '用户名已存在'}, 400
-        
+
         password_hash = hash_password(password)
-        user = User.create(
+        user = store.create(
             username=username,
             password_hash=password_hash,
             email=email,
         )
-        
+
         return {'message': '注册成功', 'user_id': user.id}, 201
-    
+
     def refresh_handler(self, request):
         """Token 刷新处理"""
         data = request.json or {}
         refresh_token = data.get('refresh_token')
-        
+
         if not refresh_token:
             return {'error': 'Refresh Token 不能为空'}, 400
-        
+
         payload = self._jwt.decode_token(refresh_token)
         if not payload or payload.get('type') != 'refresh':
             return {'error': '无效的 Refresh Token'}, 401
-        
+
         user_id = payload.get('sub')
-        user = User.get_by_id(user_id)
+        store = get_user_store()
+        user = store.get_by_id(user_id)
         if not user:
             return {'error': '用户不存在'}, 401
-        
+
         access_token = self._jwt.create_access_token({'sub': user.id, 'username': user.username})
-        
+
         return {
             'access_token': access_token,
             'token_type': 'Bearer',
@@ -241,30 +248,30 @@ class Auth:
     def create_user(self, username: str, password: str, **kwargs):
         """
         创建用户
-        
+
         Args:
             username: 用户名
             password: 密码
-            **kwargs: 其他属性
-            
+            **kwargs: 其他属性（email, roles 等）
+
         Returns:
             User 实例
         """
         password_hash = hash_password(password)
-        return User.create(username=username, password_hash=password_hash, **kwargs)
-    
+        return get_user_store().create(username=username, password_hash=password_hash, **kwargs)
+
     def authenticate(self, username: str, password: str):
         """
         验证用户
-        
+
         Args:
             username: 用户名
             password: 密码
-            
+
         Returns:
             User 实例或 None
         """
-        user = User.get_by_username(username)
+        user = get_user_store().get_by_username(username)
         if user and verify_password(password, user.password_hash):
             return user
         return None

@@ -84,7 +84,7 @@ class HealthCheck(Middleware):
         Returns:
             健康检查响应
         """
-        from ..handlers.request import Response
+        from ..handlers import Response
         
         status_code = 200
         checks = {}
@@ -124,7 +124,7 @@ class HealthCheck(Middleware):
         Returns:
             就绪检查响应
         """
-        from ..handlers.request import Response
+        from ..handlers import Response
         
         status_code = 200
         checks = {}

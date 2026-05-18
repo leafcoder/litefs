@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from litefs.cache import MemoryCache, TreeCache
 from litefs.session import Session
-from litefs.handlers.request import parse_form
+from litefs.handlers import parse_form
 
 
 class TestMemoryCachePerformance(unittest.TestCase):

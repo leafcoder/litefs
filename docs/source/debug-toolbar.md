@@ -154,7 +154,7 @@ def handler(request):
 import os
 os.environ['LITEFS_DEBUG'] = '1'
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.debug import track_sql
 
 app = Litefs()

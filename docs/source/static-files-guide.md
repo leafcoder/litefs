@@ -12,7 +12,7 @@
 ## 快速开始
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 

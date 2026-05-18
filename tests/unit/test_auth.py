@@ -108,6 +108,112 @@ class TestPassword(unittest.TestCase):
         valid, errors = validate_password_strength('weak')
         self.assertFalse(valid)
         self.assertGreater(len(errors), 0)
+    
+    def test_check_password_breach_with_known_password(self):
+        """测试已知泄露密码的检查"""
+        from litefs.auth.password import check_password_breach, clear_breach_cache
+        from unittest.mock import patch, MagicMock
+
+        clear_breach_cache()
+
+        # Mock HIBP API 响应
+        # SHA1("password") = 5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8
+        # SHA1("123456")  = 7C4A8D09CA3762AF61E59520943DC26494F8941B
+        def make_mock_resp(suffix, count):
+            resp = MagicMock()
+            resp.read.return_value = f"{suffix}:{count}\n".encode('utf-8')
+            resp.__enter__ = MagicMock(return_value=resp)
+            resp.__exit__ = MagicMock(return_value=False)
+            return resp
+
+        with patch('litefs.auth.password.urlopen',
+                   return_value=make_mock_resp('1E4C9B93F3F0682250B6CF8331B7EE68FD8', 3730471)):
+            is_breached = check_password_breach("password", use_cache=False)
+            self.assertTrue(is_breached, "已知泄露密码 'password' 应该被检测到")
+
+        clear_breach_cache()
+        with patch('litefs.auth.password.urlopen',
+                   return_value=make_mock_resp('D09CA3762AF61E59520943DC26494F8941B', 2582869)):
+            is_breached = check_password_breach("123456", use_cache=False)
+            self.assertTrue(is_breached, "已知泄露密码 '123456' 应该被检测到")
+
+        clear_breach_cache()
+    
+    def test_check_password_breach_with_safe_password(self):
+        """测试安全密码的检查"""
+        from litefs.auth.password import check_password_breach, generate_password, clear_breach_cache
+        from unittest.mock import patch, MagicMock
+
+        clear_breach_cache()
+        safe_password = generate_password(32)
+
+        # Mock API 返回不包含该密码后缀的响应
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"AAAAAA:1\n"
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch('litefs.auth.password.urlopen', return_value=mock_resp):
+            is_breached = check_password_breach(safe_password, use_cache=False)
+            self.assertFalse(is_breached, "随机生成的强密码不应该被检测为泄露")
+
+        clear_breach_cache()
+    
+    def test_check_password_breach_with_empty_password(self):
+        """测试空密码的检查"""
+        from litefs.auth.password import check_password_breach
+        
+        is_breached = check_password_breach("", use_cache=False)
+        self.assertFalse(is_breached, "空密码不应该被检测为泄露")
+        
+        is_breached = check_password_breach(None, use_cache=False)
+        self.assertFalse(is_breached, "None 密码不应该被检测为泄露")
+    
+    def test_check_password_breach_cache(self):
+        """测试密码泄露检查缓存"""
+        from litefs.auth.password import check_password_breach, clear_breach_cache
+        from unittest.mock import patch, MagicMock
+
+        clear_breach_cache()
+
+        # Mock HIBP API 响应
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"1E4C9B93F3F0682250B6CF8331B7EE68FD8:3730471\n"
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch('litefs.auth.password.urlopen', return_value=mock_resp):
+            is_breached1 = check_password_breach("password", use_cache=True)
+            is_breached2 = check_password_breach("password", use_cache=True)
+            self.assertEqual(is_breached1, is_breached2)
+            self.assertTrue(is_breached1)
+
+        clear_breach_cache()
+    
+    def test_get_breach_count(self):
+        """测试获取密码泄露次数"""
+        from litefs.auth.password import get_breach_count
+        from unittest.mock import patch, MagicMock
+
+        # Mock HIBP API 响应，避免依赖外部网络
+        # SHA1("password") = 5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8
+        # prefix=5BAA6, suffix=1E4C9B93F3F0682250B6CF8331B7EE68FD8
+        fake_response = (
+            "1E4C9B93F3F0682250B6CF8331B7EE68FD8:3730471\n"
+            "A3CDB1E1B4B3B4B3B3B3B3B3B3B3B3B3B3B3B3B3:5\n"
+        )
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = fake_response.encode('utf-8')
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch('litefs.auth.password.urlopen', return_value=mock_resp):
+            count = get_breach_count("password")
+            self.assertGreater(count, 0, "mocked API should return breach count > 0")
+
+        # 测试空密码（不调用 API）
+        count = get_breach_count("")
+        self.assertEqual(count, 0, "空密码的泄露次数应该是 0")
 
 
 class TestModels(unittest.TestCase):
@@ -115,21 +221,21 @@ class TestModels(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        from litefs.auth.models import User, Role, Permission
+        from litefs.auth.models import User, Role, Permission, MemoryUserStore, set_user_store
         self.User = User
         self.Role = Role
         self.Permission = Permission
-        User._registry = {}
-        User._registry_by_username = {}
-        User._next_id = 1
         Role._registry = {}
         Permission._registry = {}
+        # 每个测试使用全新的内存存储
+        self._store = MemoryUserStore()
+        set_user_store(self._store)
     
     def test_create_user(self):
         """测试创建用户"""
         from litefs.auth.password import hash_password
         
-        user = self.User.create(
+        user = self._store.create(
             username='testuser',
             password_hash=hash_password('password123'),
         )
@@ -142,12 +248,12 @@ class TestModels(unittest.TestCase):
         """测试根据用户名获取用户"""
         from litefs.auth.password import hash_password
         
-        self.User.create(
+        self._store.create(
             username='testuser',
             password_hash=hash_password('password123'),
         )
         
-        user = self.User.get_by_username('testuser')
+        user = self._store.get_by_username('testuser')
         
         self.assertIsNotNone(user)
         self.assertEqual(user.username, 'testuser')
@@ -170,7 +276,7 @@ class TestModels(unittest.TestCase):
         perm = self.Permission.create('user:read', '查看用户')
         role = self.Role.create('user', '普通用户', [perm])
         
-        user = self.User.create(
+        user = self._store.create(
             username='testuser',
             password_hash=hash_password('password123'),
             roles=[role],

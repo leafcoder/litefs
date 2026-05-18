@@ -22,11 +22,11 @@ class ErrorPageRenderer:
     DEFAULT_ERROR_TEMPLATES = {
         400: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>400 - 错误的请求</title>
+    <title>400 - Bad Request</title>
     <style>
         * {
             margin: 0;
@@ -96,26 +96,26 @@ class ErrorPageRenderer:
 <body>
     <div class="error-container">
         <div class="error-code">400</div>
-        <h1 class="error-title">错误的请求</h1>
+        <h1 class="error-title">Bad Request</h1>
         <p class="error-message">
-            服务器无法理解您的请求。请检查您的请求格式是否正确。
+            The server could not understand your request. Please check the request format.
         </p>
         <div class="error-detail">
-            错误代码: 400 Bad Request<br>
-            说明: 客户端发送的请求有语法错误
+            {{ERROR_MESSAGE}}400 Bad Request<br>
+            {{ERROR_DETAIL}}The client sent a malformed request
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
         """,
         403: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>403 - 禁止访问</title>
+    <title>403 - Forbidden</title>
     <style>
         * {
             margin: 0;
@@ -190,26 +190,26 @@ class ErrorPageRenderer:
     <div class="error-container">
         <div class="error-icon">🔒</div>
         <div class="error-code">403</div>
-        <h1 class="error-title">禁止访问</h1>
+        <h1 class="error-title">Forbidden</h1>
         <p class="error-message">
-            您没有权限访问此页面。如果您认为这是一个错误，请联系管理员。
+            You do not have permission to access this page. If you believe this is an error, please contact the administrator.
         </p>
         <div class="error-detail">
-            错误代码: 403 Forbidden<br>
-            说明: 服务器拒绝执行此请求
+            {{ERROR_MESSAGE}}403 Forbidden<br>
+            {{ERROR_DETAIL}}The server refused to process this request
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
         """,
         404: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - 页面未找到</title>
+    <title>404 - Not Found</title>
     <style>
         * {
             margin: 0;
@@ -284,26 +284,26 @@ class ErrorPageRenderer:
     <div class="error-container">
         <div class="error-icon">🔍</div>
         <div class="error-code">404</div>
-        <h1 class="error-title">页面未找到</h1>
+        <h1 class="error-title">Not Found</h1>
         <p class="error-message">
-            抱歉，您访问的页面不存在或已被删除。
+            Sorry, the page you are looking for does not exist or has been removed.
         </p>
         <div class="error-detail">
-            错误代码: 404 Not Found<br>
-            说明: 服务器无法找到请求的资源
+            {{ERROR_MESSAGE}}404 Not Found<br>
+            {{ERROR_DETAIL}}The server could not find the requested resource
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
         """,
         500: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>500 - 服务器内部错误</title>
+    <title>500 - Internal Server Error</title>
     <style>
         * {
             margin: 0;
@@ -378,26 +378,26 @@ class ErrorPageRenderer:
     <div class="error-container">
         <div class="error-icon">⚠️</div>
         <div class="error-code">500</div>
-        <h1 class="error-title">服务器内部错误</h1>
+        <h1 class="error-title">Internal Server Error</h1>
         <p class="error-message">
-            服务器遇到了一个意外情况，无法完成您的请求。请稍后再试。
+            The server encountered an unexpected condition and could not complete your request. Please try again later.
         </p>
         <div class="error-detail">
-            错误代码: 500 Internal Server Error<br>
-            说明: 服务器遇到意外情况
+            {{ERROR_MESSAGE}}500 Internal Server Error<br>
+            {{ERROR_DETAIL}}The server encountered an unexpected condition
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
         """,
         502: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>502 - 网关错误</title>
+    <title>502 - Bad Gateway</title>
     <style>
         * {
             margin: 0;
@@ -472,26 +472,26 @@ class ErrorPageRenderer:
     <div class="error-container">
         <div class="error-icon">🌐</div>
         <div class="error-code">502</div>
-        <h1 class="error-title">网关错误</h1>
+        <h1 class="error-title">Bad Gateway</h1>
         <p class="error-message">
-            服务器作为网关或代理，从上游服务器收到了无效的响应。
+            The server, acting as a gateway or proxy, received an invalid response from the upstream server.
         </p>
         <div class="error-detail">
-            错误代码: 502 Bad Gateway<br>
-            说明: 上游服务器响应无效
+            {{ERROR_MESSAGE}}502 Bad Gateway<br>
+            {{ERROR_DETAIL}}The upstream server returned an invalid response
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
         """,
         503: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>503 - 服务不可用</title>
+    <title>503 - Service Unavailable</title>
     <style>
         * {
             margin: 0;
@@ -566,26 +566,26 @@ class ErrorPageRenderer:
     <div class="error-container">
         <div class="error-icon">🔧</div>
         <div class="error-code">503</div>
-        <h1 class="error-title">服务不可用</h1>
+        <h1 class="error-title">Service Unavailable</h1>
         <p class="error-message">
-            服务器当前无法处理请求，可能正在进行维护或过载。请稍后再试。
+            The server is currently unable to handle the request, possibly due to maintenance or overload. Please try again later.
         </p>
         <div class="error-detail">
-            错误代码: 503 Service Unavailable<br>
-            说明: 服务器暂时无法处理请求
+            {{ERROR_MESSAGE}}503 Service Unavailable<br>
+            {{ERROR_DETAIL}}The server is temporarily unable to handle the request
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
         """,
         504: """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>504 - 网关超时</title>
+    <title>504 - Gateway Timeout</title>
     <style>
         * {
             margin: 0;
@@ -660,15 +660,15 @@ class ErrorPageRenderer:
     <div class="error-container">
         <div class="error-icon">⏱️</div>
         <div class="error-code">504</div>
-        <h1 class="error-title">网关超时</h1>
+        <h1 class="error-title">Gateway Timeout</h1>
         <p class="error-message">
-            服务器作为网关或代理，未及时从上游服务器收到响应。
+            The server, acting as a gateway or proxy, did not receive a timely response from the upstream server.
         </p>
         <div class="error-detail">
-            错误代码: 504 Gateway Timeout<br>
-            说明: 上游服务器响应超时
+            {{ERROR_MESSAGE}}504 Gateway Timeout<br>
+            {{ERROR_DETAIL}}The upstream server response timed out
         </div>
-        <a href="/" class="btn-home">返回首页</a>
+        <a href="/" class="btn-home">Back to Home</a>
     </div>
 </body>
 </html>
@@ -728,9 +728,13 @@ class ErrorPageRenderer:
             template = self.DEFAULT_ERROR_TEMPLATES[500]
 
         if message:
-            template = template.replace("错误代码: 500 Internal Server Error", f"错误信息: {message}")
+            template = template.replace("{{ERROR_MESSAGE}}", f"{message}<br>")
+        else:
+            template = template.replace("{{ERROR_MESSAGE}}", "")
         if detail:
-            template = template.replace("说明: 服务器遇到意外情况", f"说明: {detail}")
+            template = template.replace("{{ERROR_DETAIL}}", f"{detail}<br>")
+        else:
+            template = template.replace("{{ERROR_DETAIL}}", "")
 
         return template
 

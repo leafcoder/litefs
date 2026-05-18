@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from litefs import Litefs
+from litefs.core import Litefs
 from litefs.config import Config
 
 

@@ -5,7 +5,7 @@
 创建 ``asgi.py``：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 
 app = Litefs()
 
@@ -172,7 +172,7 @@ WantedBy=multi-user.target
 ASGI 模式下，你可以使用异步处理函数：
 
 ```python
-from litefs import Litefs
+from litefs.core import Litefs
 import asyncio
 
 app = Litefs()

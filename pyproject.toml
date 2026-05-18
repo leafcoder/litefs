@@ -144,6 +144,11 @@ addopts = [
     "--strict-markers",
     "--strict-config",
 ]
+filterwarnings = [
+    "ignore:session_secure 设置为 False:UserWarning",
+    "ignore:生产环境检测到 session_secure=False:UserWarning",
+    "ignore:生产环境检测到 debug=True:UserWarning",
+]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",

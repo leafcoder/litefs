@@ -7,7 +7,7 @@ sys.dont_write_bytecode = True
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-import litefs
+from litefs.core import Litefs
 import json
 from io import BytesIO
 
@@ -32,7 +32,7 @@ def create_environ(path='/', method='GET', query_string='', content_type='', bod
 
 def test_index_page():
     print("Testing index page...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     # 使用新路由系统定义路由
     @app.add_get('/', name='index')
@@ -59,11 +59,10 @@ def test_index_page():
     assert 'text/html' in headers_dict.get('Content-Type', ''), f"Expected text/html, got {headers_dict.get('Content-Type')}"
     
     print("OK: index page test passed")
-    return True
 
 def test_datetime_response():
     print("Testing datetime response...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test', name='test')
     def test_handler(request):
@@ -92,11 +91,10 @@ def test_datetime_response():
     assert isinstance(data, str), f"Expected string, got {type(data)}"
     
     print("OK: datetime response test passed")
-    return True
 
 def test_error_handling():
     print("Testing error handling...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_error', name='test_error')
     def test_error_handler(request):
@@ -120,11 +118,10 @@ def test_error_handling():
     assert 'text/html' in headers_dict.get('Content-Type', ''), f"Expected text/html for error, got {headers_dict.get('Content-Type')}"
     
     print("OK: error handling test passed")
-    return True
 
 def test_generator_response():
     print("Testing generator response...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_generator', name='test_generator')
     def test_generator_handler(request):
@@ -156,11 +153,10 @@ def test_generator_response():
         assert line in content, f"Expected line {line} in content, got {content}"
     
     print("OK: generator response test passed")
-    return True
 
 def test_json_response():
     print("Testing JSON response...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_json', name='test_json')
     def test_json_handler(request):
@@ -188,11 +184,10 @@ def test_json_response():
     assert data == {"message": "Hello, World!", "status": "success"}, f"Expected JSON data, got {data}"
     
     print("OK: JSON response test passed")
-    return True
 
 def test_complex_json_response():
     print("Testing complex JSON response...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_json_complex', name='test_json_complex')
     def test_json_complex_handler(request):
@@ -229,11 +224,10 @@ def test_complex_json_response():
     assert data['count'] == 3, f"Expected count=3, got {data['count']}"
     
     print("OK: complex JSON response test passed")
-    return True
 
 def test_json_custom_header():
     print("Testing JSON with custom header...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_json_custom_header', name='test_json_custom_header')
     def test_json_custom_header_handler(request):
@@ -265,11 +259,10 @@ def test_json_custom_header():
     assert data == {"message": "Hello, World!", "status": "success"}, f"Expected JSON data, got {data}"
     
     print("OK: JSON custom header test passed")
-    return True
 
 def test_mixed_response():
     print("Testing mixed type response...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_mixed', name='test_mixed')
     def test_mixed_handler(request):
@@ -293,11 +286,10 @@ def test_mixed_response():
     assert content == b'Hello world!', f"Expected 'Hello world!', got {content}"
     
     print("OK: mixed type response test passed")
-    return True
 
 def test_mixed_tuple_json():
     print("Testing mixed tuple in JSON mode...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_mixed_tuple', name='test_mixed_tuple')
     def test_mixed_tuple_handler(request):
@@ -326,11 +318,10 @@ def test_mixed_tuple_json():
     assert len(data) == 3, f"Expected 3 items, got {len(data)}"
     
     print("OK: mixed tuple JSON mode test passed")
-    return True
 
 def test_mixed_tuple_text():
     print("Testing mixed tuple in text mode...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_mixed_tuple_text', name='test_mixed_tuple_text')
     def test_mixed_tuple_text_handler(request):
@@ -355,11 +346,10 @@ def test_mixed_tuple_text():
     assert 'text/plain' in headers_dict.get('Content-Type', ''), f"Expected text/plain, got {headers_dict.get('Content-Type')}"
     
     print("OK: mixed tuple text mode test passed")
-    return True
 
 def test_html_response():
     print("Testing HTML response...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_html', name='test_html')
     def test_html_handler(request):
@@ -386,11 +376,10 @@ def test_html_response():
     assert b'<h1>Hello, World!</h1>' in content, f"Expected HTML content, got {content}"
     
     print("OK: HTML response test passed")
-    return True
 
 def test_text_mode():
     print("Testing text mode...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/test_text_mode', name='test_text_mode')
     def test_text_mode_handler(request):
@@ -418,11 +407,10 @@ def test_text_mode():
     assert data == {"message": "Hello, World!"}, f"Expected JSON data, got {data}"
     
     print("OK: text mode test passed")
-    return True
 
 def test_404_page():
     print("Testing 404 page...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     # 不定义任何路由，测试 404
     application = app.wsgi()
@@ -443,12 +431,11 @@ def test_404_page():
     assert 'text/html' in headers_dict.get('Content-Type', ''), f"Expected text/html for 404, got {headers_dict.get('Content-Type')}"
     
     print("OK: 404 page test passed")
-    return True
 
 def test_auto_content_type_dict():
     """测试 dict 返回值自动设置 Content-Type 为 application/json"""
     print("Testing auto Content-Type for dict...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/auto_dict', name='auto_dict')
     def auto_dict_handler(request):
@@ -475,12 +462,11 @@ def test_auto_content_type_dict():
     assert data == {"message": "auto json"}, f"Expected JSON data, got {data}"
     
     print("OK: auto Content-Type for dict test passed")
-    return True
 
 def test_auto_content_type_list():
     """测试 list 返回值自动设置 Content-Type 为 application/json"""
     print("Testing auto Content-Type for list...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/auto_list', name='auto_list')
     def auto_list_handler(request):
@@ -507,12 +493,11 @@ def test_auto_content_type_list():
     assert data == [1, 2, 3], f"Expected JSON list, got {data}"
     
     print("OK: auto Content-Type for list test passed")
-    return True
 
 def test_auto_content_type_html():
     """测试 HTML 字符串自动设置 Content-Type 为 text/html"""
     print("Testing auto Content-Type for HTML...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/auto_html', name='auto_html')
     def auto_html_handler(request):
@@ -538,12 +523,11 @@ def test_auto_content_type_html():
     assert b'<html>' in content, f"Expected HTML content, got {content}"
     
     print("OK: auto Content-Type for HTML test passed")
-    return True
 
 def test_auto_content_type_plain_string():
     """测试普通字符串默认设置 Content-Type 为 text/html"""
     print("Testing auto Content-Type for plain string...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/auto_plain', name='auto_plain')
     def auto_plain_handler(request):
@@ -567,12 +551,11 @@ def test_auto_content_type_plain_string():
     assert 'text/html' in headers_dict.get('Content-Type', ''), f"Expected text/html for plain string, got {headers_dict.get('Content-Type')}"
     
     print("OK: auto Content-Type for plain string test passed")
-    return True
 
 def test_auto_content_type_bytes():
     """测试 bytes 返回值自动设置 Content-Type 为 application/octet-stream"""
     print("Testing auto Content-Type for bytes...")
-    app = litefs.Litefs(webroot='./examples/02-basic-handlers/site')
+    app = Litefs(webroot='./examples/02-basic-handlers/site')
     
     @app.add_get('/auto_bytes', name='auto_bytes')
     def auto_bytes_handler(request):
@@ -596,7 +579,6 @@ def test_auto_content_type_bytes():
     assert 'application/octet-stream' in headers_dict.get('Content-Type', ''), f"Expected application/octet-stream for bytes, got {headers_dict.get('Content-Type')}"
     
     print("OK: auto Content-Type for bytes test passed")
-    return True
 
 def run_all_tests():
     tests = [

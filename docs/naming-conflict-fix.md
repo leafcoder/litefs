@@ -52,11 +52,8 @@ from .validators import EmailValidator, URLValidator
 ### 测试代码
 
 ```python
-from litefs import (
-    EmailValidator,
-    URLValidator,
-    EmailFieldValidator,
-    URLFieldValidator
+from litefs.validators import EmailValidator, URLValidator
+from litefs.forms import Email as EmailFieldValidator, URL as URLFieldValidator
 )
 
 # 验证来源
@@ -105,7 +102,7 @@ print(f"URLFieldValidator: {URLFieldValidator.__module__}")
 ### 使用 validators 模块的验证器
 
 ```python
-from litefs import EmailValidator, URLValidator
+from litefs.validators import EmailValidator, URLValidator
 
 # 用于一般验证
 email_validator = EmailValidator()
@@ -116,7 +113,7 @@ if email_validator.validate('test@example.com'):
 ### 使用 forms 模块的验证器
 
 ```python
-from litefs import Form, Field, EmailFieldValidator, URLFieldValidator
+from litefs.forms import Form, Field, Email as EmailFieldValidator, URL as URLFieldValidator
 
 # 用于表单字段验证
 class UserForm(Form):

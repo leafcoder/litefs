@@ -13,14 +13,14 @@ def test_wsgi_import():
     print("Testing WSGI interface import...")
     
     try:
-        import litefs
-        print("OK: litefs module imported successfully")
+        from litefs.core import Litefs
+        print("OK: litefs.core module imported successfully")
     except ImportError as e:
-        print("ERROR: Failed to import litefs:", str(e))
+        print("ERROR: Failed to import litefs.core:", str(e))
         return False
     
     try:
-        app = litefs.Litefs(webroot='./demo/site')
+        app = Litefs(webroot='./demo/site')
         print("OK: Litefs instance created")
     except Exception as e:
         print("ERROR: Failed to create Litefs instance:", str(e))
@@ -38,11 +38,8 @@ def test_wsgi_import():
         return False
     
     # 测试 application 是否可调用
-    if not callable(application):
-        print("ERROR: application is not callable")
-        return False
-    
-    print("OK: application is callable")
+        assert callable(application), "application is not callable"
+        print("OK: application is callable")
     
     print("\nBasic WSGI interface tests passed!")
     print("\nNote: Full WSGI testing requires installing dependencies:")
@@ -51,7 +48,6 @@ def test_wsgi_import():
     print("  gunicorn -w 4 -b :8000 wsgi_example:application")
     print("  uwsgi --http :8000 --wsgi-file wsgi_example.py")
     
-    return True
 
 if __name__ == '__main__':
     success = test_wsgi_import()

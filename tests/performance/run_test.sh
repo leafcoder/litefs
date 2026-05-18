@@ -47,7 +47,7 @@ import argparse
 # 添加 litefs 到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='LiteFS server with specified processes')
@@ -77,7 +77,7 @@ import os
 # 添加 litefs 到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from litefs import Litefs
+from litefs.core import Litefs
 
 # 创建 litefs 应用（用于 Gunicorn）
 app = Litefs()
