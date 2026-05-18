@@ -44,6 +44,7 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
    
    unit-tests
    performance-stress-tests
+   performance-benchmark
 
 .. toctree::
    :maxdepth: 2

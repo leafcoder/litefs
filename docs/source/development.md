@@ -471,22 +471,26 @@ app = Litefs(
 1. **更新版本号**
    ```bash
    # 编辑 src/litefs/_version.py
-   __version__ = "0.8.0"
+   __version__ = "0.8.2"
    ```
 
 2. **更新 CHANGELOG**
    ```markdown
-   ## [0.8.0] - 2026-04-14
+   ## [0.8.2] - 2026-05-18
    
    ### Added
-   - WebSocket 支持
-   - GraphQL 支持
+   - 性能基准测试框架（LiteFS vs FastAPI）
+   - 多迭代测试与中位数计算
+   - 服务器预热与健康检查机制
    
    ### Changed
-   - 优化路由匹配性能
+   - 优化性能测试脚本端口清理机制
+   - 统一 FastAPI 测试响应格式（PlainTextResponse）
+   - FastAPI 测试代码改为 async 异步模式
    
    ### Fixed
-   - 修复会话内存泄漏
+   - 修复端口残留进程无法清理的问题
+   - 修复测试脚本中进程组管理问题
    ```
 
 3. **运行测试**
@@ -513,8 +517,8 @@ app = Litefs(
 
 6. **创建 Git 标签**
    ```bash
-   git tag -a v0.8.0 -m "Release v0.8.0"
-   git push origin v0.8.0
+   git tag -a v0.8.2 -m "Release v0.8.2"
+   git push origin v0.8.2
    ```
 
 7. **发布 GitHub Release**
