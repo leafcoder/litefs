@@ -101,9 +101,9 @@ from fastapi import FastAPI
 # 创建 FastAPI 应用
 app = FastAPI()
 
-# 只返回 "Hello world" 的端点
+# 只返回 "Hello world" 的端点（使用 async 异步模式）
 @app.get("/")
-def hello():
+async def hello():
     return "Hello world"
 
 # Gunicorn 配置
