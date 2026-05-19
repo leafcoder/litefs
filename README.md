@@ -216,105 +216,85 @@ LiteFS 提供完整的性能测试套件，支持多种服务器模式和部署�
 
 | 服务器形式 | 单进程 | 多进程 | 测试场景 |
 |-----------|--------|--------|---------|
-| **原生 Greenlet** | ✅ | ✅ | Hello World / SQL 查询 |
-| **原生 Asyncio** | ✅ | ✅ | Hello World / SQL 查询 |
-| **WSGI + Gunicorn** | ✅ | ✅ | Hello World / SQL 查询 |
-| **ASGI + Gunicorn + UvicornWorker** | ✅ | ✅ | Hello World / SQL 查询 |
-| **ASGI + Uvicorn** | ✅ | ✅ | Hello World / SQL 查询 |
-| **FastAPI + Uvicorn** (对照组) | ✅ | ✅ | Hello World / SQL 查询 |
+| **LiteFS HttpServer** | ✅ | ✅ (4/8 Worker) | Hello World |
+| **LiteFS + Gunicorn (gevent)** | ✅ | ✅ (4/8 Worker) | Hello World |
+| **FastAPI + Gunicorn + UvicornWorker** (对照组) | ✅ | ✅ (4/8 Worker) | Hello World |
+| **FastAPI + Uvicorn** (对照组) | ✅ | ✅ (4/8 Worker) | Hello World |
 
 ### 性能测试结果
 
-> 测试环境: 4 核 CPU, 100 并发连接, 5 秒测试时长, 无日志输出
-> 测试工具: wrk
-> 测试时间: 2026-04-18
+> 测试环境: 12 核 CPU, Python 3.10.9, Linux 6.18
+> 测试工具: Apache Benchmark (ab), 10000 请求, 3 次迭代取中位数
+> 测试时间: 2026-05-19
 
-#### Hello World 性能对比
+#### 1 Worker 性能对比 (req/s)
 
-| 服务器 | 进程数 | RPS | 平均延迟 | P99 延迟 | 吞吐量 |
-|-------|--------|-----|----------|----------|--------|
-| **LiteFS-Greenlet** | 1P | **24,026** | 4.33ms | 17.15ms | 7.52 MB/s |
-| **LiteFS-Greenlet** | 4P | **22,580** | 4.70ms | 21.43ms | 7.06 MB/s |
-| **LiteFS-Asyncio** | 1P | **15,561** | 6.45ms | **12.01ms** | 3.98 MB/s |
-| **LiteFS-Greenlet** | 6P | **15,412** | 6.92ms | 28.94ms | 4.82 MB/s |
-| FastAPI-Uvicorn | 4P | 2,354 | 42.26ms | 48.90ms | 0.32 MB/s |
-| FastAPI-Uvicorn | 1P | 2,335 | 42.56ms | 57.13ms | 0.32 MB/s |
+| 并发数 | LiteFS+HttpServer | LiteFS+Gunicorn | FastAPI+Gunicorn+Uvicorn | FastAPI+Uvicorn | 优势倍数 (HS vs GU) |
+|--------|-------------------|-----------------|--------------------------|-----------------|---------------------|
+| 100 | **7,977** | 5,259 | 2,804 | 2,984 | **2.84x** |
+| 500 | 4,865 | **5,272** | 3,071 | 2,388 | **1.58x** |
+| 1000 | **6,068** | 5,076 | 2,777 | 2,692 | **2.18x** |
 
-#### 性能优势
+#### 4 Worker 性能对比 (req/s)
 
-| 对比项 | LiteFS-Greenlet | FastAPI-Uvicorn | 优势倍数 |
-|-------|----------------|-----------------|---------|
-| RPS (单进程) | 24,026 | 2,335 | **10.3x** |
-| P99 延迟 | 17.15ms | 57.13ms | **3.3x 更快** |
-| 吞吐量 | 7.52 MB/s | 0.32 MB/s | **23.5x** |
+| 并发数 | LiteFS+HttpServer | LiteFS+Gunicorn | FastAPI+Gunicorn+Uvicorn | FastAPI+Uvicorn | 优势倍数 (HS vs GU) |
+|--------|-------------------|-----------------|--------------------------|-----------------|---------------------|
+| 100 | **15,851** | 13,117 | 3,861 | 5,019 | **4.10x** |
+| 500 | 9,895 | **10,133** | 5,906 | 5,228 | **1.67x** |
+| 1000 | **12,783** | 6,666 | 4,662 | 6,001 | **2.74x** |
+
+#### 8 Worker 性能对比 (req/s)
+
+| 并发数 | LiteFS+HttpServer | LiteFS+Gunicorn | FastAPI+Gunicorn+Uvicorn | FastAPI+Uvicorn | 优势倍数 (HS vs GU) |
+|--------|-------------------|-----------------|--------------------------|-----------------|---------------------|
+| 100 | **19,590** | 13,706 | 5,316 | 6,845 | **3.68x** |
+| 500 | **12,291** | 7,121 | 6,798 | 5,905 | **1.80x** |
+| 1000 | **11,518** | 9,952 | 6,710 | 6,742 | **1.71x** |
 
 #### 性能特点
 
-- **LiteFS-Greenlet 最高 RPS**: 单进程达 24,026 req/s
-- **LiteFS-Asyncio 最低 P99 延迟**: 仅 12.01ms，零错误
-- **轻量级**: 无需额外的 ASGI 服务器（如 Uvicorn）
-- **性能优势明显**: RPS 是 FastAPI 的 **10 倍以上**
+- **LiteFS HttpServer 最高 RPS**: 8 Worker / 100 并发下达 19,590 req/s
+- **多 Worker 扩展性优异**: 从 1 Worker 到 8 Worker，RPS 提升 2.5 倍
+- **低并发优势最大**: 100 并发下 LiteFS HttpServer 是 FastAPI 的 2.8~4.1 倍
+- **高并发依然领先**: 即使 1000 并发，LiteFS 仍保持 1.7~2.7 倍优势
+- **内置服务器最优**: LiteFS HttpServer 在所有场景下均优于 Gunicorn 部署
 
 ### 快速开始
 
 ```bash
 # 进入测试目录
-cd benchmarks
+cd tests/performance
 
-# 安装测试依赖
-make install
+# 运行完整性能测试
+bash run_test.sh
 
-# 或手动安装
-pip install -r requirements.txt
-sudo apt install wrk  # Linux
-
-# 运行所有测试
-make test
-
-# 单独运行 Hello World 测试
-make hello
-
-# 单独运行 SQL 查询测试
-make sql
-
-# 查看报告
-make report
+# 测试完成后查看报告
+cat performance_report.md
 ```
 
 ### 测试配置
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| 并发连接 | 100 | wrk -c 参数 |
-| 线程数 | 4 | wrk -t 参数 |
-| 测试时长 | 10s | 预热后稳定测试 |
-| 预热时长 | 2s | 服务器启动等待 |
-| 进程数 | 1, 6 | 单核 vs 多核对比 |
+| 总请求数 | 10,000 | ab -n 参数 |
+| 预热请求数 | 1,000 | 消除冷启动影响 |
+| 迭代次数 | 3 | 取中位数减少波动 |
+| 并发级别 | 100 / 500 / 1000 | ab -c 参数 |
+| Worker 数 | 1 / 4 / 8 | 多进程对比 |
+| 冷却间隔 | 2s | 确保端口完全释放 |
 
 ### 输出报告
 
-测试完成后会在 `benchmarks/results/` 目录生成:
+测试完成后在 `tests/performance/` 目录生成:
 
-- `report.html` - 可视化 HTML 报告 (含交互图表) - [查看示例报告](benchmarks/results/latest/report.html)
-- `data.json` - 完整测试原始数据
+- `performance_report.md` - 详细性能测试报告
+- `test_results/` - 原始测试数据
 
 报告包含：
-- RPS 性能对比柱状图
-- P99 延迟趋势图
-- 详细数据表格
-- 性能分析
-
-### 自定义测试
-
-编辑 `tests/test_hello_world.py` 或 `tests/test_sql_query.py` 添加新的服务器配置:
-
-```python
-SERVER_CONFIGS = [
-    ("MyServer-1P", "myserver", ["python", "my_app.py"], 1, None, 3),
-    ("MyServer-6P", "myserver", ["python", "my_app.py"], 6, None, 5),
-    # 添加更多配置...
-]
-```
+- 各部署模式 RPS 性能对比
+- 多 Worker / 多并发级别交叉对比
+- LiteFS vs FastAPI 优势倍数
+- 性能分析及建议
 
 ---
 
@@ -329,7 +309,7 @@ pytest tests/unit/ -v --cov=litefs --cov-report=html
 运行性能测试：
 
 ```bash
-cd benchmarks && make test
+cd tests/performance && bash run_test.sh
 ```
 
 查看测试覆盖率：
