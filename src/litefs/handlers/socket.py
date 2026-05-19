@@ -47,7 +47,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
     default_headers = {
         "Content-Type": default_content_type,
-        "Server": "litefs/0.8.2",
+        "Server": "litefs/0.8.3",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "X-XSS-Protection": "1; mode=block"
@@ -398,7 +398,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
         # 添加标准头部
         standard_headers = [
-            ("Server", "litefs/0.8.2"),
+            ("Server", "litefs/0.8.3"),
             ("X-Content-Type-Options", "nosniff"),
             ("X-Frame-Options", "SAMEORIGIN"),
             ("X-XSS-Protection", "1; mode=block")
@@ -474,7 +474,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
         # 添加标准头部
         standard_headers = [
-            ("Server", "litefs/0.8.2"),
+            ("Server", "litefs/0.8.3"),
             ("X-Content-Type-Options", "nosniff"),
             ("X-Frame-Options", "SAMEORIGIN"),
             ("X-XSS-Protection", "1; mode=block")
@@ -597,7 +597,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
             # 添加标准头部（如果不存在）
             standard_headers = {
-                "Server": "litefs/0.8.2",
+                "Server": "litefs/0.8.3",
                 "X-Content-Type-Options": "nosniff",
                 "X-Frame-Options": "SAMEORIGIN",
                 "X-XSS-Protection": "1; mode=block"
@@ -694,7 +694,7 @@ class SocketRequestHandler(BaseRequestHandler):
                     line = line.encode("utf-8")
                     rw.write(line)
                     rw.write("Content-Type: text/html; charset=utf-8\r\n".encode("utf-8"))
-                    rw.write("Server: litefs/0.8.2\r\n".encode("utf-8"))
+                    rw.write("Server: litefs/0.8.3\r\n".encode("utf-8"))
                     rw.write("X-Content-Type-Options: nosniff\r\n".encode("utf-8"))
                     rw.write("X-Frame-Options: SAMEORIGIN\r\n".encode("utf-8"))
                     rw.write("X-XSS-Protection: 1; mode=block\r\n".encode("utf-8"))

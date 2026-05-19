@@ -12,19 +12,28 @@ date_format = "%Y/%m/%d %H:%M:%S"
 def log_error(logger, message=None):
     if message is None:
         message = "error occured"
-    logger.error(message, exc_info=True)
+    if logger is not None:
+        logger.error(message, exc_info=True)
+    else:
+        logging.error(message, exc_info=True)
 
 
 def log_info(logger, message=None):
     if message is None:
         message = "info"
-    logger.info(message)
+    if logger is not None:
+        logger.info(message)
+    else:
+        logging.info(message)
 
 
 def log_debug(logger, message=None):
     if message is None:
         message = "debug"
-    logger.debug(message)
+    if logger is not None:
+        logger.debug(message)
+    else:
+        logging.debug(message)
 
 
 def render_error():

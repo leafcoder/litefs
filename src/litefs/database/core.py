@@ -5,6 +5,7 @@
 数据库核心模块，提供数据库连接和会话管理
 """
 
+import logging
 import os
 import time
 from typing import Dict, Optional, Type, Union
@@ -255,10 +256,11 @@ class DatabaseManager:
         """
         关闭所有数据库连接
         """
+        logger = logging.getLogger(__name__)
         for name, db in cls._databases.items():
             try:
                 db.engine.dispose()
-                log_info(None, f"Database {name} connection closed")
+                log_info(logger, f"Database {name} connection closed")
             except Exception as e:
-                log_error(None, f"Error closing database {name}: {e}")
+                log_error(logger, f"Error closing database {name}: {e}")
         cls._databases.clear()
