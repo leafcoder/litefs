@@ -12,10 +12,8 @@
 import hashlib
 import pickle
 import threading
-import time
-from typing import Any, Callable, Optional, Dict, Union
+from typing import Any, Callable, Optional
 from functools import wraps
-from datetime import timedelta
 
 
 class MemoryCacheStore:
@@ -64,7 +62,7 @@ _global_cache_store: Optional[MemoryCacheStore] = None
 def get_cache_store() -> MemoryCacheStore:
     """
     获取全局缓存存储
-    
+
     Returns:
         MemoryCacheStore 实例
     """
@@ -82,23 +80,23 @@ def _generate_cache_key(
 ) -> str:
     """
     生成缓存键
-    
+
     Args:
         func: 函数
         args: 位置参数
         kwargs: 关键字参数
         key_prefix: 键前缀
-        
+
     Returns:
         缓存键字符串
     """
     # 基础键：函数名
     key_parts = [func.__module__, func.__name__]
-    
+
     # 添加前缀
     if key_prefix:
         key_parts.insert(0, key_prefix)
-    
+
     # 序列化参数
     try:
         args_hash = hashlib.md5(
@@ -108,7 +106,7 @@ def _generate_cache_key(
     except Exception:
         # 如果参数无法序列化，使用字符串表示
         key_parts.append(str((args, kwargs)))
-    
+
     return ':'.join(key_parts)
 
 
@@ -120,16 +118,16 @@ def cached(
 ):
     """
     函数缓存装饰器
-    
+
     Args:
         ttl: 缓存过期时间（秒）
         key_prefix: 缓存键前缀
         cache_store: 缓存存储实例
         skip_cache_func: 判断是否跳过缓存的函数
-        
+
     Returns:
         装饰器函数
-        
+
     使用示例:
         @cached(ttl=60, key_prefix='user')
         def get_user(user_id):
@@ -141,31 +139,31 @@ def cached(
             # 检查是否跳过缓存
             if skip_cache_func and skip_cache_func(*args, **kwargs):
                 return func(*args, **kwargs)
-            
+
             # 获取缓存存储
             store = cache_store or get_cache_store()
-            
+
             # 生成缓存键
             cache_key = _generate_cache_key(func, args, kwargs, key_prefix)
-            
+
             # 尝试从缓存获取
             cached_value = store.get(cache_key)
             if cached_value is not None:
                 return cached_value
-            
+
             # 执行函数
             result = func(*args, **kwargs)
-            
+
             # 存入缓存
             store.set(cache_key, result, ttl)
-            
+
             return result
-        
+
         # 添加缓存控制方法
-        wrapper.cache_clear = lambda: (store or get_cache_store()).delete(
+        wrapper.cache_clear = lambda: (cache_store or get_cache_store()).delete(
             _generate_cache_key(func, (), {}, key_prefix)
         )
-        
+
         return wrapper
     return decorator
 
@@ -177,17 +175,17 @@ def cache_response(
 ):
     """
     响应缓存装饰器
-    
+
     用于缓存视图函数的响应
-    
+
     Args:
         ttl: 缓存过期时间（秒）
         vary_on: 响应变化的请求头列表
         key_prefix: 缓存键前缀
-        
+
     Returns:
         装饰器函数
-        
+
     使用示例:
         @cache_response(ttl=60, vary_on=['Accept-Encoding'])
         def api_endpoint(request):
@@ -197,35 +195,36 @@ def cache_response(
         @wraps(func)
         def wrapper(request_handler, *args, **kwargs):
             store = get_cache_store()
-            
+
             # 生成缓存键
             cache_key_parts = [
                 key_prefix,
                 request_handler.environ.get('PATH_INFO', '/'),
                 request_handler.environ.get('REQUEST_METHOD', 'GET')
             ]
-            
+
             # 添加变化的请求头
             if vary_on:
                 for header in vary_on:
-                    header_value = request_handler.environ.get(f'HTTP_{header.upper().replace("-", "_")}', '')
+                    http_header = f'HTTP_{header.upper().replace("-", "_")}'
+                    header_value = request_handler.environ.get(http_header, '')
                     cache_key_parts.append(f"{header}={header_value}")
-            
+
             cache_key = ':'.join(cache_key_parts)
-            
+
             # 尝试从缓存获取
             cached_response = store.get(cache_key)
             if cached_response is not None:
                 return cached_response
-            
+
             # 执行函数
             response = func(request_handler, *args, **kwargs)
-            
+
             # 存入缓存
             store.set(cache_key, response, ttl)
-            
+
             return response
-        
+
         return wrapper
     return decorator
 
@@ -233,15 +232,15 @@ def cache_response(
 def cache_method(ttl: int = 300):
     """
     方法缓存装饰器
-    
+
     用于缓存类方法的结果
-    
+
     Args:
         ttl: 缓存过期时间（秒）
-        
+
     Returns:
         装饰器函数
-        
+
     使用示例:
         class UserService:
             @cache_method(ttl=60)
@@ -253,7 +252,7 @@ def cache_method(ttl: int = 300):
         def wrapper(self, *args, **kwargs):
             # 获取缓存存储
             store = get_cache_store()
-            
+
             # 生成缓存键（包含 self）
             cache_key = _generate_cache_key(
                 method,
@@ -261,20 +260,20 @@ def cache_method(ttl: int = 300):
                 kwargs,
                 key_prefix=method.__name__
             )
-            
+
             # 尝试从缓存获取
             cached_value = store.get(cache_key)
             if cached_value is not None:
                 return cached_value
-            
+
             # 执行方法
             result = method(self, *args, **kwargs)
-            
+
             # 存入缓存
             store.set(cache_key, result, ttl)
-            
+
             return result
-        
+
         return wrapper
     return decorator
 
@@ -282,20 +281,20 @@ def cache_method(ttl: int = 300):
 def cache_property(ttl: int = 300):
     """
     属性缓存装饰器
-    
+
     用于缓存类属性的计算结果
-    
+
     Args:
         ttl: 缓存过期时间（秒）
-        
+
     Returns:
         装饰器函数
-        
+
     使用示例:
         class User:
             def __init__(self, user_id):
                 self.user_id = user_id
-            
+
             @cache_property(ttl=60)
             def profile(self):
                 return db.query(Profile).filter_by(user_id=self.user_id).first()
@@ -305,23 +304,23 @@ def cache_property(ttl: int = 300):
         def wrapper(self):
             # 获取缓存存储
             store = get_cache_store()
-            
+
             # 生成缓存键
             cache_key = f"property:{func.__name__}:{id(self)}"
-            
+
             # 尝试从缓存获取
             cached_value = store.get(cache_key)
             if cached_value is not None:
                 return cached_value
-            
+
             # 计算属性值
             result = func(self)
-            
+
             # 存入缓存
             store.set(cache_key, result, ttl)
-            
+
             return result
-        
+
         return property(wrapper)
     return decorator
 
@@ -335,7 +334,7 @@ def clear_all_cache():
 def get_cache_stats() -> dict:
     """
     获取缓存统计信息
-    
+
     Returns:
         统计信息字典
     """

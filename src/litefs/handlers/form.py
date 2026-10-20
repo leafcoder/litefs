@@ -257,7 +257,7 @@ def parse_multipart_stream(rw, boundary, max_upload_size=52428800, DEFAULT_BUFFE
         (posts, files): 表单字段字典和上传文件字典
     """
     from io import DEFAULT_BUFFER_SIZE as _DEFAULT_BUFFER_SIZE
-    from io import StringIO
+    from io import BytesIO
 
     boundary = boundary.encode("utf-8")
     begin_boundary = b"--%s" % boundary
@@ -289,13 +289,13 @@ def parse_multipart_stream(rw, boundary, max_upload_size=52428800, DEFAULT_BUFFE
             fp.seek(0)
             files[name] = fp
         else:
-            fp = StringIO()
+            fp = BytesIO()
             s = rw.readline(DEFAULT_BUFFER_SIZE or _DEFAULT_BUFFER_SIZE)
             while s.strip() != begin_boundary and s.strip() != end_boundary:
                 fp.write(s)
                 s = rw.readline(DEFAULT_BUFFER_SIZE or _DEFAULT_BUFFER_SIZE)
             fp.seek(0)
-            posts[name] = fp.getvalue().strip().decode("utf-8")
+            posts[name] = fp.getvalue().decode("utf-8").strip()
     return posts, files
 
 
