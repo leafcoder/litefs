@@ -44,7 +44,17 @@ src/litefs/
 ├── _version.py             # 版本信息
 ├── cli.py                  # 命令行工具
 ├── config.py               # 配置管理
-├── core.py                 # 核心类 Litefs
+├── core.py                 # 核心类 Litefs（Mixin 组合入口与装配）
+│
+├── app/                    # 应用组装模块（自 core.py 拆分）
+│   ├── __init__.py         # 子包说明
+│   ├── helpers.py          # 序列化/配置/套接字/Session 初始化辅助
+│   ├── protocol_mixin.py   # WSGI/ASGI 协议适配与错误处理
+│   ├── routing_mixin.py    # 路由注册与 WebSocket 入口
+│   ├── extension_mixin.py  # 中间件/插件/健康检查/数据库扩展
+│   ├── server_mixin.py     # 服务器启动/关闭/热重载
+│   └── server_cli.py       # 内置测试服务器 CLI
+│
 ├── error_pages.py          # 错误页面
 ├── exceptions.py           # 异常定义
 ├── security.py             # 安全工具
@@ -128,7 +138,7 @@ src/litefs/
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | 主入口 | `__init__.py` | 导出公共 API，版本信息 |
-| 核心类 | `core.py` | Litefs 主类，应用初始化 |
+| 核心类 | `core.py` + `app/` | Litefs 主类（Mixin 组合），应用初始化与能力模块 |
 | 配置 | `config.py` | 配置加载和管理 |
 | CLI | `cli.py` | 命令行工具实现 |
 
