@@ -8,19 +8,40 @@
 基于文件修改时间的热重载能力。
 """
 
+import logging
 import os
 import signal
 import subprocess
 import sys
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from ..server import HTTPServer, ProcessHTTPServer, mainloop
 from ..utils import log_error, log_info
 
+if TYPE_CHECKING:
+    from ..config import Config
+
 
 class ServerMixin:
-    """服务器启动、关闭与热重载生命周期管理"""
+    """服务器启动、关闭与热重载生命周期管理
+
+    依赖宿主 ``Litefs`` 装配时提供的属性与其他 Mixin 方法，
+    以下声明仅供类型检查使用，运行时无开销。
+    """
+
+    #: 由 Litefs.__init__ 装配的宿主属性
+    server: Optional[Union[HTTPServer, ProcessHTTPServer]]
+    logger: logging.Logger
+    host: str
+    port: int
+    config: "Config"
+
+    if TYPE_CHECKING:
+        # 跨 Mixin 方法：由 ExtensionMixin / ProtocolMixin / RoutingMixin 提供
+        def load_plugins(self) -> Any: ...
+        def get_websocket(self) -> Any: ...
+        def handler(self, request, rw, environ, server) -> Any: ...
 
     def run(self, poll_interval=0.2, processes=1, reload=False):
         main_file = getattr(sys.modules['__main__'], '__file__', None)

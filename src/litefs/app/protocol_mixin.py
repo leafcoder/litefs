@@ -7,16 +7,28 @@ WSGI / ASGI 协议适配 Mixin
 提供 PEP 3333 与 ASGI 3.0 应用入口，以及统一的错误处理流程。
 """
 
-from typing import Any, Tuple
+import logging
+from typing import TYPE_CHECKING, Any, Tuple
 
 from ..handlers import ASGIRequestHandler, RequestHandler, WSGIRequestHandler
 from ..utils import log_error
 
 from .helpers import _parse_result_tuple, _serialize_content
 
+if TYPE_CHECKING:
+    from ..middleware import MiddlewareManager
+
 
 class ProtocolMixin:
-    """WSGI / ASGI 协议适配与错误处理能力"""
+    """WSGI / ASGI 协议适配与错误处理能力
+
+    依赖宿主 ``Litefs`` 装配时提供的属性，
+    以下声明仅供类型检查使用，运行时无开销。
+    """
+
+    #: 由 Litefs.__init__ 装配的宿主属性
+    logger: logging.Logger
+    middleware_manager: "MiddlewareManager"
 
     def _build_error_parts(self, error) -> Tuple[int, str, str, str]:
         """Build error parts from exception when no middleware handled it.

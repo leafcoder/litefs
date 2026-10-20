@@ -105,7 +105,7 @@ def _parse_result_tuple(result) -> Tuple[str, list, Any]:
     return "200 OK", [("Content-Type", content_type)], content
 
 
-def make_config(**kwargs: Dict[str, Any]) -> Config:
+def make_config(**kwargs: Any) -> Config:
     """
     创建配置对象
 

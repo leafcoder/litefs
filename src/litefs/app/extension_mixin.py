@@ -9,11 +9,29 @@
 
 import os
 import warnings
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
+
+if TYPE_CHECKING:
+    from ..config import Config
+    from ..database import DatabaseManager
+    from ..middleware import MiddlewareManager
+    from ..plugins import PluginLoader, PluginManager
 
 
 class ExtensionMixin:
-    """中间件、健康检查、插件与数据库扩展能力"""
+    """中间件、健康检查、插件与数据库扩展能力
+
+    依赖宿主 ``Litefs`` 装配时提供的属性，
+    以下声明仅供类型检查使用，运行时无开销。
+    """
+
+    #: 由 Litefs.__init__ 装配的宿主属性
+    middleware_manager: "MiddlewareManager"
+    _middleware_instances: Optional[List[Any]]
+    db_manager: "DatabaseManager"
+    config: "Config"
+    plugin_manager: "PluginManager"
+    plugin_loader: "PluginLoader"
 
     def _init_debug_middleware(self):
         """初始化调试中间件"""
@@ -198,7 +216,7 @@ class ExtensionMixin:
         Returns:
             是否已加载
         """
-        return self.plugin_manager.has_plugin(plugin_name)
+        return bool(self.plugin_manager.has_plugin(plugin_name))
 
     def get_all_plugins(self):
         """

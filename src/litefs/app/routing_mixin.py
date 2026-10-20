@@ -9,14 +9,25 @@ WebSocket 入口、模块路由批量注册与 URL 反向解析。
 """
 
 import importlib
-from typing import Callable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
+
+from ..routing import Router
 
 if TYPE_CHECKING:
     from ..websocket import WebSocket
 
 
 class RoutingMixin:
-    """路由注册与 URL 生成能力"""
+    """路由注册与 URL 生成能力
+
+    依赖宿主 ``Litefs`` 装配时提供的属性，
+    以下声明仅供类型检查使用，运行时无开销。
+    """
+
+    #: 由 Litefs.__init__ 装配的宿主属性
+    router: Router
+    port: int
+    _websocket_instance: Optional["WebSocket"]
 
     def add_route(self, path, methods=None, handler=None, name=None):
         """
@@ -188,7 +199,8 @@ class RoutingMixin:
         return self
 
     def websocket(self, path: str = '/ws', auth_required: bool = False,
-                  auth_handler: Callable = None, port: int = None):
+                  auth_handler: Optional[Callable] = None,
+                  port: Optional[int] = None):
         """
         WebSocket 路由装饰器
 
@@ -210,17 +222,19 @@ class RoutingMixin:
         """
         from ..websocket import WebSocket
 
-        if not hasattr(self, '_websocket_instance'):
+        ws = getattr(self, '_websocket_instance', None)
+        if ws is None:
             ws_port = port or (self.port + 1)
-            self._websocket_instance = WebSocket(
+            ws = WebSocket(
                 app=self,
                 path=path,
                 port=ws_port,
                 auth_required=auth_required,
                 auth_handler=auth_handler,
             )
+            self._websocket_instance = ws
 
-        return self._websocket_instance.handler(path)
+        return ws.handler(path)
 
     def get_websocket(self) -> Optional['WebSocket']:
         """
