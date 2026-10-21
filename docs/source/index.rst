@@ -31,6 +31,8 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
    debug-toolbar
    prometheus-monitoring
    database-migrations
+   mail-service
+   i18n
    wsgi-deployment
    asgi-deployment
 
@@ -95,6 +97,8 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 * 健康检查系统
 * Prometheus 监控（请求指标、连接池状态、缓存命中率）
 * Alembic 数据库迁移（版本化 schema 管理）
+* 邮件发送（SMTP、TLS/SSL、Mako 模板、附件、Celery 异步投递）
+* 国际化（gettext 翻译表、请求级 locale 协商、模板翻译函数）
 * 文件监控和热重载
 * Python 3.8+ 支持
 

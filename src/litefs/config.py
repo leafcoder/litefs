@@ -84,6 +84,26 @@ class Config:
         'prometheus_path': '/metrics',    # 指标暴露路径
         'prometheus_namespace': 'litefs',  # 指标命名空间前缀
 
+        # 邮件发送配置
+        'mail_host': 'localhost',          # SMTP 服务器地址
+        'mail_port': 25,                   # SMTP 服务器端口
+        'mail_username': None,             # SMTP 认证用户名
+        'mail_password': None,             # SMTP 认证密码
+        'mail_use_tls': True,              # 是否使用 STARTTLS 加密
+        'mail_use_ssl': False,             # 是否使用隐式 SSL
+        'mail_timeout': 30,                # 连接与发送超时（秒）
+        'mail_default_from': None,         # 默认发件人地址
+        'mail_template_dir': 'templates/email',  # 邮件模板目录
+        'mail_max_retries': 3,             # 发送失败的最大重试次数
+
+        # 国际化配置
+        'i18n_enabled': False,             # 是否启用国际化中间件
+        'i18n_default_locale': 'en',       # 默认 locale
+        'i18n_supported_locales': ['en'],  # 受支持的 locale 列表
+        'i18n_locale_dir': 'locales',      # 翻译文件根目录
+        'i18n_cookie_name': 'locale',      # 存放 locale 的 Cookie 名称
+        'i18n_param_name': 'locale',       # 存放 locale 的查询参数名称
+
         # 配置管理
         'config_encrypted_keys': [],      # 需要加密的配置键
         'config_secret_key': None,        # 配置加密密钥

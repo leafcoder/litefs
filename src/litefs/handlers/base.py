@@ -55,6 +55,10 @@ class BaseRequestHandler:
         """
         渲染模板
 
+        模板上下文中会自动注入翻译函数 ``_`` / ``gettext`` / ``ngettext``。
+        未启用国际化（或当前无请求 locale）时，这些函数为恒等函数，
+        渲染结果与未注入前完全一致。
+
         Args:
             template_name: 模板文件名
             **kwargs: 模板变量
@@ -84,6 +88,9 @@ class BaseRequestHandler:
             )
 
         try:
+            # 注入翻译函数（幂等，不覆盖调用方显式传入的同名变量）
+            kwargs = self._inject_translations(kwargs)
+
             # 获取模板
             template = self._template_lookup.get_template(template_name)
             # 渲染模板
@@ -104,6 +111,26 @@ class BaseRequestHandler:
             # 直接返回错误内容，不设置 Content-Type
             # Content-Type 会在 _response 方法中设置
             return error_content
+
+    @staticmethod
+    def _inject_translations(kwargs):
+        """
+        向模板上下文注入翻译函数
+
+        使用延迟导入，避免 i18n 模块与 handlers 模块形成循环依赖。
+
+        Args:
+            kwargs: 模板变量
+
+        Returns:
+            注入翻译函数后的模板变量
+        """
+        try:
+            from ..i18n import inject_translations
+        except ImportError:
+            return kwargs
+
+        return inject_translations(kwargs)
 
     # ==================== 会话管理 ====================
 

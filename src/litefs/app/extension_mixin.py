@@ -62,6 +62,45 @@ class ExtensionMixin:
             namespace=getattr(self.config, 'prometheus_namespace', 'litefs'),
         )
 
+    def _init_i18n_middleware(self):
+        """按配置启用国际化中间件
+
+        仅当 ``i18n_enabled`` 为真时启用，自动挂载
+        :class:`~litefs.i18n.middleware.LocaleMiddleware`，
+        受支持语言、默认语言、翻译目录等均从配置读取。
+        """
+        if not getattr(self.config, 'i18n_enabled', False):
+            return
+
+        from ..middleware import LocaleMiddleware
+
+        self.add_middleware(
+            LocaleMiddleware,
+            supported_locales=getattr(self.config, 'i18n_supported_locales', None),
+            default_locale=getattr(self.config, 'i18n_default_locale', 'en'),
+            locale_dir=getattr(self.config, 'i18n_locale_dir', 'locales'),
+            cookie_name=getattr(self.config, 'i18n_cookie_name', 'locale'),
+            param_name=getattr(self.config, 'i18n_param_name', 'locale'),
+        )
+
+    def send_mail(self, message: Any, asynchronous: bool = False) -> Any:
+        """
+        发送邮件
+
+        Args:
+            message: :class:`~litefs.mail.Message` 邮件消息
+            asynchronous: 是否通过 Celery 异步发送
+
+        Returns:
+            :class:`~litefs.mail.MailSendResult` 发送结果
+        """
+        from ..mail import get_mail_config, send_mail, send_mail_async
+
+        config = get_mail_config(self)
+        if asynchronous:
+            return send_mail_async(message, config)
+        return send_mail(message, config)
+
     def add_middleware(self, middleware_class, **kwargs):
         """
         添加中间件

@@ -65,6 +65,10 @@ prometheus = [
 db = [
     "alembic>=1.13.0",
 ]
+mail = [
+    # 邮件发送本身零新增依赖；Celery 仅用于异步投递，未安装时自动降级为同步发送
+    "celery>=5.3.0",
+]
 docs = [
     "sphinx>=9.0.0",
     "sphinx-rtd-theme>=3.0.0",
