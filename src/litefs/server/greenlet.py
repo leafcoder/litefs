@@ -32,7 +32,7 @@ except (ImportError, AttributeError):
     select_epoll = None
 
 from ..exceptions import HttpError
-from ..handlers import RequestHandler, parse_form  # noqa: F401  # 对外再导出
+from ..handlers import RequestHandler, parse_form, server_software  # noqa: F401  # 对外再导出
 
 import array
 import traceback
@@ -73,7 +73,7 @@ def make_headers(rw: Any) -> Dict[str, str]:
 def make_environ(server: Any, rw: Any, client_address: Tuple[str, int]) -> Dict[str, Any]:
     environ = dict()
     environ["SERVER_NAME"] = server.server_name
-    environ["SERVER_SOFTWARE"] = "litefs/0.8.3"
+    environ["SERVER_SOFTWARE"] = server_software
     environ["SERVER_PORT"] = server.server_port
     environ["REMOTE_ADDR"] = client_address[0]
     environ["REMOTE_HOST"] = client_address[0]

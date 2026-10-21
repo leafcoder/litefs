@@ -30,6 +30,7 @@ from .response import (
     default_content_type,
     json_content_type,
     server_info,
+    server_software,
     http_status_codes,
 )
 from .form import (
@@ -71,6 +72,7 @@ __all__ = [
     "default_content_type",
     "json_content_type",
     "server_info",
+    "server_software",
     "http_status_codes",
     "EOFS",
     "POSTS_HEADER_NAME",

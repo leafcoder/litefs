@@ -370,7 +370,8 @@ def version():
     try:
         from litefs._version import __version__
     except ImportError:
-        __version__ = "0.8.3"
+        # 未以包方式安装时无法获取版本信息，避免硬编码版本号
+        __version__ = "unknown"
 
     print(f"Litefs {__version__}")
     print("一个轻量级的 Python Web 框架")
