@@ -74,6 +74,8 @@ v0.9.0 是「技术债务清理 & 架构统一」版本。核心变化是：`cor
 - 测试任务补装并启动 memcached / redis，消除本地环境噪音导致的用例失败
 - 新增 `scripts/sync_deps.py`，修复 `make sync-deps` 目标（保留可选依赖注释）
 - `Makefile` 新增 `lint` / `lint-fix` 目标
+- `dev` extra 补齐 `pymemcache` / `redis` / `celery`，保证单元测试在 CI 中可直接运行
+- GitHub Actions 增加 memcached / redis 服务容器，对齐 GitLab CI 的运行环境
 - 单元测试从 1306 例扩充至 **1640 例**（P0 基线 → v0.9.0）
 
 ### 性能回归门禁
@@ -93,6 +95,11 @@ v0.9.0 是「技术债务清理 & 架构统一」版本。核心变化是：`cor
   （`process_response` 仅收到响应体字符串，响应头存于 `request_handler._response_headers` 字典）
 - 修复 i18n 中间件在 Socket 路径下未写入 `Content-Language` 响应头与 locale Cookie 的问题
 - 修复 `make sync-deps` 目标因内联 Python 块缩进错误导致整个 Makefile 解析失败的问题
+- 移除未使用的 `pathtools` 显式依赖：它在 Python 3.12 上构建失败
+  （`No module named 'imp'`），导致 GitHub Actions 的 `Publish to PyPI` 工作流
+  自 **v0.8.1** 起即在依赖安装步骤失败，v0.9.0 修复后首次跑通完整测试
+- 修复 GitHub Actions 测试环境缺少 `pymemcache` / `redis` / `celery` 导致的
+  **27 failed + 27 errors**（CI 已补齐依赖与服务容器）
 
 ### 文档
 

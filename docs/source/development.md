@@ -634,6 +634,19 @@ find . -type d -name __pycache__ -exec rm -rf {} +
 pip install -e ".[dev]" --force-reinstall
 ```
 
+**Q: memcached / redis 相关用例报连接错误？**
+
+会话与缓存后端的集成测试需要运行中的 memcached(11211) 与 redis(6379)。
+客户端库已包含在 `dev` extra 中，本地只需启动服务：
+
+```bash
+# Debian / Ubuntu
+memcached -d -u root -p 11211
+redis-server --daemonize yes --port 6379 --save "" --appendonly no
+```
+
+未启动服务时，相关用例会报 `ConnectionError` 并被跳过，不影响其余用例。
+
 ### 10.2 文档问题
 
 **Q: 文档构建失败？**

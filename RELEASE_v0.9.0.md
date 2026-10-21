@@ -37,6 +37,13 @@
 - `Makefile` 新增 `lint` / `lint-fix` 目标
 - 新增 `scripts/sync_deps.py`，修复 `make sync-deps` 目标（内联 Python 块缩进错误曾导致
   整个 Makefile 解析失败、所有目标不可用），同时保留可选依赖注释
+- `dev` extra 补齐 `pymemcache` / `redis` / `celery`，保证单元测试在 CI 中可直接运行
+- GitHub Actions 增加 memcached / redis 服务容器，对齐 GitLab CI 的运行环境
+- **修复 GitHub Actions 发布流水线长期红灯**：`Publish to PyPI` 工作流自 v0.8.1 起
+  即在依赖安装步骤失败（`pathtools` 在 Python 3.12 上无法构建），v0.9.0 修复后
+  首次跑通完整测试矩阵
+- PyPI / TestPyPI 发布作业改为**仅在 `workflow_dispatch` 手动触发时执行**，
+  标签推送只运行测试与构建，避免未经确认的公开发布
 
 ### Prometheus 监控
 

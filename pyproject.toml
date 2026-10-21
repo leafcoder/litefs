@@ -57,6 +57,11 @@ dev = [
     # 可选依赖的可测试版本，保证单元测试在 CI 中可直接运行
     "prometheus-client>=0.20.0",
     "alembic>=1.13.0",
+    # 会话/缓存后端的客户端库，集成测试用例依赖
+    "pymemcache>=4.0.0",
+    "redis>=5.0.0",
+    # 任务队列，tasks 模块单元测试依赖
+    "celery>=5.3.0",
     # 依赖安全审计（pip-audit），CI security 门禁依赖
     "pip-audit>=2.7.3",
 ]
