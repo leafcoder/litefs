@@ -79,6 +79,11 @@ class Config:
         'celery_backend': None,           # Celery Result Backend URL
         'celery_config': None,            # Celery 额外配置字典
 
+        # Prometheus 监控配置
+        'prometheus_enabled': False,      # 是否启用 Prometheus 监控中间件
+        'prometheus_path': '/metrics',    # 指标暴露路径
+        'prometheus_namespace': 'litefs',  # 指标命名空间前缀
+
         # 配置管理
         'config_encrypted_keys': [],      # 需要加密的配置键
         'config_secret_key': None,        # 配置加密密钥

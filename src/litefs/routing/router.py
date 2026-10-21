@@ -279,6 +279,30 @@ class Router:
         Returns:
             匹配成功返回 (handler, params)，失败返回 None
         """
+        result = self.match_with_route(path, method)
+        if result is None:
+            return None
+
+        route, params = result
+        return route.handler, params
+
+    def match_with_route(
+        self, path: str, method: str
+    ) -> Optional[Tuple[Route, Dict[str, Any]]]:
+        """
+        匹配路由并返回路由对象
+
+        与 :meth:`match` 的匹配规则完全一致，额外返回命中的路由对象，
+        便于调用方获取路由模板（如 ``/user/{id}``），用于监控指标等
+        需要低基数标签的场景。
+
+        Args:
+            path: 请求路径
+            method: HTTP 方法
+
+        Returns:
+            匹配成功返回 (route, params)，失败返回 None
+        """
         # 如果路由树过期，重新构建
         if self._tree_dirty:
             self._build_route_tree()
@@ -287,21 +311,21 @@ class Router:
         result = self._route_tree.find(path, method)
         if result is not None:
             route, params = result
-            return route.handler, params
+            return route, params
 
         # 尝试不带末尾斜杠的匹配
         if path != '/' and path.endswith('/'):
             result = self._route_tree.find(path[:-1], method)
             if result is not None:
                 route, params = result
-                return route.handler, params
+                return route, params
 
         # 尝试带末尾斜杠的匹配
         elif path != '/' and not path.endswith('/'):
             result = self._route_tree.find(path + '/', method)
             if result is not None:
                 route, params = result
-                return route.handler, params
+                return route, params
 
         return None
 

@@ -14,6 +14,7 @@ from .enhanced_logging import (
 from .rate_limit import RateLimitMiddleware, ThrottleMiddleware
 from .security import AuthMiddleware, SecurityMiddleware
 from .health_check import HealthCheck
+from .prometheus import PrometheusMiddleware
 
 __all__ = [
     "Middleware",
@@ -30,4 +31,5 @@ __all__ = [
     "RateLimitMiddleware",
     "ThrottleMiddleware",
     "HealthCheck",
+    "PrometheusMiddleware",
 ]

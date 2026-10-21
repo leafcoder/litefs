@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Optional
 from mako.lookup import TemplateLookup
 
+import argh
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # 获取模板目录路径
@@ -300,39 +302,25 @@ def test(test_path: str = 'tests', verbose: bool = False, coverage: bool = False
         sys.exit(1)
 
 
+def _create_tables():
+    """
+    创建数据库表
+
+    通过项目的 app.py 获取数据库引擎，使用模型元数据创建全部数据表。
+    """
+    from .cli_db import create_tables
+    create_tables()
+
+
 def db_init():
     """
     初始化数据库
 
     创建数据库表和初始数据
+
+    提示: 如需初始化 Alembic 迁移环境，请使用 litefs db init
     """
-    print("初始化数据库...")
-
-    try:
-        # 尝试导入项目的 app 和 models
-        if os.path.exists('app.py'):
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("app", "app.py")
-            app_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(app_module)
-
-            app = getattr(app_module, 'app', None)
-
-            if app and hasattr(app, 'db'):
-                # 创建所有表
-                from litefs.database.models import Base
-                Base.metadata.create_all(bind=app.db.engine)
-                print("数据库表创建成功!")
-            else:
-                print("警告: 未找到数据库配置")
-        else:
-            print("错误: 当前目录不是 Litefs 项目")
-            print("请在项目根目录运行此命令")
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"错误: 数据库初始化失败: {e}")
-        sys.exit(1)
+    _create_tables()
 
 
 def db_migrate(message: str = "auto migration"):
@@ -342,9 +330,8 @@ def db_migrate(message: str = "auto migration"):
     Args:
         message: 迁移消息
     """
-    print(f"生成数据库迁移: {message}")
-    print("提示: 此功能需要安装 Alembic")
-    print("请运行: pip install alembic")
+    from .cli_db import run_migration
+    run_migration('migrate', message)
 
 
 def routes():
@@ -393,7 +380,7 @@ def version():
 
 def main():
     """主函数"""
-    import argh
+    from .cli_db import DB_SUBCOMMANDS
 
     parser = argh.ArghParser()
     parser.add_commands([
@@ -406,6 +393,13 @@ def main():
         routes,
         version
     ])
+    # 数据库迁移命令组：litefs db init/migrate/upgrade/downgrade/current/history
+    argh.add_subcommands(
+        parser,
+        'db',
+        DB_SUBCOMMANDS,
+        title='数据库迁移命令'
+    )
     parser.dispatch()
 
 

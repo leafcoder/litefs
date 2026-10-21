@@ -763,12 +763,15 @@ class SocketRequestHandler(BaseRequestHandler):
             request_method = environ["REQUEST_METHOD"]
 
             # 尝试使用路由系统处理请求
-            route_match = app.router.match(path_info, request_method)
+            route_match = app.router.match_with_route(path_info, request_method)
             if route_match:
-                handler, params = route_match
+                route, params = route_match
+                handler = route.handler
                 try:
                     # 将路由参数添加到请求对象
+                    setattr(self, 'route_path', route.path)
                     setattr(self, 'route_params', params)
+                    setattr(self, 'path_params', params)
                     result = handler(self, **params)
 
                     # 处理 Response 对象

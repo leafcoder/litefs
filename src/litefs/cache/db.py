@@ -195,6 +195,7 @@ class DatabaseCache(CacheBackendBase):
             缓存值，如果不存在或已过期则返回 None
         """
         if self._cursor is None:
+            self.stats.record_miss()
             return None
 
         self._cleanup_expired()
@@ -207,11 +208,16 @@ class DatabaseCache(CacheBackendBase):
 
         if result:
             try:
-                return self._deserialize(result[0])
+                value = self._deserialize(result[0])
             except ValueError:
                 # 损坏的缓存数据，删除并返回 None
                 self.delete(key)
+                self.stats.record_miss()
                 return None
+            self.stats.record_hit()
+            return value
+
+        self.stats.record_miss()
         return None
 
     def delete(self, key: str) -> None:

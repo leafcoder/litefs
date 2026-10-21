@@ -312,13 +312,16 @@ class TreeCache(CacheBackendBase):
 
         ret = self.data.get(key)
         if ret is None:
+            self.stats.record_miss()
             return None
         val, timestamp, expiration = (
             ret[0], ret[1], ret[2] if len(ret) > 2 else self.expiration_time
         )
         if int(current_time - timestamp) > expiration:
             del self.data[key]
+            self.stats.record_miss()
             return None
+        self.stats.record_hit()
         return val
 
     def delete(self, key):
@@ -439,11 +442,14 @@ class MemoryCache(CacheBackendBase):
 
     def get(self, key):
         if self._is_expired(key):
+            self.stats.record_miss()
             return None
         val = self._cache.get(key)
         if val is None:
+            self.stats.record_miss()
             return None
         self._cache.move_to_end(key)
+        self.stats.record_hit()
         return val
 
     def delete(self, key):

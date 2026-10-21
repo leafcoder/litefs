@@ -39,6 +39,29 @@ class ExtensionMixin:
             from ..debug.middleware import DebugMiddleware
             self.add_middleware(DebugMiddleware)
 
+    def _init_prometheus_middleware(self):
+        """按配置启用 Prometheus 监控中间件
+
+        仅当 ``prometheus_enabled`` 为真时启用，此时会在应用构造阶段
+        校验 prometheus-client 是否可用，缺失时立即抛出带安装指引的异常，
+        避免延迟到首个请求才失败。
+        """
+        if not getattr(self.config, 'prometheus_enabled', False):
+            return
+
+        from ..metrics import load_prometheus_client
+
+        # 提前校验可选依赖，保证启动期失败而非请求期失败
+        load_prometheus_client()
+
+        from ..middleware import PrometheusMiddleware
+
+        self.add_middleware(
+            PrometheusMiddleware,
+            path=getattr(self.config, 'prometheus_path', '/metrics'),
+            namespace=getattr(self.config, 'prometheus_namespace', 'litefs'),
+        )
+
     def add_middleware(self, middleware_class, **kwargs):
         """
         添加中间件

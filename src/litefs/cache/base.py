@@ -8,7 +8,69 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from threading import Lock
+from typing import Any, Dict, Optional
+
+
+class CacheStats:
+    """
+    缓存统计计数器
+
+    记录缓存后端的读写次数，供监控指标采集使用。
+    内部使用互斥锁保证多线程环境下的计数准确性。
+    """
+
+    def __init__(self) -> None:
+        """初始化统计计数器"""
+        self._lock = Lock()
+        self._counters: Dict[str, int] = {
+            "hit": 0,
+            "miss": 0,
+            "set": 0,
+            "delete": 0,
+        }
+
+    def record_hit(self) -> None:
+        """记录一次缓存命中"""
+        self._increment("hit")
+
+    def record_miss(self) -> None:
+        """记录一次缓存未命中"""
+        self._increment("miss")
+
+    def record_set(self) -> None:
+        """记录一次缓存写入"""
+        self._increment("set")
+
+    def record_delete(self) -> None:
+        """记录一次缓存删除"""
+        self._increment("delete")
+
+    def _increment(self, name: str) -> None:
+        """
+        递增指定计数器
+
+        Args:
+            name: 计数器名称
+        """
+        with self._lock:
+            self._counters[name] += 1
+
+    def snapshot(self) -> Dict[str, int]:
+        """
+        获取当前统计快照
+
+        Returns:
+            各计数器的当前值
+        """
+        with self._lock:
+            return dict(self._counters)
+
+    def reset(self) -> None:
+        """重置全部计数器"""
+        with self._lock:
+            for name in self._counters:
+                self._counters[name] = 0
 
 
 class CacheBackendBase(ABC):
@@ -32,6 +94,23 @@ class CacheBackendBase(ABC):
     - set_many(mapping): 批量存储
     - delete_many(keys): 批量删除
     """
+
+    @property
+    def stats(self) -> CacheStats:
+        """
+        缓存统计计数器
+
+        所有子类均未调用 ``super().__init__()``，因此这里采用懒加载方式
+        创建统计对象，避免要求子类显式初始化。
+
+        Returns:
+            CacheStats 实例
+        """
+        stats = getattr(self, "_cache_stats", None)
+        if stats is None:
+            stats = CacheStats()
+            self._cache_stats = stats
+        return stats
 
     @abstractmethod
     def put(self, key: str, val: Any, expiration: Optional[int] = None) -> None:

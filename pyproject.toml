@@ -55,6 +55,15 @@ dev = [
     "flake8>=7.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    # 可选依赖的可测试版本，保证单元测试在 CI 中可直接运行
+    "prometheus-client>=0.20.0",
+    "alembic>=1.13.0",
+]
+prometheus = [
+    "prometheus-client>=0.20.0",
+]
+db = [
+    "alembic>=1.13.0",
 ]
 docs = [
     "sphinx>=9.0.0",

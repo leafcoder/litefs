@@ -90,6 +90,8 @@ class CacheManager:
             with cls._lock:
                 if key not in manager._caches:
                     cache = CacheFactory.create_cache(backend, **kwargs)
+                    # 记录后端类型，供监控指标使用
+                    setattr(cache, '_litefs_backend', backend)
                     manager._caches[key] = cache
 
         return manager._caches[key]
@@ -174,6 +176,24 @@ class CacheManager:
         """
         manager = cls()
         return list(manager._caches.keys())
+
+    @classmethod
+    def list_cache_instances(cls) -> list:
+        """
+        获取所有缓存实例及其元信息
+
+        返回的每一项为 ``(cache_key, cache_instance, backend)`` 三元组，
+        其中 backend 为创建缓存时使用的后端类型标识。
+
+        Returns:
+            缓存实例信息列表
+        """
+        manager = cls()
+        result = []
+        for cache_key, cache in manager._caches.items():
+            backend = getattr(cache, '_litefs_backend', type(cache).__name__)
+            result.append((cache_key, cache, backend))
+        return result
 
 
 def get_global_cache(

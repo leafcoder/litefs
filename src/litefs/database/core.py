@@ -213,6 +213,16 @@ class DatabaseManager:
         return cls._databases[name]
 
     @classmethod
+    def get_databases(cls) -> Dict[str, Database]:
+        """
+        获取所有已初始化的数据库实例
+
+        Returns:
+            数据库实例字典（键为数据库名称，值为 Database 实例）
+        """
+        return dict(cls._databases)
+
+    @classmethod
     def get_session(cls, name: str = 'default') -> Session:
         """
         获取数据库会话

@@ -29,6 +29,8 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
    celery-integration
    openapi-integration
    debug-toolbar
+   prometheus-monitoring
+   database-migrations
    wsgi-deployment
    asgi-deployment
 
@@ -91,6 +93,8 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 * OpenAPI/Swagger 文档自动生成
 * 开发调试工具（请求检查、SQL 日志、性能分析）
 * 健康检查系统
+* Prometheus 监控（请求指标、连接池状态、缓存命中率）
+* Alembic 数据库迁移（版本化 schema 管理）
 * 文件监控和热重载
 * Python 3.8+ 支持
 

@@ -146,14 +146,18 @@ class RedisCache(CacheBackendBase):
         val_str = self._redis.get(redis_key)
 
         if val_str is None:
+            self.stats.record_miss()
             return None
 
         # 反序列化值
         try:
-            return json.loads(val_str)
+            value = json.loads(val_str)
         except Exception:
             # 如果反序列化失败，返回原始字符串
-            return val_str
+            value = val_str
+
+        self.stats.record_hit()
+        return value
 
     def delete(self, key: str) -> None:
         """
