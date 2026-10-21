@@ -63,6 +63,27 @@ class MockRequestHandler:
         self.cookies[key] = value
 
 
+class MockSocketRequestHandler(MockRequestHandler):
+    """模拟原生 Socket 请求处理器
+
+    原生 Socket 链路与 WSGI / ASGI 的关键差异：
+
+    - ``_response_headers`` 为字典，响应头写入其中
+    - ``_headers`` 为列表，Socket 路径下始终为空
+    - ``process_response`` 仅收到响应体字符串
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._response_headers = {}
+        self._headers = []
+        self._status_code = 200
+
+    def _add_header(self, key, value):
+        """写入响应头字典"""
+        self._response_headers[key] = value
+
+
 class TestNormalizeLocale(unittest.TestCase):
     """locale 规范化"""
 
@@ -646,6 +667,100 @@ class TestLocaleMiddleware(unittest.TestCase):
         )
 
         self.assertIn(("Content-Language", "zh_CN"), headers)
+
+
+class TestLocaleMiddlewareSocketPath(unittest.TestCase):
+    """原生 Socket 响应链路下的 Locale 中间件
+
+    ``app.run()`` 默认使用原生 Socket 服务器，该路径下 ``process_response``
+    仅收到响应体字符串，响应头保存在 ``request_handler._response_headers``，
+    与 WSGI / ASGI 的三元组形态不同，需分别兼容。
+    """
+
+    def _make_middleware(self, **kwargs):
+        """构造中间件"""
+        params = {
+            "supported_locales": ["en", "zh_CN"],
+            "default_locale": "en",
+            "locale_dir": "locales",
+        }
+        params.update(kwargs)
+        app = MagicMock()
+        app.config = MagicMock()
+        app.config.i18n_supported_locales = None
+        app.config.i18n_default_locale = "en"
+        app.config.i18n_locale_dir = "locales"
+        app.config.i18n_cookie_name = "locale"
+        app.config.i18n_param_name = "locale"
+        return LocaleMiddleware(app, **params)
+
+    def test_process_response_writes_content_language(self):
+        """Socket 路径写入 Content-Language 响应头"""
+        middleware = self._make_middleware()
+        handler = MockSocketRequestHandler()
+        handler.locale = "zh_CN"
+
+        result = middleware.process_response(handler, "body")
+
+        self.assertEqual(result, "body")
+        self.assertEqual(handler._response_headers.get("Content-Language"), "zh_CN")
+
+    def test_process_response_keeps_existing_header(self):
+        """已存在 Content-Language 时不重复写入"""
+        middleware = self._make_middleware()
+        handler = MockSocketRequestHandler()
+        handler.locale = "zh_CN"
+        handler._response_headers["Content-Language"] = "en"
+
+        middleware.process_response(handler, "body")
+
+        self.assertEqual(handler._response_headers.get("Content-Language"), "en")
+
+    def test_process_response_writes_cookie(self):
+        """Socket 路径回写 locale Cookie"""
+        middleware = self._make_middleware()
+        handler = MockSocketRequestHandler()
+        handler.locale = "zh_CN"
+
+        middleware.process_response(handler, "body")
+
+        self.assertEqual(handler.cookies.get("locale"), "zh_CN")
+
+    def test_process_response_without_locale(self):
+        """无 locale 时不修改响应"""
+        middleware = self._make_middleware()
+        handler = MockSocketRequestHandler()
+
+        response = "body"
+        result = middleware.process_response(handler, response)
+
+        self.assertIs(result, response)
+        self.assertNotIn("Content-Language", handler._response_headers)
+        self.assertEqual(handler.cookies, {})
+
+    def test_process_response_set_cookie_disabled(self):
+        """关闭 Cookie 写入时仅设置响应头"""
+        middleware = self._make_middleware(set_cookie=False)
+        handler = MockSocketRequestHandler()
+        handler.locale = "zh_CN"
+
+        middleware.process_response(handler, "body")
+
+        self.assertEqual(handler._response_headers.get("Content-Language"), "zh_CN")
+        self.assertEqual(handler.cookies, {})
+
+    def test_async_process_response_socket_path(self):
+        """异步响应阶段与同步一致"""
+        import asyncio
+
+        middleware = self._make_middleware()
+        handler = MockSocketRequestHandler()
+        handler.locale = "zh_CN"
+
+        result = asyncio.run(middleware.async_process_response(handler, "body"))
+
+        self.assertEqual(result, "body")
+        self.assertEqual(handler._response_headers.get("Content-Language"), "zh_CN")
 
 
 class TestAppI18nIntegration(unittest.TestCase):

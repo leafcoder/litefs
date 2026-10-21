@@ -1,0 +1,56 @@
+# Litefs 国际化示例 —— 英文翻译
+#
+# 编译命令：python compile_messages.py
+# 编译后生成 messages.mo，运行时由 gettext 加载。
+#
+# 约定：msgid 使用英文原文（作为翻译键），msgstr 为目标语言译文。
+# 英文作为源语言时译文与原文一致，此处显式声明是为了让
+# 「支持语言列表」与实际可用的翻译目录保持一致。
+
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Welcome to Litefs"
+msgstr "Welcome to Litefs"
+
+msgid "Welcome"
+msgstr "Welcome"
+
+msgid "Sign in"
+msgstr "Sign in"
+
+msgid "Sign out"
+msgstr "Sign out"
+
+msgid "Dashboard"
+msgstr "Dashboard"
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "Language"
+msgstr "Language"
+
+msgid "Switch language"
+msgstr "Switch language"
+
+msgid "You have %d unread notifications"
+msgstr "You have %d unread notifications"
+
+msgid "Internationalization demo"
+msgstr "Internationalization demo"
+
+msgid "The current locale is %s"
+msgstr "The current locale is %s"
+
+msgid "Negotiation priority: query param > cookie > Accept-Language > default"
+msgstr "Negotiation priority: query param > cookie > Accept-Language > default"
+
+msgid "%d message"
+msgid_plural "%d messages"
+msgstr[0] "%d message"
+msgstr[1] "%d messages"

@@ -101,9 +101,15 @@ class LocaleMiddleware(Middleware):
         """
         在响应中回写 Content-Language 与 locale Cookie
 
+        兼容两条响应链路：
+
+        - WSGI / ASGI：``(status_line, headers, content)`` 三元组
+        - 原生 Socket（``app.run()`` 默认模式）：仅响应体，
+          响应头保存在 ``request_handler._response_headers``
+
         Args:
             request_handler: 请求处理器实例
-            response: 响应数据，通常为 (status, headers, content) 三元组
+            response: 响应数据
 
         Returns:
             未修改的响应数据
@@ -113,6 +119,13 @@ class LocaleMiddleware(Middleware):
             return response
 
         if not (isinstance(response, tuple) and len(response) == 3):
+            # 原生 Socket 路径：响应头与 Cookie 保存在请求处理器上
+            if not self._has_content_language(request_handler):
+                self._append_response_header(request_handler, "Content-Language", locale)
+
+            if self.set_cookie:
+                self._write_locale_cookie(request_handler, locale)
+
             return response
 
         status_line, headers, content = response
@@ -284,6 +297,33 @@ class LocaleMiddleware(Middleware):
             if value:
                 return str(value)
         return None
+
+    def _has_content_language(self, request_handler: Any) -> bool:
+        """
+        判断响应中是否已存在 Content-Language 响应头
+
+        同时兼容两条链路的响应头存储方式：
+
+        - 原生 Socket：``_response_headers`` 字典
+        - WSGI / ASGI：``_headers`` 列表
+
+        Args:
+            request_handler: 请求处理器实例
+
+        Returns:
+            已存在时返回 True
+        """
+        headers = getattr(request_handler, "_response_headers", None)
+        if isinstance(headers, dict):
+            if any(str(key).lower() == "content-language" for key in headers):
+                return True
+
+        headers = getattr(request_handler, "_headers", None)
+        if isinstance(headers, (list, tuple)):
+            if any(str(key).lower() == "content-language" for key, _ in headers):
+                return True
+
+        return False
 
     def _write_locale_cookie(self, request_handler: Any, locale: str) -> None:
         """

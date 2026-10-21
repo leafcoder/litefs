@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>${title}</h1>
+            <p>监控中间件已启用，所有业务路由的请求都会被自动采集</p>
+        </header>
+
+        <main>
+            <section>
+                <h2>可观测端点</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>路径</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        % for endpoint in endpoints:
+                        <tr>
+                            <td><code>${endpoint['path']}</code></td>
+                            <td>${endpoint['desc']}</td>
+                        </tr>
+                        % endfor
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>核心指标</h2>
+                <ul>
+                    <li><code>litefs_http_requests_total</code> —— 请求总数</li>
+                    <li><code>litefs_http_errors_total</code> —— 错误响应总数</li>
+                    <li><code>litefs_http_request_duration_seconds</code> —— 请求耗时直方图</li>
+                    <li><code>litefs_http_response_size_bytes</code> —— 响应体大小直方图</li>
+                    <li><code>litefs_db_pool_connections</code> —— 数据库连接池状态</li>
+                    <li><code>litefs_cache_operations_total</code> —— 缓存命中/未命中计数</li>
+                    <li><code>litefs_cache_entries</code> —— 缓存条目数量</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>快速验证</h2>
+                <pre>curl http://localhost:8083/api/items/1
+curl http://localhost:8083/api/cache/demo
+curl http://localhost:8083/metrics</pre>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Litefs</p>
+        </footer>
+    </div>
+</body>
+</html>

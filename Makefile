@@ -1,4 +1,4 @@
-.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help sync-deps lint lint-fix help
+.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help sync-deps lint lint-fix benchmark benchmark-check audit help
 
 # 文档相关命令
 
@@ -121,6 +121,27 @@ sync-deps:
 	@python scripts/sync_deps.py
 	@echo "Dependencies synced successfully!"
 
+# 性能回归门禁：运行压测并比对已固化的阈值基线
+# 压测需独占 CPU，务必在专用压测机上执行
+benchmark:
+	@echo ">>> 运行性能基准测试"
+	@$(MAKE) -C benchmarks benchmark
+	@echo "性能基准测试完成"
+
+# 性能回归门禁：比对最新压测结果与已固化的阈值基线
+# 退出码 0 通过 / 1 存在性能回退 / 2 输入缺失（严格模式）
+benchmark-check:
+	@echo ">>> 性能回归阈值比对"
+	@python benchmarks/compare_benchmark.py
+	@echo "性能回归检查完成"
+
+# 依赖安全审计：pip-audit 扫描运行时依赖清单
+# 退出码 0 无漏洞 / 1 发现漏洞 / 2 工具不可用
+audit:
+	@echo ">>> 依赖安全审计（pip-audit）"
+	@python scripts/audit_deps.py
+	@echo "依赖安全审计完成"
+
 # 帮助信息
 help:
 	@echo "=== Litefs 项目管理命令 ==="
@@ -146,5 +167,10 @@ help:
 	@echo ""
 	@echo "依赖管理:"
 	@echo "  make sync-deps     - 从pyproject.toml同步依赖到requirements.txt"
+	@echo ""
+	@echo "性能与安全:"
+	@echo "  make benchmark      - 运行性能基准测试（需独占 CPU）"
+	@echo "  make benchmark-check - 比对压测结果与性能回归阈值基线"
+	@echo "  make audit          - pip-audit 依赖安全审计"
 	@echo ""
 	@echo "运行 'make <command>' 执行相应命令"

@@ -137,6 +137,19 @@ litefs_http_errors_total{method="GET",path="/user/{id}",status="404"} 1.0
 
 端点本身**不会**被计入请求指标（请求在中间件层直接短路），因此不会产生自监控噪声。
 
+### 响应链路兼容性
+
+Litefs 存在两条响应链路，中间件对两者均能正常采集指标：
+
+| 链路 | 典型场景 | `process_response` 收到的响应 | 状态码来源 |
+| --- | --- | --- | --- |
+| WSGI / ASGI | gunicorn、uvicorn、`app.wsgi()` / `app.asgi()` | `(status_line, headers, content)` 三元组 | 三元组第一段 |
+| 原生 Socket | `app.run()` 默认模式 | 仅响应体字符串 | `request_handler._status_code` |
+
+原生 Socket 路径下，响应头保存在 `request_handler._headers`，状态码保存在 `request_handler._status_code`。
+中间件通过 `_extract_response()` 统一这两种形态，提取出统一的三元组后再记录指标，因此
+**在 `app.run()` 默认模式下 `/metrics` 同样能采集到完整的请求指标**。
+
 ### 动态指标的采集时机
 
 连接池与缓存指标是**快照型**数据，在每次 `/metrics` 抓取时实时采集（scrape-time collection），而非在业务请求路径上采集：

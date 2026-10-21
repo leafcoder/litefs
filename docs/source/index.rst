@@ -33,6 +33,8 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
    database-migrations
    mail-service
    i18n
+   keep-alive
+   asyncio-server
    wsgi-deployment
    asgi-deployment
 
@@ -45,10 +47,13 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 .. toctree::
    :maxdepth: 2
    :caption: 测试文档:
-   
+
    unit-tests
    performance-stress-tests
    performance-benchmark
+   performance-benchmark-v0.8.1
+   performance-greenlet-vs-asyncio
+   performance-regression
 
 .. toctree::
    :maxdepth: 2
@@ -56,6 +61,7 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 
    static-checks
    type-hints
+   dependency-audit
    todolist
 
 .. toctree::
@@ -99,6 +105,8 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 * Alembic 数据库迁移（版本化 schema 管理）
 * 邮件发送（SMTP、TLS/SSL、Mako 模板、附件、Celery 异步投递）
 * 国际化（gettext 翻译表、请求级 locale 协商、模板翻译函数）
+* 性能回归门禁（基线阈值固化，自动比对 RPS 与 P99）
+* 依赖安全审计（pip-audit 定期扫描，CI 报告归档）
 * 文件监控和热重载
 * Python 3.8+ 支持
 

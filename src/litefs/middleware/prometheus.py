@@ -25,6 +25,8 @@ from .base import Middleware
 # 请求处理器上保存计时起点与去重标记的属性名
 _START_TIME_ATTR = "_prometheus_start_time"
 _RECORDED_ATTR = "_prometheus_recorded"
+# 指标端点自身的请求不计入请求指标，避免自监控噪声
+_SKIP_ATTR = "_prometheus_skip"
 
 
 class PrometheusMiddleware(Middleware):
@@ -89,6 +91,8 @@ class PrometheusMiddleware(Middleware):
         method = request_handler._environ.get("REQUEST_METHOD", "GET")
 
         if method == "GET" and path == self.path:
+            # 指标端点自身不计入请求指标，避免自监控噪声
+            setattr(request_handler, _SKIP_ATTR, True)
             return self._render_metrics()
 
         return None
@@ -99,7 +103,7 @@ class PrometheusMiddleware(Middleware):
 
         Args:
             request_handler: 请求处理器实例
-            response: 响应数据，通常为 (status, headers, content) 三元组
+            response: 响应数据
 
         Returns:
             未修改的响应数据
@@ -107,21 +111,14 @@ class PrometheusMiddleware(Middleware):
         if getattr(request_handler, _RECORDED_ATTR, False):
             return response
 
-        if not (isinstance(response, tuple) and len(response) == 3):
-            # Socket 路径下中间件可能收到非三元组响应，直接跳过
+        if getattr(request_handler, _SKIP_ATTR, False):
             return response
 
-        status_line = response[0]
-        headers = response[1]
-        content = response[2]
-
-        if not isinstance(status_line, str):
+        extracted = self._extract_response(request_handler, response)
+        if extracted is None:
             return response
 
-        try:
-            status_code = int(status_line.split()[0])
-        except (ValueError, IndexError):
-            return response
+        status_code, headers, content = extracted
 
         duration = self._elapsed(request_handler)
         response_size = self._content_length(headers, content)
@@ -158,6 +155,9 @@ class PrometheusMiddleware(Middleware):
             None: 继续抛出异常
         """
         if getattr(request_handler, _RECORDED_ATTR, False):
+            return None
+
+        if getattr(request_handler, _SKIP_ATTR, False):
             return None
 
         duration = self._elapsed(request_handler)
@@ -246,6 +246,22 @@ class PrometheusMiddleware(Middleware):
         if start is None:
             return 0.0
         return max(0.0, time.perf_counter() - float(start))
+
+    def _extract_response(self, request_handler, response):
+        """
+        从响应对象中提取状态码、响应头与响应体
+
+        委托给基类的 ``_extract_response_parts``，兼容 WSGI / ASGI 三元组
+        与原生 Socket 响应体两种形态。
+
+        Args:
+            request_handler: 请求处理器实例
+            response: 响应数据
+
+        Returns:
+            (状态码, 响应头列表, 响应体) 三元组，无法解析时返回 None
+        """
+        return self._extract_response_parts(request_handler, response)
 
     def _is_excluded(self, route_path: str) -> bool:
         """

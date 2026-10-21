@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>${title}</h1>
+            <p>Mako 双模板（纯文本 + HTML） · STARTTLS / SSL · 指数退避重试 · Celery 异步降级</p>
+        </header>
+
+        <main>
+            <section>
+                <h2>运行状态</h2>
+                <ul>
+                    <li>发送模式：<strong>${'已启用（真实发送）' if mail_enabled else '预览模式（不实际发送）'}</strong></li>
+                    <li>SMTP 服务器：<code>${smtp_host}:${smtp_port}</code></li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>接口列表</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>路径</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        % for endpoint in endpoints:
+                        <tr>
+                            <td><code>${endpoint['path']}</code></td>
+                            <td>${endpoint['desc']}</td>
+                        </tr>
+                        % endfor
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>调用示例</h2>
+                <pre>curl -X POST http://localhost:8085/api/mail/preview \
+     -H "Content-Type: application/json" \
+     -d '{"name": "张三", "email": "zhangsan@example.com"}'</pre>
+            </section>
+
+            <section>
+                <h2>启用真实发送</h2>
+                <pre>export MAIL_ENABLED=1
+export SMTP_HOST=smtp.example.com
+export SMTP_PORT=587
+export SMTP_USERNAME=noreply@example.com
+export SMTP_PASSWORD=your-password
+python app.py</pre>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Litefs</p>
+        </footer>
+    </div>
+</body>
+</html>

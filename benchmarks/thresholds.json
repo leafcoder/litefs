@@ -1,0 +1,35 @@
+{
+  "$schema_version": 1,
+  "description": "Litefs 性能回归阈值基线，键为 server_type + workers + connections 三元组。min_rps 为吞吐下限（取基线的 85%），max_p99_ms 为 P99 延迟上限（取基线的 130%）。任一项越界即判定为性能回退。",
+  "baseline": {
+    "timestamp": "20260420_153048",
+    "source": "benchmarks/results/latest/data.json",
+    "tolerance": "RPS 下限 = 基线 × 0.85；P99 上限 = 基线 × 1.30"
+  },
+  "thresholds": {
+    "litefs_greenlet": {
+      "1-500": {"min_rps": 6200.0, "max_p99_ms": 165.0},
+      "1-1000": {"min_rps": 6400.0, "max_p99_ms": 225.0},
+      "6-500": {"min_rps": 14000.0, "max_p99_ms": 98.0},
+      "6-1000": {"min_rps": 14600.0, "max_p99_ms": 192.0}
+    },
+    "litefs_asgi": {
+      "1-500": {"min_rps": 4700.0, "max_p99_ms": 146.0},
+      "1-1000": {"min_rps": 4700.0, "max_p99_ms": 270.0},
+      "6-500": {"min_rps": 8600.0, "max_p99_ms": 85.0},
+      "6-1000": {"min_rps": 10700.0, "max_p99_ms": 198.0}
+    },
+    "litefs_wsgi": {
+      "1-500": {"min_rps": 6100.0, "max_p99_ms": 1040.0},
+      "1-1000": {"min_rps": 6300.0, "max_p99_ms": 1740.0},
+      "6-500": {"min_rps": 13600.0, "max_p99_ms": 1780.0},
+      "6-1000": {"min_rps": 13100.0, "max_p99_ms": 1900.0}
+    },
+    "fastapi": {
+      "1-500": {"min_rps": 4700.0, "max_p99_ms": 140.0},
+      "1-1000": {"min_rps": 4500.0, "max_p99_ms": 273.0},
+      "6-500": {"min_rps": 8400.0, "max_p99_ms": 91.0},
+      "6-1000": {"min_rps": 10200.0, "max_p99_ms": 183.0}
+    }
+  }
+}

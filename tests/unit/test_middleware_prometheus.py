@@ -275,6 +275,99 @@ class TestPrometheusMiddleware(unittest.TestCase):
         )
 
 
+class TestPrometheusSocketPath(unittest.TestCase):
+    """原生 Socket 响应链路
+
+    ``app.run()`` 默认使用原生 Socket 服务器，该路径下 ``process_response``
+    仅收到响应体字符串，状态码与响应头保存在请求处理器上，
+    与 WSGI / ASGI 的三元组形态不同，需分别兼容。
+    """
+
+    def setUp(self):
+        self.middleware = PrometheusMiddleware(None)
+
+    @staticmethod
+    def _socket_handler(path="/api", route_path="/api", status_code=200, headers=None):
+        """构造模拟原生 Socket 请求处理器"""
+        handler = MockRequestHandler(path, route_path=route_path)
+        handler._status_code = status_code
+        handler._headers = list(headers or [])
+        return handler
+
+    def test_extract_response_from_tuple(self):
+        """WSGI / ASGI 三元组形态正常解析"""
+        handler = self._socket_handler()
+        result = self.middleware._extract_response(
+            handler, ("404 Not Found", [("X-Test", "1")], "body")
+        )
+
+        self.assertEqual(result, (404, [("X-Test", "1")], "body"))
+
+    def test_extract_response_from_socket_handler(self):
+        """原生 Socket 形态从请求处理器读取状态码与响应头"""
+        handler = self._socket_handler(status_code=201, headers=[("Content-Type", "text/plain")])
+        result = self.middleware._extract_response(handler, "body")
+
+        self.assertEqual(result, (201, [("Content-Type", "text/plain")], "body"))
+
+    def test_extract_response_without_status_code(self):
+        """请求处理器缺少状态码时返回 None"""
+        handler = MockRequestHandler("/api")
+        self.assertIsNone(self.middleware._extract_response(handler, "body"))
+
+    def test_extract_response_invalid_status_line(self):
+        """状态行无法解析时返回 None"""
+        handler = self._socket_handler()
+        self.assertIsNone(self.middleware._extract_response(handler, ("BAD", [], "")))
+
+    def test_process_response_records_socket_request(self):
+        """原生 Socket 路径的响应同样被记录"""
+        handler = self._socket_handler("/user/42", route_path="/user/{id}")
+        self.middleware.process_request(handler)
+        self.middleware.process_response(handler, "user")
+
+        text = self.middleware.registry.render()
+        self.assertIn(
+            'litefs_http_requests_total{method="GET",path="/user/{id}",status="200"} 1.0',
+            text,
+        )
+
+    def test_process_response_records_socket_error_status(self):
+        """原生 Socket 路径的非 200 状态码正确解析"""
+        handler = self._socket_handler("/missing", route_path="unmatched", status_code=404)
+        self.middleware.process_request(handler)
+        self.middleware.process_response(handler, "not found")
+
+        text = self.middleware.registry.render()
+        self.assertIn(
+            'litefs_http_errors_total{method="GET",path="unmatched",status="404"} 1.0',
+            text,
+        )
+
+    def test_metrics_endpoint_not_self_counted_on_socket(self):
+        """原生 Socket 路径下指标端点自身不计入请求指标"""
+        handler = self._socket_handler("/metrics", status_code=200)
+        result = self.middleware.process_request(handler)
+
+        self.assertIsNotNone(result)
+        # 原生 Socket 路径会把响应体字符串再送入 process_response
+        self.middleware.process_response(handler, "metrics body")
+
+        text = self.middleware.registry.render()
+        self.assertNotIn('path="/metrics"', text)
+        self.assertNotIn('path="unmatched"', text)
+
+    def test_process_exception_skipped_for_metrics_endpoint(self):
+        """指标端点发生异常时不补记错误指标"""
+        handler = self._socket_handler("/metrics", status_code=200)
+        self.middleware.process_request(handler)
+
+        self.assertIsNone(self.middleware.process_exception(handler, RuntimeError("boom")))
+
+        text = self.middleware.registry.render()
+        self.assertNotIn("litefs_http_errors_total{", text)
+
+
 class TestPrometheusIntegration(unittest.TestCase):
     """完整 WSGI 请求链路"""
 

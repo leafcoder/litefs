@@ -58,6 +58,8 @@ dev = [
     # 可选依赖的可测试版本，保证单元测试在 CI 中可直接运行
     "prometheus-client>=0.20.0",
     "alembic>=1.13.0",
+    # 依赖安全审计（pip-audit），CI security 门禁依赖
+    "pip-audit>=2.7.3",
 ]
 prometheus = [
     "prometheus-client>=0.20.0",

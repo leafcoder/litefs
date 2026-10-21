@@ -4,6 +4,7 @@
 stages:
   - lint
   - test
+  - verify
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -89,3 +90,36 @@ coverage:
     expire_in: 1 week
     paths:
       - coverage.xml
+
+# ---------------------------------------------------------------------------
+# 性能回归门禁：校验已固化的压测基线与阈值文件的一致性
+#
+# CI 容器内无 wrk 二进制，且压测需独占 CPU 才能得到可比结果，
+# 因此这里不重跑压测，只做「已提交基线是否仍然满足阈值」的一致性检查。
+# 真正的性能回归检测在本地执行：make benchmark && make benchmark-check
+# ---------------------------------------------------------------------------
+benchmark-regression:
+  stage: verify
+  extends: .python
+  script:
+    - echo ">>> 校验性能基线与阈值一致性"
+    - python benchmarks/compare_benchmark.py
+  allow_failure: true
+
+# ---------------------------------------------------------------------------
+# 依赖安全审计：pip-audit 扫描运行时依赖清单
+#
+# 不阻断合并，作为安全基线参考；发现漏洞时需人工评估并安排升级。
+# ---------------------------------------------------------------------------
+security:
+  stage: verify
+  extends: .python
+  script:
+    - echo ">>> pip-audit 依赖安全审计"
+    - python scripts/audit_deps.py --format json --output reports/audit.json
+  allow_failure: true
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - reports/audit.json

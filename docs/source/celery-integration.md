@@ -143,4 +143,5 @@ celery -A app.celery worker --beat --loglevel=info
 
 ## 完整示例
 
-参见 [examples/16-celery-tasks/app.py](../examples/16-celery-tasks/app.py)
+参见 [examples/05-production/celery_tasks.py](../../examples/05-production/celery_tasks.py)，
+其中定义了 `process_task`、`send_email`、`cleanup_cache` 三个任务与 Beat 定时调度配置。

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>${title}</h1>
+            <p>基于 Alembic 的数据库版本化迁移，模型挂载在 <code>litefs.database.models.Base</code></p>
+        </header>
+
+        <main>
+            <section>
+                <h2>迁移命令</h2>
+                <pre>% for cmd in commands:
+${cmd}
+% endfor</pre>
+                <p class="tip">命令需在本示例目录下执行，CLI 会从当前目录的 <code>app.py</code> 读取 <code>database_url</code>。</p>
+            </section>
+
+            <section>
+                <h2>接口列表</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>路径</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        % for endpoint in endpoints:
+                        <tr>
+                            <td><code>${endpoint['path']}</code></td>
+                            <td>${endpoint['desc']}</td>
+                        </tr>
+                        % endfor
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>表结构</h2>
+                <ul>
+                    <li><code>categories</code> —— 商品分类（id / name / description / 时间戳）</li>
+                    <li><code>products</code> —— 商品（id / name / price / stock / description / category_id / 时间戳）</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Litefs</p>
+        </footer>
+    </div>
+</body>
+</html>

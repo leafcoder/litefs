@@ -18,14 +18,15 @@
 **问题描述**: 示例代码中存在 E402 和 F401 代码规范问题
 
 **影响范围**: 
-- `examples/01-hello-world/app.py`
-- `examples/02-routing/app.py`
-- `examples/03-blog/app.py`
-- `examples/04-api-service/app.py`
-- `examples/05-fullstack/app.py`
-- `examples/06-sqlalchemy/app.py`
-- `examples/advanced.py`
-- `examples/basic.py`
+- `examples/01-quickstart/app.py`
+- `examples/02-rest-api/app.py`
+- `examples/03-web-app/app.py`
+- `examples/04-realtime/app.py`
+- `examples/05-production/app.py`
+- `examples/06-prometheus-monitoring/app.py`
+- `examples/07-database-migrations/app.py`
+- `examples/08-mail-service/app.py`
+- `examples/09-i18n/app.py`
 
 **修复方案**:
 1. 添加 `# noqa: E402` 注释到模块导入语句
