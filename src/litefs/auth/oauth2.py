@@ -95,7 +95,8 @@ class OAuth2:
 
     提供完整的 OAuth2 认证流程管理。
 
-    使用示例:
+    使用示例::
+
         oauth = OAuth2(app)
 
         oauth.register(

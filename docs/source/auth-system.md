@@ -356,7 +356,7 @@ def edit_post(request):
 ### 登录请求
 
 ```http
-POST /auth/login
+POST /auth/login HTTP/1.1
 Content-Type: application/json
 
 {
@@ -379,7 +379,7 @@ Content-Type: application/json
 ### 注册请求
 
 ```http
-POST /auth/register
+POST /auth/register HTTP/1.1
 Content-Type: application/json
 
 {
@@ -392,14 +392,14 @@ Content-Type: application/json
 ### 刷新 Token
 
 ```http
-POST /auth/refresh
+POST /auth/refresh HTTP/1.1
 Authorization: Bearer <refresh_token>
 ```
 
 ### 登出
 
 ```http
-POST /auth/logout
+POST /auth/logout HTTP/1.1
 Authorization: Bearer <access_token>
 ```
 

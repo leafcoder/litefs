@@ -590,7 +590,7 @@ def load_config(
 
     Args:
         config_file: 配置文件路径
-        env_prefix: 环境变量前缀（默认为 LITEFS_）
+        env_prefix: 环境变量前缀（默认为 ``LITEFS_``）
         **kwargs: 其他配置项
 
     Returns:

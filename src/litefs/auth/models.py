@@ -134,7 +134,7 @@ class BaseUserStore(ABC):
     所有用户存储后端必须实现以下方法：
     - get_by_id(user_id): 根据 ID 获取用户
     - get_by_username(username): 根据用户名获取用户
-    - create(username, password_hash, **kwargs): 创建用户
+    - create(username, password_hash, \\*\\*kwargs): 创建用户
     - delete(user_id): 删除用户
     - list_all(): 获取所有用户
     """
@@ -243,7 +243,8 @@ def set_user_store(store: BaseUserStore):
     Args:
         store: BaseUserStore 实例
 
-    使用示例:
+    使用示例::
+
         from litefs.auth.models import set_user_store, BaseUserStore
 
         class DatabaseUserStore(BaseUserStore):

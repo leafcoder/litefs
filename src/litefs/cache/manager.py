@@ -24,7 +24,8 @@ class CacheManager:
     确保缓存对象在应用生命周期内常驻内存，不会因为 Litefs 实例的
     创建和销毁而丢失数据。
 
-    使用示例:
+    使用示例::
+
         # 获取缓存实例（自动创建）
         cache = CacheManager.get_cache()
 

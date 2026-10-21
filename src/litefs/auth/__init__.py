@@ -13,7 +13,8 @@
 - Token 刷新
 - 认证中间件
 
-使用示例：
+使用示例::
+
     from litefs.auth import Auth, login_required, role_required
 
     auth = Auth(app, secret_key='your-secret-key')
@@ -28,7 +29,8 @@
     def admin_only(request):
         return {'message': 'Admin access'}
 
-OAuth2 示例：
+OAuth2 示例::
+
     from litefs.auth import OAuth2
 
     oauth = OAuth2(app)
