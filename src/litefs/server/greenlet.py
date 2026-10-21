@@ -1,17 +1,15 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import time
 from errno import EAGAIN, EMFILE, ENOTCONN, EPIPE, EWOULDBLOCK
 from functools import lru_cache, partial
 from io import DEFAULT_BUFFER_SIZE, BufferedRWPair, RawIOBase
-from posixpath import abspath as path_abspath
-from posixpath import join as path_join
-from time import time
 from traceback import print_exc
 from urllib.parse import unquote_plus
 from email.message import Message
 
-from typing import Dict, List, Optional, Callable, Any, Union, Tuple, cast
+from typing import Dict, List, Optional, Any, Tuple
 
 try:
     from greenlet import GreenletExit, getcurrent, greenlet
@@ -34,17 +32,13 @@ except (ImportError, AttributeError):
     select_epoll = None
 
 from ..exceptions import HttpError
-from ..handlers import RequestHandler, parse_form
-from ..utils import log_error
+from ..handlers import RequestHandler, parse_form  # noqa: F401  # 对外再导出
 
 import array
 import traceback
 import logging
 import socket
-import sys
 import os
-import multiprocessing
-import time
 import signal
 import select
 import tempfile
@@ -209,7 +203,7 @@ class SocketIO(RawIOBase):
         finally:
             try:
                 self._sock.close()
-            except:
+            except Exception:
                 pass
 
     read_gr: Optional[Any] = None
@@ -290,7 +284,7 @@ class Epoll(object):
                             if gr is not None:
                                 gr.throw()
             while len(idles):
-                now_ts = time()
+                now_ts = time.time()
                 ts, gr = idles.pop(0)
                 if ts > now_ts:
                     idles.append((ts, gr))
@@ -307,7 +301,12 @@ class TCPServer(object):
     request_queue_size = 4194304
     address_family, socket_type = socket.AF_INET, socket.SOCK_STREAM
 
-    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Any, bind_and_activate: bool = True) -> None:
+    def __init__(
+        self,
+        server_address: Tuple[str, int],
+        RequestHandlerClass: Any,
+        bind_and_activate: bool = True
+    ) -> None:
         self.server_address = server_address
         self.RequestHandlerClass = RequestHandlerClass
         self.socket = socket.socket(self.address_family, self.socket_type)
@@ -480,7 +479,7 @@ class HTTPServer(TCPServer):
 
 class ProcessHTTPServer(HTTPServer):
     """多进程 HTTP 服务器（改进版）
-    
+
     改进点：
     1. 使用 PID 文件管理进程，避免残留
     2. Master-Worker 架构，Master 负责管理 Worker
@@ -555,13 +554,13 @@ class ProcessHTTPServer(HTTPServer):
         pid_data = self._read_pid_file()
         if not pid_data:
             return
-        
+
         master_pid = pid_data.get('master_pid')
         worker_pids = pid_data.get('worker_pids', [])
-        
+
         all_pids = [master_pid] + worker_pids
         all_pids = [p for p in all_pids if p and p != os.getpid()]
-        
+
         for pid in all_pids:
             if self._is_process_alive(pid):
                 logging.info(f"清理残留进程: PID {pid}")
@@ -572,7 +571,7 @@ class ProcessHTTPServer(HTTPServer):
                         os.kill(pid, signal.SIGKILL)
                 except OSError:
                     pass
-        
+
         self._remove_pid_file()
         time.sleep(0.5)
 
@@ -584,7 +583,7 @@ class ProcessHTTPServer(HTTPServer):
                     os.write(self._signal_pipe_w, b'1')
                 except OSError:
                     pass
-        
+
         signal.signal(signal.SIGTERM, handle_signal)
         signal.signal(signal.SIGINT, handle_signal)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -592,15 +591,15 @@ class ProcessHTTPServer(HTTPServer):
     def server_forever(self, poll_interval=0.1):
         """启动多进程服务器"""
         self._kill_stale_processes()
-        
+
         self._signal_pipe_r, self._signal_pipe_w = os.pipe()
-        
+
         self.server_bind()
         self.server_activate()
         self._listen_sock = self.socket
-        
+
         self._setup_signal_handlers()
-        
+
         for i in range(self.processes):
             worker_pid = os.fork()
             if worker_pid == 0:
@@ -609,9 +608,9 @@ class ProcessHTTPServer(HTTPServer):
             else:
                 self._worker_pids.append(worker_pid)
                 logging.info(f"启动工作进程 {i}, PID: {worker_pid}")
-        
+
         self._write_pid_file()
-        
+
         try:
             self._master_loop(poll_interval)
         except Exception as e:
@@ -628,7 +627,7 @@ class ProcessHTTPServer(HTTPServer):
                 if rlist:
                     self._shutdown_requested = True
                     break
-                
+
                 self._check_workers()
             except KeyboardInterrupt:
                 self._shutdown_requested = True
@@ -655,16 +654,16 @@ class ProcessHTTPServer(HTTPServer):
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-        
+
         logging.info(f"工作进程 {worker_id} 启动，PID: {os.getpid()}")
-        
+
         global epoll
         epoll = Epoll() if HAS_EPOLL else None
-        
+
         if HAS_EPOLL:
             epoll.register(self)
             self._started = True
-            
+
             try:
                 while not self._shutdown_requested:
                     epoll.poll(poll_interval=poll_interval)
@@ -688,16 +687,16 @@ class ProcessHTTPServer(HTTPServer):
         """关闭所有工作进程"""
         if not self._worker_pids:
             return
-        
+
         logging.info("正在关闭工作进程...")
-        
+
         for pid in self._worker_pids:
             if pid and self._is_process_alive(pid):
                 try:
                     os.kill(pid, signal.SIGTERM)
                 except OSError:
                     pass
-        
+
         timeout = 5
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -709,30 +708,30 @@ class ProcessHTTPServer(HTTPServer):
             if all_dead:
                 break
             time.sleep(0.1)
-        
+
         for pid in self._worker_pids:
             if pid and self._is_process_alive(pid):
                 try:
                     os.kill(pid, signal.SIGKILL)
                 except OSError:
                     pass
-        
+
         self._worker_pids = []
         logging.info("所有工作进程已关闭")
 
     def shutdown(self):
         """关闭服务器"""
         self._shutdown_requested = True
-        
+
         if os.getpid() == self._master_pid:
             self._shutdown_workers()
             self._remove_pid_file()
-        
+
         try:
             self.server_close()
         except Exception:
             pass
-        
+
         if self._signal_pipe_r is not None:
             try:
                 os.close(self._signal_pipe_r)

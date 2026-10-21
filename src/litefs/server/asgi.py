@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from typing import Dict, List, Optional, Callable, Any, Union, Tuple, Awaitable
+from typing import Dict, Optional, Callable, Any, Awaitable
 
 from ..exceptions import HttpError
-from ..handlers import ASGIRequestHandler
+from ..handlers import ASGIRequestHandler  # noqa: F401  # 对外再导出
 
 
 class ASGIServer:
@@ -23,7 +23,11 @@ class ASGIServer:
         self.application = application
 
 
-async def asgi_application(scope: Dict[str, Any], receive: Callable[[], Awaitable[Dict[str, Any]]], send: Callable[[Dict[str, Any]], Awaitable[None]]) -> None:
+async def asgi_application(
+    scope: Dict[str, Any],
+    receive: Callable[[], Awaitable[Dict[str, Any]]],
+    send: Callable[[Dict[str, Any]], Awaitable[None]]
+) -> None:
     """
     ASGI 应用函数，符合 ASGI 3.0 规范
 
@@ -78,7 +82,7 @@ async def asgi_application(scope: Dict[str, Any], receive: Callable[[], Awaitabl
             'type': 'http.response.body',
             'body': e.message.encode('utf-8'),
         })
-    except Exception as e:
+    except Exception:
         # 处理其他错误
         status = 500
         message = 'Internal Server Error'

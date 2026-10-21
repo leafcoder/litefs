@@ -7,7 +7,6 @@ Redis 缓存后端
 提供基于 Redis 的缓存实现
 """
 
-import time
 import json
 from typing import Any, Optional
 
@@ -17,7 +16,7 @@ from .base import CacheBackendBase
 class RedisCache(CacheBackendBase):
     """
     Redis 缓存实现
-    
+
     使用 Redis 作为缓存后端，提供高性能的分布式缓存支持
     """
 
@@ -34,7 +33,7 @@ class RedisCache(CacheBackendBase):
     ):
         """
         初始化 Redis 缓存
-        
+
         Args:
             redis_client: Redis 客户端实例（如果提供，则忽略其他连接参数）
             host: Redis 服务器地址
@@ -113,7 +112,7 @@ class RedisCache(CacheBackendBase):
     def put(self, key: str, val: Any, expiration: Optional[int] = None) -> None:
         """
         存储值到缓存
-        
+
         Args:
             key: 缓存键
             val: 缓存值
@@ -136,30 +135,30 @@ class RedisCache(CacheBackendBase):
     def get(self, key: str) -> Optional[Any]:
         """
         从缓存获取值
-        
+
         Args:
             key: 缓存键
-        
+
         Returns:
             缓存值，如果不存在则返回 None
         """
         redis_key = self._make_key(key)
         val_str = self._redis.get(redis_key)
-        
+
         if val_str is None:
             return None
-        
+
         # 反序列化值
         try:
             return json.loads(val_str)
-        except Exception as e:
+        except Exception:
             # 如果反序列化失败，返回原始字符串
             return val_str
 
     def delete(self, key: str) -> None:
         """
         从缓存删除值
-        
+
         Args:
             key: 缓存键
         """
@@ -169,10 +168,10 @@ class RedisCache(CacheBackendBase):
     def delete_pattern(self, pattern: str) -> int:
         """
         删除匹配模式的键
-        
+
         Args:
             pattern: 键模式
-        
+
         Returns:
             删除的键数量
         """
@@ -185,10 +184,10 @@ class RedisCache(CacheBackendBase):
     def exists(self, key: str) -> bool:
         """
         检查键是否存在
-        
+
         Args:
             key: 缓存键
-        
+
         Returns:
             键是否存在
         """
@@ -198,11 +197,11 @@ class RedisCache(CacheBackendBase):
     def expire(self, key: str, expiration: int) -> bool:
         """
         设置键的过期时间
-        
+
         Args:
             key: 缓存键
             expiration: 过期时间（秒）
-        
+
         Returns:
             是否设置成功
         """
@@ -212,10 +211,10 @@ class RedisCache(CacheBackendBase):
     def ttl(self, key: str) -> int:
         """
         获取键的剩余过期时间
-        
+
         Args:
             key: 缓存键
-        
+
         Returns:
             剩余过期时间（秒），如果键不存在则返回 -2
         """
@@ -225,7 +224,7 @@ class RedisCache(CacheBackendBase):
     def clear(self) -> None:
         """
         清空所有缓存
-        
+
         注意：这会删除所有带前缀的键
         """
         pattern = self._make_key("*")
@@ -236,7 +235,7 @@ class RedisCache(CacheBackendBase):
     def __len__(self) -> int:
         """
         获取缓存中的键数量
-        
+
         Returns:
             键数量
         """
@@ -247,10 +246,10 @@ class RedisCache(CacheBackendBase):
     def get_many(self, keys: list) -> dict:
         """
         批量获取值
-        
+
         Args:
             keys: 缓存键列表
-        
+
         Returns:
             键值字典
         """
@@ -276,7 +275,7 @@ class RedisCache(CacheBackendBase):
     def set_many(self, mapping: dict, expiration: Optional[int] = None) -> None:
         """
         批量存储值
-        
+
         Args:
             mapping: 键值字典
             expiration: 过期时间（秒），如果为 None 则使用默认过期时间
@@ -293,7 +292,7 @@ class RedisCache(CacheBackendBase):
                 val_str = json.dumps(value)
             except Exception as e:
                 raise ValueError(f"无法序列化值: {e}")
-            
+
             redis_key = self._make_key(key)
             if expiration > 0:
                 pipe.setex(redis_key, expiration, val_str)
@@ -305,7 +304,7 @@ class RedisCache(CacheBackendBase):
     def delete_many(self, keys: list) -> None:
         """
         批量删除键
-        
+
         Args:
             keys: 缓存键列表
         """

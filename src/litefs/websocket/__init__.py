@@ -12,9 +12,9 @@ WebSocket 模块
 
 使用示例：
     from litefs.core import Litefs
-    
+
     app = Litefs()
-    
+
     @app.websocket('/ws')
     def ws_handler(ws):
         ws.send('欢迎连接!')

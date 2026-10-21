@@ -107,7 +107,9 @@ class Response:
         if not has_content_type:
             headers.insert(0, ("Content-Type", mime_type))
         # 添加 Content-Disposition 头，使浏览器下载文件
-        headers.append(("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}"))
+        headers.append(
+            ("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}")
+        )
         headers.append(("Content-Length", str(len(content))))
 
         return cls(content, status_code, headers)
@@ -265,7 +267,6 @@ class Response:
             domain: Cookie 域名
         """
         from http.cookies import SimpleCookie
-        from datetime import datetime, timedelta
 
         cookie = SimpleCookie()
         cookie[key] = ''

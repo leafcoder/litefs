@@ -7,9 +7,8 @@ Redis Session 后端
 提供基于 Redis 的 Session 实现
 """
 
-import time
 import json
-from typing import Any, Optional
+from typing import Optional
 
 from .base import SessionStoreBase
 from .session import Session
@@ -18,7 +17,7 @@ from .session import Session
 class RedisSession(SessionStoreBase):
     """
     Redis Session 实现
-    
+
     使用 Redis 作为 Session 存储，提供高性能的分布式缓存支持
     """
 
@@ -35,7 +34,7 @@ class RedisSession(SessionStoreBase):
     ):
         """
         初始化 Redis Session
-        
+
         Args:
             redis_client: Redis 客户端实例（如果提供，则忽略其他连接参数）
             host: Redis 服务器地址
@@ -114,7 +113,7 @@ class RedisSession(SessionStoreBase):
     def put(self, session_id: str, session: Session) -> None:
         """
         存储 Session
-        
+
         Args:
             session_id: Session ID
             session: Session 对象
@@ -135,27 +134,27 @@ class RedisSession(SessionStoreBase):
     def get(self, session_id: str) -> Optional[Session]:
         """
         获取 Session
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             Session 对象，如果不存在则返回 None
         """
         redis_key = self._make_key(session_id)
         data_str = self._redis.get(redis_key)
-        
+
         if data_str is None:
             return None
-        
+
         # 反序列化 Session 数据
         try:
             data = json.loads(data_str)
-        except Exception as e:
+        except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)
             return None
-        
+
         # 创建 Session 对象
         session = Session(session_id)
         session.update(data)
@@ -164,7 +163,7 @@ class RedisSession(SessionStoreBase):
     def delete(self, session_id: str) -> None:
         """
         删除 Session
-        
+
         Args:
             session_id: Session ID
         """
@@ -174,10 +173,10 @@ class RedisSession(SessionStoreBase):
     def delete_pattern(self, pattern: str) -> int:
         """
         删除匹配模式的 Session
-        
+
         Args:
             pattern: 键模式
-        
+
         Returns:
             删除的键数量
         """
@@ -190,10 +189,10 @@ class RedisSession(SessionStoreBase):
     def exists(self, session_id: str) -> bool:
         """
         检查 Session 是否存在
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             Session 是否存在
         """
@@ -203,11 +202,11 @@ class RedisSession(SessionStoreBase):
     def expire(self, session_id: str, expiration: int) -> bool:
         """
         设置 Session 过期时间
-        
+
         Args:
             session_id: Session ID
             expiration: 过期时间（秒）
-        
+
         Returns:
             是否设置成功
         """
@@ -217,10 +216,10 @@ class RedisSession(SessionStoreBase):
     def ttl(self, session_id: str) -> int:
         """
         获取 Session 剩余过期时间
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             剩余过期时间（秒），如果 Session 不存在则返回 -2
         """
@@ -230,7 +229,7 @@ class RedisSession(SessionStoreBase):
     def clear(self) -> None:
         """
         清空所有 Session
-        
+
         注意：这会删除所有带前缀的键
         """
         pattern = self._make_key("*")
@@ -241,7 +240,7 @@ class RedisSession(SessionStoreBase):
     def __len__(self) -> int:
         """
         获取 Session 数量
-        
+
         Returns:
             Session 数量
         """
@@ -269,7 +268,7 @@ class RedisSession(SessionStoreBase):
     def create(self) -> Session:
         """
         创建新的 Session 对象
-        
+
         Returns:
             Session 对象
         """
@@ -279,7 +278,7 @@ class RedisSession(SessionStoreBase):
     def save(self, session: Session) -> None:
         """
         保存 Session 数据
-        
+
         Args:
             session: Session 对象
         """

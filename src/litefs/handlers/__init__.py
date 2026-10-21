@@ -49,10 +49,10 @@ __all__ = [
     "BaseRequestHandler",
     "SocketRequestHandler",
     "EnhancedRequestHandler",
-    
+
     # 响应
     "Response",
-    
+
     # 工具函数
     "parse_form",
     "parse_header",
@@ -61,11 +61,18 @@ __all__ = [
     "parse_multipart_stream",
     "is_bytes",
     "imap",
-    
+    "should_retry_error",
+    "double_slash_sub",
+    "startswith_dot_sub",
+    "suffixes",
+
     # 常量
     "DEFAULT_STATUS_MESSAGE",
     "default_content_type",
     "json_content_type",
     "server_info",
     "http_status_codes",
+    "EOFS",
+    "POSTS_HEADER_NAME",
+    "FILES_HEADER_NAME",
 ]

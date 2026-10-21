@@ -100,7 +100,11 @@ class ServerMixin:
 
 ## 后续计划
 
-按相同模式逐步扩展检查范围（每扩展一个目录即收敛至零错误）：
+静态检查流水线已上线（详见 [静态检查规范](static-checks.md)），`src/` 全量纳入 mypy 检查范围。
+尚未完成类型注解收敛的 **49 个模块**通过 `[[tool.mypy.overrides]]` + `ignore_errors = true`
+标记为待治理，错误不阻断 CI；每收敛一个模块即从列表中移除，使门禁范围逐步扩大。
+
+按相同模式逐步扩展检查范围（每收敛一个目录即从 override 列表移除）：
 
 1. `routing/`、`middleware/`、`handlers/`
 2. `cache/`、`session/`、`database/`

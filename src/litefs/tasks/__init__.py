@@ -15,19 +15,19 @@ Celery 任务队列集成模块
 
 使用示例：
     from litefs.tasks import Celery, task
-    
+
     # 初始化 Celery
     celery = Celery(app, broker='redis://localhost:6379/0')
-    
+
     # 定义任务
     @task
     def send_email(to, subject, body):
         # 发送邮件
         pass
-    
+
     # 异步执行
     result = send_email.delay('user@example.com', 'Hello', 'World')
-    
+
     # 查询状态
     status = result.status
     result.get()  # 获取结果
@@ -45,12 +45,11 @@ except ImportError:
     HAS_CELERY = False
 
 from typing import Any, Callable, Dict, List, Optional, Union
-import functools
 
 
 class CeleryConfig:
     """Celery 配置类"""
-    
+
     DEFAULT_CONFIG = {
         'broker_url': None,
         'result_backend': None,
@@ -70,15 +69,15 @@ class CeleryConfig:
         'task_default_exchange': 'tasks',
         'task_default_routing_key': 'task.default',
     }
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self._config = self.DEFAULT_CONFIG.copy()
         if config:
             self._config.update(config)
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         return self._config.get(key, default)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return self._config.copy()
 
@@ -86,12 +85,12 @@ class CeleryConfig:
 class Celery:
     """
     Celery 集成类
-    
+
     提供与 Litefs 框架的无缝集成，代理底层 Celery 应用的所有功能。
     """
-    
+
     _instance = None
-    
+
     def __init__(
         self,
         app=None,
@@ -101,7 +100,7 @@ class Celery:
     ):
         """
         初始化 Celery
-        
+
         Args:
             app: Litefs 应用实例
             broker: Broker URL (如 redis://localhost:6379/0)
@@ -113,52 +112,52 @@ class Celery:
                 "Celery is not installed. "
                 "Please install it with: pip install celery"
             )
-        
+
         self._litefs_app = app
         self._tasks_registry: Dict[str, Callable] = {}
         self._scheduled_tasks: Dict[str, Dict] = {}
-        
+
         celery_config = CeleryConfig(config)
-        
+
         if broker:
             celery_config._config['broker_url'] = broker
         if backend:
             celery_config._config['result_backend'] = backend
-        
+
         if app and hasattr(app, 'config'):
             self._configure_from_app(app, celery_config)
-        
+
         self._app = _Celery(
             'litefs_tasks',
             broker=celery_config.get('broker_url'),
             backend=celery_config.get('result_backend'),
         )
         self._app.conf.update(celery_config.to_dict())
-        
+
         Celery._instance = self
-    
+
     def _configure_from_app(self, app, config: CeleryConfig):
         """从 Litefs 应用配置中读取 Celery 配置"""
         app_config = getattr(app, 'config', None)
         if app_config:
             broker = getattr(app_config, 'celery_broker', None)
             backend = getattr(app_config, 'celery_backend', None)
-            
+
             if broker:
                 config._config['broker_url'] = broker
             if backend:
                 config._config['result_backend'] = backend
-            
+
             celery_config = getattr(app_config, 'celery_config', None)
             if celery_config and isinstance(celery_config, dict):
                 config._config.update(celery_config)
-    
+
     def __getattr__(self, name):
         """代理所有未定义的属性到底层 Celery 应用"""
         if name.startswith('_'):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
         return getattr(self._app, name)
-    
+
     def task(
         self,
         func: Optional[Callable] = None,
@@ -174,7 +173,7 @@ class Celery:
     ) -> Callable:
         """
         任务装饰器
-        
+
         Args:
             func: 被装饰的函数
             name: 任务名称
@@ -185,13 +184,13 @@ class Celery:
             time_limit: 硬时间限制
             soft_time_limit: 软时间限制
             **kwargs: 其他 Celery 任务选项
-            
+
         Returns:
             任务函数
         """
         def decorator(f: Callable) -> Callable:
             task_name = name or f.__name__
-            
+
             task_options = {
                 'name': task_name,
                 'queue': queue,
@@ -199,24 +198,24 @@ class Celery:
                 'max_retries': max_retries,
                 'default_retry_delay': default_retry_delay,
             }
-            
+
             if time_limit:
                 task_options['time_limit'] = time_limit
             if soft_time_limit:
                 task_options['soft_time_limit'] = soft_time_limit
-            
+
             task_options.update(kwargs)
-            
+
             celery_task = self._app.task(**task_options)(f)
-            
+
             self._tasks_registry[task_name] = celery_task
-            
+
             return celery_task
-        
+
         if func is not None:
             return decorator(func)
         return decorator
-    
+
     def schedule(
         self,
         name: str,
@@ -227,7 +226,7 @@ class Celery:
     ):
         """
         配置定时任务
-        
+
         Args:
             name: 定时任务名称
             task: 任务函数或任务名称
@@ -236,44 +235,44 @@ class Celery:
             kwargs: 任务关键字参数
         """
         task_name = task if isinstance(task, str) else task.__name__
-        
+
         self._scheduled_tasks[name] = {
             'task': task_name,
             'schedule': schedule,
             'args': args or (),
             'kwargs': kwargs or {},
         }
-        
+
         self._app.conf.beat_schedule = self._scheduled_tasks
-    
+
     def get_task(self, task_id: str) -> Optional[AsyncResult]:
         """获取任务结果对象"""
         return AsyncResult(task_id, app=self._app)
-    
+
     def get_task_status(self, task_id: str) -> str:
         """获取任务状态"""
         result = self.get_task(task_id)
         return result.status if result else 'UNKNOWN'
-    
+
     def get_task_result(self, task_id: str, timeout: Optional[float] = None) -> Any:
         """获取任务结果"""
         result = self.get_task(task_id)
         if result:
             return result.get(timeout=timeout)
         return None
-    
+
     def revoke_task(self, task_id: str, terminate: bool = False):
         """撤销任务"""
         self._app.control.revoke(task_id, terminate=terminate)
-    
+
     def get_active_tasks(self) -> List[Dict]:
         """获取正在执行的任务列表"""
         inspect = self._app.control.inspect()
         active = inspect.active()
-        
+
         if not active:
             return []
-        
+
         tasks = []
         for worker, worker_tasks in active.items():
             for task in worker_tasks:
@@ -284,36 +283,36 @@ class Celery:
                     'args': task.get('args'),
                     'kwargs': task.get('kwargs'),
                 })
-        
+
         return tasks
-    
+
     def get_registered_tasks(self) -> List[str]:
         """获取已注册的任务列表"""
         return list(self._tasks_registry.keys())
-    
+
     def get_queue_length(self, queue: str = 'default') -> int:
         """获取队列长度"""
         inspect = self._app.control.inspect()
         reserved = inspect.reserved()
-        
+
         if not reserved:
             return 0
-        
+
         count = 0
         for worker_tasks in reserved.values():
             for task in worker_tasks:
                 if task.get('delivery_info', {}).get('routing_key') == queue:
                     count += 1
-        
+
         return count
-    
+
     def health_check(self) -> Dict[str, Any]:
         """健康检查"""
         inspect = self._app.control.inspect()
-        
+
         stats = inspect.stats()
         active = inspect.active()
-        
+
         workers = []
         if stats:
             for worker_name, worker_stats in stats.items():
@@ -323,14 +322,14 @@ class Celery:
                     'tasks_processed': worker_stats.get('total', {}),
                     'pool': worker_stats.get('pool', {}),
                 })
-        
+
         return {
             'status': 'healthy' if workers else 'no_workers',
             'workers': workers,
             'registered_tasks': len(self._tasks_registry),
             'active_tasks': sum(len(t) for t in (active or {}).values()),
         }
-    
+
     @classmethod
     def get_instance(cls) -> Optional['Celery']:
         """获取 Celery 实例"""
@@ -348,13 +347,13 @@ def task(
     便捷任务装饰器（使用全局 Celery 实例）
     """
     celery_instance = Celery.get_instance()
-    
+
     if celery_instance is None:
         raise RuntimeError(
             "Celery not initialized. "
             "Please create a Celery instance first: celery = Celery(app, broker='...')"
         )
-    
+
     return celery_instance.task(func, name=name, queue=queue, **kwargs)
 
 

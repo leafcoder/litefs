@@ -138,7 +138,6 @@ class CORSMiddleware(Middleware):
             预检请求响应
         """
         origin = request_handler.environ.get("HTTP_ORIGIN", "")
-        request_method = request_handler.environ.get("HTTP_ACCESS_CONTROL_REQUEST_METHOD", "")
         request_headers = request_handler.environ.get("HTTP_ACCESS_CONTROL_REQUEST_HEADERS", "")
 
         headers = []

@@ -7,9 +7,9 @@ Session 工厂
 支持多种 Session 后端的工厂模式实现
 """
 
-from typing import Optional, Union
+from typing import Union
 
-from .session import Session, MemorySessionStore
+from .session import Session, MemorySessionStore  # noqa: F401  # Session 为对外再导出
 from .db import DatabaseSession
 from .redis import RedisSession
 from .memcache import MemcacheSession
@@ -27,7 +27,7 @@ class SessionBackend:
 class SessionFactory:
     """
     Session 工厂
-    
+
     根据配置创建不同类型的 Session 实例
     """
 
@@ -38,14 +38,14 @@ class SessionFactory:
     ) -> Union[MemorySessionStore, DatabaseSession, RedisSession, MemcacheSession]:
         """
         创建 Session 实例
-        
+
         Args:
             backend: Session 后端类型（memory, database, redis, memcache）
             **kwargs: Session 配置参数
-        
+
         Returns:
             Session 实例
-        
+
         Raises:
             ValueError: 不支持的 Session 后端
             ImportError: Redis 或 Memcache 包未安装
@@ -87,7 +87,8 @@ class SessionFactory:
                 key_prefix=key_prefix,
                 expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["redis_client", "host", "port", "db", "password", "key_prefix", "expiration_time", "max_size"]}
+                   if k not in ["redis_client", "host", "port", "db", "password",
+                                "key_prefix", "expiration_time", "max_size"]}
             )
 
         elif backend == SessionBackend.MEMCACHE:
@@ -102,7 +103,8 @@ class SessionFactory:
                 key_prefix=key_prefix,
                 expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["memcache_client", "servers", "key_prefix", "expiration_time", "max_size"]}
+                   if k not in ["memcache_client", "servers", "key_prefix",
+                                "expiration_time", "max_size"]}
             )
 
         else:
@@ -113,13 +115,15 @@ class SessionFactory:
             )
 
     @staticmethod
-    def create_from_config(config) -> Union[MemorySessionStore, DatabaseSession, RedisSession, MemcacheSession]:
+    def create_from_config(
+        config
+    ) -> Union[MemorySessionStore, DatabaseSession, RedisSession, MemcacheSession]:
         """
         从配置对象创建 Session 实例
-        
+
         Args:
             config: 配置对象，应包含 session_backend 和相关配置
-        
+
         Returns:
             Session 实例
         """

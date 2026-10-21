@@ -19,7 +19,7 @@ from .response import (
     json_content_type,
     server_info,
 )
-from .form import parse_form, parse_header
+from .form import parse_form, parse_header  # noqa: F401  # parse_form 为对外再导出
 
 
 class BaseRequestHandler:
@@ -96,7 +96,10 @@ class BaseRequestHandler:
             # 模板渲染失败，返回错误信息
             import traceback
             error_detail = traceback.format_exc()
-            error_content = f"<h1>Template Error</h1><p>Failed to render template '{template_name}': {str(e)}</p><pre>{error_detail}</pre>"
+            error_content = (
+                f"<h1>Template Error</h1><p>Failed to render template '{template_name}': "
+                f"{str(e)}</p><pre>{error_detail}</pre>"
+            )
 
             # 直接返回错误内容，不设置 Content-Type
             # Content-Type 会在 _response 方法中设置
@@ -107,11 +110,11 @@ class BaseRequestHandler:
     def _new_session_id(self):
         """
         生成新的会话 ID（SHA256 随机值）
-        
+
         使用 SHA-256 哈希算法生成唯一的会话 ID。
         SHA-256 的碰撞概率约为 2^-128，在实际应用中几乎不可能发生碰撞，
         因此无需每次检查存储中是否已存在该 ID。
-        
+
         Returns:
             str: 64字符的十六进制会话 ID
         """
@@ -249,7 +252,10 @@ class BaseRequestHandler:
                 elif isinstance(content, bytes):
                     response_headers.append(("Content-Type", "application/octet-stream"))
                 # 其他可迭代对象设置为 text/plain
-                elif not isinstance(content, (str, bytes, type(None))) and isinstance(content, Iterable):
+                elif (
+                    not isinstance(content, (str, bytes, type(None)))
+                    and isinstance(content, Iterable)
+                ):
                     response_headers.append(("Content-Type", "text/plain; charset=utf-8"))
                 # 其他类型使用默认的 text/html
                 else:
@@ -270,7 +276,10 @@ class BaseRequestHandler:
                 else:
                     content_length = len(content)
                 response_headers.append(("Content-Length", str(content_length)))
-            elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+            elif (
+                not isinstance(content, (dict, list, tuple, type(None)))
+                and isinstance(content, Iterable)
+            ):
                 # 对于生成器等可迭代对象，使用 Transfer-Encoding: chunked
                 response_headers.append(("Transfer-Encoding", "chunked"))
 

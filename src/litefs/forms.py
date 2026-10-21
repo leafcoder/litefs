@@ -93,8 +93,10 @@ class Length(Validator):
 class Email(Validator):
     """邮箱验证器"""
 
-    PATTERN = _validators.EmailValidator.pattern if hasattr(_validators.EmailValidator, 'pattern') else re.compile(
-        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    PATTERN = (
+        _validators.EmailValidator.pattern
+        if hasattr(_validators.EmailValidator, 'pattern')
+        else re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
     )
 
     def __init__(self, message: Optional[str] = None):
@@ -386,7 +388,10 @@ class RegistrationForm(Form):
         required=True,
         validators=[
             Length(min_length=3, max_length=20),
-            Regex(r'^[a-zA-Z0-9_]+$', message="Username can only contain letters, numbers and underscores")
+            Regex(
+                r'^[a-zA-Z0-9_]+$',
+                message="Username can only contain letters, numbers and underscores"
+            )
         ]
     )
 

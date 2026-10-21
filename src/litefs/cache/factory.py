@@ -7,7 +7,7 @@
 支持多种缓存后端的工厂模式实现
 """
 
-from typing import Optional, Union
+from typing import Union
 
 from .cache import MemoryCache, TreeCache
 from .redis import RedisCache
@@ -28,7 +28,7 @@ class CacheBackend:
 class CacheFactory:
     """
     缓存工厂
-    
+
     根据配置创建不同类型的缓存实例
     """
 
@@ -39,14 +39,14 @@ class CacheFactory:
     ) -> Union[MemoryCache, TreeCache, RedisCache, DatabaseCache, MemcacheCache]:
         """
         创建缓存实例
-        
+
         Args:
             backend: 缓存后端类型（memory, tree, redis, database, memcache）
             **kwargs: 缓存配置参数
-        
+
         Returns:
             缓存实例
-        
+
         Raises:
             ValueError: 不支持的缓存后端
             ImportError: Redis 或 Memcache 包未安装
@@ -80,7 +80,8 @@ class CacheFactory:
                 key_prefix=key_prefix,
                 expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["redis_client", "host", "port", "db", "password", "key_prefix", "expiration_time", "max_size", "clean_period"]}
+                   if k not in ["redis_client", "host", "port", "db", "password", "key_prefix",
+                                "expiration_time", "max_size", "clean_period"]}
             )
 
         elif backend == CacheBackend.DATABASE:
@@ -93,7 +94,8 @@ class CacheFactory:
                 table_name=table_name,
                 expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["db_path", "table_name", "expiration_time", "max_size", "clean_period"]}
+                   if k not in ["db_path", "table_name", "expiration_time", "max_size",
+                                "clean_period"]}
             )
 
         elif backend == CacheBackend.MEMCACHE:
@@ -108,7 +110,8 @@ class CacheFactory:
                 key_prefix=key_prefix,
                 expiration_time=expiration_time,
                 **{k: v for k, v in kwargs.items()
-                   if k not in ["memcache_client", "servers", "key_prefix", "expiration_time", "max_size", "clean_period"]}
+                   if k not in ["memcache_client", "servers", "key_prefix", "expiration_time",
+                                "max_size", "clean_period"]}
             )
 
         else:
@@ -119,13 +122,15 @@ class CacheFactory:
             )
 
     @staticmethod
-    def create_from_config(config) -> Union[MemoryCache, TreeCache, RedisCache, DatabaseCache, MemcacheCache]:
+    def create_from_config(
+        config
+    ) -> Union[MemoryCache, TreeCache, RedisCache, DatabaseCache, MemcacheCache]:
         """
         从配置对象创建缓存实例
-        
+
         Args:
             config: 配置对象，应包含 cache_backend 和相关配置
-        
+
         Returns:
             缓存实例
         """

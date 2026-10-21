@@ -16,9 +16,9 @@ OpenAPI/Swagger 文档自动生成模块
 
 使用示例：
     from litefs.openapi import OpenAPI
-    
+
     openapi = OpenAPI(app, title='My API', version='1.0.0')
-    
+
     @route('/users')
     @openapi.doc(
         summary='获取用户列表',
@@ -26,7 +26,7 @@ OpenAPI/Swagger 文档自动生成模块
     )
     def get_users(request):
         return {'users': []}
-    
+
     # 访问文档
     # http://localhost:8080/docs
 """
@@ -40,10 +40,10 @@ __all__ = ['OpenAPI', 'OpenAPIGenerator', 'SwaggerUI']
 class OpenAPI:
     """
     OpenAPI 文档生成器
-    
+
     提供自动从路由生成 OpenAPI 规范的功能。
     """
-    
+
     def __init__(
         self,
         app=None,
@@ -55,7 +55,7 @@ class OpenAPI:
     ):
         """
         初始化 OpenAPI 文档生成器
-        
+
         Args:
             app: Litefs 应用实例
             title: API 标题
@@ -70,34 +70,34 @@ class OpenAPI:
         self.description = description
         self.docs_url = docs_url
         self.openapi_url = openapi_url
-        
+
         self._generator = OpenAPIGenerator(title, version, description)
         self._swagger_ui = SwaggerUI(docs_url, openapi_url)
-        
+
         if app:
             self.init_app(app)
-    
+
     def init_app(self, app):
         """
         初始化应用
-        
+
         Args:
             app: Litefs 应用实例
         """
         self.app = app
-        
+
         def openapi_json(request):
             """OpenAPI JSON 规范"""
             spec = self._generator.generate(app.router)
             return spec
-        
+
         def swagger_ui(request):
             """Swagger UI 界面"""
             return self._swagger_ui.render_html(self.openapi_url)
-        
+
         app.add_get(self.openapi_url, openapi_json, name='openapi_json')
         app.add_get(self.docs_url, swagger_ui, name='swagger_ui')
-    
+
     def doc(
         self,
         summary: str = '',
@@ -111,7 +111,7 @@ class OpenAPI:
     ):
         """
         API 文档装饰器
-        
+
         Args:
             summary: API 摘要
             description: API 描述
@@ -121,7 +121,7 @@ class OpenAPI:
             parameters: 参数列表
             security: 安全配置
             deprecated: 是否已废弃
-            
+
         Returns:
             装饰器函数
         """
@@ -139,46 +139,46 @@ class OpenAPI:
             func._openapi_doc = doc_info
             return func
         return decorator
-    
+
     def add_tag(self, name: str, description: str = ''):
         """
         添加标签
-        
+
         Args:
             name: 标签名称
             description: 标签描述
         """
         self._generator.add_tag(name, description)
-    
+
     def add_security_scheme(self, name: str, scheme: dict):
         """
         添加安全方案
-        
+
         Args:
             name: 安全方案名称
             scheme: 安全方案配置
         """
         self._generator.add_security_scheme(name, scheme)
-    
+
     def add_server(self, url: str, description: str = ''):
         """
         添加服务器
-        
+
         Args:
             url: 服务器 URL
             description: 服务器描述
         """
         self._generator.add_server(url, description)
-    
+
     def schema(self, name: str):
         """
         Schema 装饰器
-        
+
         用于定义请求/响应模型
-        
+
         Args:
             name: Schema 名称
-            
+
         Returns:
             装饰器函数
         """

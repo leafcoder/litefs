@@ -7,9 +7,8 @@ Memcache Session 后端
 提供基于 Memcache 的 Session 实现
 """
 
-import time
 import json
-from typing import Any, Optional
+from typing import Optional
 
 from .base import SessionStoreBase
 from .session import Session
@@ -18,7 +17,7 @@ from .session import Session
 class MemcacheSession(SessionStoreBase):
     """
     Memcache Session 实现
-    
+
     使用 Memcache 作为 Session 存储，提供高性能的分布式缓存支持
     """
 
@@ -32,7 +31,7 @@ class MemcacheSession(SessionStoreBase):
     ):
         """
         初始化 Memcache Session
-        
+
         Args:
             memcache_client: Memcache 客户端实例（如果提供，则忽略其他连接参数）
             servers: Memcache 服务器列表
@@ -47,11 +46,11 @@ class MemcacheSession(SessionStoreBase):
             self._mc = memcache_client
         else:
             try:
-                import pymemcache
+                import pymemcache  # noqa: F401  # 仅用于探测 pymemcache 是否可用
                 from pymemcache.client.base import Client
             except ImportError:
                 try:
-                    import memcache
+                    import memcache  # noqa: F401  # 仅用于探测 python-memcached 是否可用
                 except ImportError:
                     raise ImportError(
                         "pymemcache 或 python-memcached 包未安装，"
@@ -81,7 +80,7 @@ class MemcacheSession(SessionStoreBase):
     def put(self, session_id: str, session: Session) -> None:
         """
         存储 Session
-        
+
         Args:
             session_id: Session ID
             session: Session 对象
@@ -103,27 +102,27 @@ class MemcacheSession(SessionStoreBase):
     def get(self, session_id: str) -> Optional[Session]:
         """
         获取 Session
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             Session 对象，如果不存在则返回 None
         """
         memcache_key = self._make_key(session_id)
         data_str = self._mc.get(memcache_key)
-        
+
         if data_str is None:
             return None
-        
+
         # 反序列化 Session 数据
         try:
             data = json.loads(data_str)
-        except Exception as e:
+        except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)
             return None
-        
+
         # 创建 Session 对象
         session = Session(session_id)
         session.update(data)
@@ -132,7 +131,7 @@ class MemcacheSession(SessionStoreBase):
     def delete(self, session_id: str) -> None:
         """
         删除 Session
-        
+
         Args:
             session_id: Session ID
         """
@@ -142,12 +141,12 @@ class MemcacheSession(SessionStoreBase):
     def delete_pattern(self, pattern: str) -> int:
         """
         删除匹配模式的 Session
-        
+
         注意：Memcache 不支持模式匹配，此方法仅返回 0
-        
+
         Args:
             pattern: 键模式
-        
+
         Returns:
             删除的键数量（始终为 0）
         """
@@ -156,10 +155,10 @@ class MemcacheSession(SessionStoreBase):
     def exists(self, session_id: str) -> bool:
         """
         检查 Session 是否存在
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             Session 是否存在
         """
@@ -169,20 +168,19 @@ class MemcacheSession(SessionStoreBase):
     def expire(self, session_id: str, expiration: int) -> bool:
         """
         设置 Session 过期时间
-        
+
         Args:
             session_id: Session ID
             expiration: 过期时间（秒）
-        
+
         Returns:
             是否设置成功
         """
-        memcache_key = self._make_key(session_id)
         session = self.get(session_id)
-        
+
         if session is None:
             return False
-        
+
         # 重新存储 Session 以更新过期时间
         self.put(session_id, session)
         return True
@@ -190,12 +188,12 @@ class MemcacheSession(SessionStoreBase):
     def ttl(self, session_id: str) -> int:
         """
         获取 Session 剩余过期时间
-        
+
         注意：Memcache 不支持 TTL 查询，此方法返回 -1
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             剩余过期时间（秒），如果 Session 不存在则返回 -2，否则返回 -1（不支持查询）
         """
@@ -206,7 +204,7 @@ class MemcacheSession(SessionStoreBase):
     def clear(self) -> None:
         """
         清空所有 Session
-        
+
         注意：Memcache 不支持清空指定前缀的键，此方法不执行任何操作
         """
         pass
@@ -214,9 +212,9 @@ class MemcacheSession(SessionStoreBase):
     def __len__(self) -> int:
         """
         获取 Session 数量
-        
+
         注意：Memcache 不支持统计键数量，此方法返回 0
-        
+
         Returns:
             Session 数量（始终为 0）
         """
@@ -245,7 +243,7 @@ class MemcacheSession(SessionStoreBase):
     def create(self) -> Session:
         """
         创建新的 Session 对象
-        
+
         Returns:
             Session 对象
         """
@@ -255,7 +253,7 @@ class MemcacheSession(SessionStoreBase):
     def save(self, session: Session) -> None:
         """
         保存 Session 数据
-        
+
         Args:
             session: Session 对象
         """

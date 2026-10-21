@@ -2,8 +2,6 @@
 # coding: utf-8
 
 import asyncio
-import inspect
-from typing import Any, Callable, Optional
 
 
 class Middleware:
@@ -11,11 +9,11 @@ class Middleware:
     中间件基类
 
     所有中间件都应该继承此类并实现 process_request 和/或 process_response 方法。
-    
+
     支持同步和异步两种模式：
     - 同步模式：实现 process_request / process_response / process_exception
     - 异步模式：实现 async_process_request / async_process_response / async_process_exception
-    
+
     异步方法优先级高于同步方法。在 ASGI 路径中，如果中间件实现了异步方法，
     将使用异步调用；否则回退到同步调用（通过 run_in_executor 避免阻塞事件循环）。
     """

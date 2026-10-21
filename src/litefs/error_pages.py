@@ -7,7 +7,6 @@
 提供美观的错误页面渲染和自定义错误页面支持
 """
 
-import os
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -15,7 +14,7 @@ from typing import Dict, Optional, Tuple
 class ErrorPageRenderer:
     """
     错误页面渲染器
-    
+
     支持默认错误页面和自定义错误页面
     """
 
@@ -34,7 +33,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
@@ -123,7 +123,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             min-height: 100vh;
             display: flex;
@@ -192,7 +193,8 @@ class ErrorPageRenderer:
         <div class="error-code">403</div>
         <h1 class="error-title">Forbidden</h1>
         <p class="error-message">
-            You do not have permission to access this page. If you believe this is an error, please contact the administrator.
+            You do not have permission to access this page. If you believe this is an error,
+            please contact the administrator.
         </p>
         <div class="error-detail">
             {{ERROR_MESSAGE}}403 Forbidden<br>
@@ -217,7 +219,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             min-height: 100vh;
             display: flex;
@@ -311,7 +314,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
             min-height: 100vh;
             display: flex;
@@ -380,7 +384,8 @@ class ErrorPageRenderer:
         <div class="error-code">500</div>
         <h1 class="error-title">Internal Server Error</h1>
         <p class="error-message">
-            The server encountered an unexpected condition and could not complete your request. Please try again later.
+            The server encountered an unexpected condition and could not complete your request.
+            Please try again later.
         </p>
         <div class="error-detail">
             {{ERROR_MESSAGE}}500 Internal Server Error<br>
@@ -405,7 +410,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
             min-height: 100vh;
             display: flex;
@@ -474,7 +480,8 @@ class ErrorPageRenderer:
         <div class="error-code">502</div>
         <h1 class="error-title">Bad Gateway</h1>
         <p class="error-message">
-            The server, acting as a gateway or proxy, received an invalid response from the upstream server.
+            The server, acting as a gateway or proxy, received an invalid response
+            from the upstream server.
         </p>
         <div class="error-detail">
             {{ERROR_MESSAGE}}502 Bad Gateway<br>
@@ -499,7 +506,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
             min-height: 100vh;
             display: flex;
@@ -568,7 +576,8 @@ class ErrorPageRenderer:
         <div class="error-code">503</div>
         <h1 class="error-title">Service Unavailable</h1>
         <p class="error-message">
-            The server is currently unable to handle the request, possibly due to maintenance or overload. Please try again later.
+            The server is currently unable to handle the request, possibly due to maintenance
+            or overload. Please try again later.
         </p>
         <div class="error-detail">
             {{ERROR_MESSAGE}}503 Service Unavailable<br>
@@ -593,7 +602,8 @@ class ErrorPageRenderer:
             box-sizing: border-box;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
             min-height: 100vh;
             display: flex;
@@ -662,7 +672,8 @@ class ErrorPageRenderer:
         <div class="error-code">504</div>
         <h1 class="error-title">Gateway Timeout</h1>
         <p class="error-message">
-            The server, acting as a gateway or proxy, did not receive a timely response from the upstream server.
+            The server, acting as a gateway or proxy, did not receive a timely response
+            from the upstream server.
         </p>
         <div class="error-detail">
             {{ERROR_MESSAGE}}504 Gateway Timeout<br>
@@ -678,13 +689,13 @@ class ErrorPageRenderer:
     def __init__(self, custom_error_dir: Optional[str] = None):
         """
         初始化错误页面渲染器
-        
+
         Args:
             custom_error_dir: 自定义错误页面目录路径
         """
         self._custom_error_dir = custom_error_dir
         self._custom_templates: Dict[int, str] = {}
-        
+
         if custom_error_dir:
             self._load_custom_templates()
 
@@ -711,12 +722,12 @@ class ErrorPageRenderer:
     ) -> str:
         """
         渲染错误页面
-        
+
         Args:
             status_code: HTTP 状态码
             message: 自定义错误消息
             detail: 自定义错误详情
-        
+
         Returns:
             HTML 错误页面
         """
@@ -746,12 +757,12 @@ class ErrorPageRenderer:
     ) -> Tuple[int, str, str]:
         """
         获取错误页面
-        
+
         Args:
             status_code: HTTP 状态码
             message: 自定义错误消息
             detail: 自定义错误详情
-        
+
         Returns:
             (状态码, 内容类型, HTML 内容)
         """

@@ -1,0 +1,91 @@
+# Litefs GitLab CI 流水线
+# 门禁策略：lint（flake8 + ruff + mypy）与 test（pytest）全部通过方可合并。
+
+stages:
+  - lint
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+cache:
+  paths:
+    - .cache/pip
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+.python:
+  image: python:3.10-slim
+  before_script:
+    - python -V
+    - pip install --upgrade pip
+    - pip install -e ".[dev]"
+
+# ---------------------------------------------------------------------------
+# 静态检查门禁：flake8 / ruff / mypy 三者任一失败即阻断
+# ---------------------------------------------------------------------------
+lint:
+  stage: lint
+  extends: .python
+  script:
+    - echo ">>> flake8（PEP 8 规范检查）"
+    - python -m flake8 src
+    - echo ">>> ruff（快速静态检查）"
+    - python -m ruff check src
+    - echo ">>> mypy（类型检查）"
+    - python -m mypy src
+  allow_failure: false
+
+# ---------------------------------------------------------------------------
+# 单元测试门禁：依赖 memcached(11211) 与 redis(6379)
+# ---------------------------------------------------------------------------
+unit-test:
+  stage: test
+  extends: .python
+  before_script:
+    - python -V
+    - pip install --upgrade pip
+    - apt-get update && apt-get install -y --no-install-recommends memcached redis-server
+    - memcached -d -u root -p 11211
+    - redis-server --daemonize yes --port 6379 --save "" --appendonly no
+    - pip install -e ".[dev]"
+  script:
+    - echo ">>> pytest 单元测试"
+    - python -m pytest tests/ -ra --tb=short -q --junitxml=reports/junit.xml
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - reports/
+    reports:
+      junit: reports/junit.xml
+
+# ---------------------------------------------------------------------------
+# 覆盖率统计：不阻断合并，作为质量参考
+# ---------------------------------------------------------------------------
+coverage:
+  stage: test
+  extends: .python
+  before_script:
+    - python -V
+    - pip install --upgrade pip
+    - apt-get update && apt-get install -y --no-install-recommends memcached redis-server
+    - memcached -d -u root -p 11211
+    - redis-server --daemonize yes --port 6379 --save "" --appendonly no
+    - pip install -e ".[dev]"
+  script:
+    - echo ">>> pytest 覆盖率统计"
+    - python -m pytest tests/ -ra --tb=short -q --cov=src/litefs --cov-report=xml --cov-report=term
+  allow_failure: true
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - coverage.xml

@@ -13,7 +13,7 @@
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import ClassVar, Dict, List, Optional, Set
+from typing import ClassVar, Dict, List, Optional
 
 
 @dataclass
@@ -81,7 +81,9 @@ class Role:
             return cls._registry.get(name)
 
     @classmethod
-    def create(cls, name: str, description: str = '', permissions: List[Permission] = None) -> 'Role':
+    def create(
+        cls, name: str, description: str = '', permissions: List[Permission] = None
+    ) -> 'Role':
         """创建角色"""
         return cls(
             name=name,
@@ -148,7 +150,9 @@ class BaseUserStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def create(self, username: str, password_hash: str, email: str = None, roles: List[Role] = None) -> User:
+    def create(
+        self, username: str, password_hash: str, email: str = None, roles: List[Role] = None
+    ) -> User:
         """创建用户"""
         raise NotImplementedError
 
@@ -185,7 +189,9 @@ class MemoryUserStore(BaseUserStore):
         with self._lock:
             return self._users_by_username.get(username)
 
-    def create(self, username: str, password_hash: str, email: str = None, roles: List[Role] = None) -> User:
+    def create(
+        self, username: str, password_hash: str, email: str = None, roles: List[Role] = None
+    ) -> User:
         with self._lock:
             user_id = self._next_id
             user = User(

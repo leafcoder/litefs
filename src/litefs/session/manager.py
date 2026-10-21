@@ -11,7 +11,7 @@ import os
 import threading
 from typing import Optional, Union
 
-from .session import Session, MemorySessionStore
+from .session import Session, MemorySessionStore  # noqa: F401  # Session 为对外再导出
 from .db import DatabaseSession
 from .redis import RedisSession
 from .memcache import MemcacheSession
