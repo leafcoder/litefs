@@ -510,10 +510,12 @@ litefs (core)
 | greenlet | >=0.4.13 | 协程支持 |
 | Mako | >=1.0.6 | 模板引擎 |
 | MarkupSafe | >=1.1.1 | HTML 转义 |
-| pathtools | >=0.1.2 | 路径工具 |
 | PyYAML | >=5.1 | YAML 解析 |
 | watchdog | >=0.8.3 | 文件监控 |
 | SQLAlchemy | >=2.0.0 | ORM 支持 |
+
+> `pathtools` 已于 v0.9.0 移除：源码从未直接引用，且它是 `watchdog` 的子依赖；
+> 显式声明会导致其在 Python 3.12 上构建失败（`No module named 'imp'`）。
 
 ---
 
