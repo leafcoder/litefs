@@ -21,6 +21,9 @@ json_content_type = "application/json; charset=utf-8"
 # 服务器信息
 server_info = "litefs/%s python/%s" % (__version__, sys.version.split()[0])
 
+# 服务器软件标识（对应 WSGI 的 SERVER_SOFTWARE 语义），仅含框架版本号
+server_software = "litefs/%s" % __version__
+
 # 默认错误页面模板
 DEFAULT_STATUS_MESSAGE = """\
 <html>
@@ -107,7 +110,9 @@ class Response:
         if not has_content_type:
             headers.insert(0, ("Content-Type", mime_type))
         # 添加 Content-Disposition 头，使浏览器下载文件
-        headers.append(("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}"))
+        headers.append(
+            ("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}")
+        )
         headers.append(("Content-Length", str(len(content))))
 
         return cls(content, status_code, headers)
@@ -265,7 +270,6 @@ class Response:
             domain: Cookie 域名
         """
         from http.cookies import SimpleCookie
-        from datetime import datetime, timedelta
 
         cookie = SimpleCookie()
         cookie[key] = ''
@@ -287,5 +291,6 @@ __all__ = [
     'default_content_type',
     'json_content_type',
     'server_info',
+    'server_software',
     'http_status_codes',
 ]

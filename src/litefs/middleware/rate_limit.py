@@ -3,7 +3,7 @@
 
 import time
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 from .base import Middleware
 
@@ -204,7 +204,7 @@ class ThrottleMiddleware(Middleware):
             429 响应
         """
         from ..handlers import Response
-        
+
         response = Response(
             content={
                 'error': message,

@@ -43,16 +43,38 @@ src/litefs/
 ├── __main__.py             # 命令行入口
 ├── _version.py             # 版本信息
 ├── cli.py                  # 命令行工具
+├── cli_db.py               # 数据库迁移 CLI（litefs db 子命令）
 ├── config.py               # 配置管理
-├── core.py                 # 核心类 Litefs
-├── error_pages.py          # 错误页面
-├── exceptions.py           # 异常定义
-├── security.py             # 安全工具
-├── validators.py           # 验证器
+├── context.py              # 请求上下文（g / 协程上下文）
+├── core.py                 # 核心类 Litefs（Mixin 组合入口与装配）
+├── forms.py                # 表单定义与校验
+├── metrics.py              # 指标注册中心（Prometheus）
+├── static_handler.py       # 静态文件处理
+├── cache_decorators.py     # 缓存装饰器
+│
+├── app/                    # 应用组装模块（自 core.py 拆分）
+│   ├── __init__.py         # 子包说明
+│   ├── helpers.py          # 序列化/配置/套接字/Session 初始化辅助
+│   ├── protocol_mixin.py   # WSGI/ASGI 协议适配与错误处理
+│   ├── routing_mixin.py    # 路由注册与 WebSocket 入口
+│   ├── extension_mixin.py  # 中间件/插件/健康检查/数据库扩展
+│   ├── server_mixin.py     # 服务器启动/关闭/热重载
+│   └── server_cli.py       # 内置测试服务器 CLI
+│
+├── auth/                   # 认证与授权
+│   ├── __init__.py
+│   ├── decorators.py       # 权限装饰器
+│   ├── jwt.py              # JWT 签发与校验
+│   ├── middleware.py       # 认证中间件
+│   ├── models.py           # 用户/角色模型
+│   ├── oauth2.py           # OAuth2 流程
+│   ├── password.py         # 密码哈希
+│   └── providers.py        # 第三方登录提供商
 │
 ├── cache/                  # 缓存模块
 │   ├── __init__.py
-│   ├── cache.py            # 缓存基类
+│   ├── base.py             # 缓存接口定义
+│   ├── cache.py            # 内存缓存实现
 │   ├── db.py               # 数据库缓存
 │   ├── factory.py          # 缓存工厂
 │   ├── form_cache.py       # 表单缓存
@@ -63,7 +85,17 @@ src/litefs/
 ├── database/               # 数据库模块
 │   ├── __init__.py
 │   ├── core.py             # 数据库核心
+│   ├── migrations.py       # Alembic 迁移管理器
 │   └── models.py           # 数据模型
+│
+├── debug/                  # 调试工具
+│   ├── __init__.py
+│   └── middleware.py       # 调试工具栏中间件
+│
+├── error_pages.py          # 错误页面
+├── exceptions.py           # 异常定义
+├── security.py             # 安全工具
+├── validators.py           # 验证器
 │
 ├── handlers/               # 请求处理器
 │   ├── __init__.py
@@ -75,15 +107,36 @@ src/litefs/
 │   ├── form.py             # 表单数据解析
 │   └── enhanced.py         # 增强请求处理
 │
+├── i18n/                   # 国际化
+│   ├── __init__.py
+│   ├── locale.py           # locale 解析与协商
+│   ├── middleware.py       # 语言协商中间件
+│   ├── template.py         # 模板翻译函数注入
+│   └── translator.py       # gettext 包装
+│
+├── mail/                   # 邮件服务
+│   ├── __init__.py
+│   ├── message.py          # 邮件与附件 MIME 结构
+│   ├── smtp.py             # SMTP 客户端（STARTTLS/SSL + 重试）
+│   ├── tasks.py            # Celery 异步发送任务
+│   └── template.py         # Mako 双模板渲染
+│
 ├── middleware/             # 中间件
 │   ├── __init__.py
 │   ├── base.py             # 中间件基类
 │   ├── cors.py             # CORS 中间件
 │   ├── csrf.py             # CSRF 中间件
+│   ├── enhanced_logging.py # 增强日志中间件
 │   ├── health_check.py     # 健康检查
 │   ├── logging.py          # 日志中间件
+│   ├── prometheus.py       # Prometheus 监控中间件
 │   ├── rate_limit.py       # 限流中间件
 │   └── security.py         # 安全中间件
+│
+├── openapi/                # OpenAPI
+│   ├── __init__.py
+│   ├── generator.py        # 规范生成
+│   └── ui.py               # Swagger UI
 │
 ├── plugins/                # 插件系统
 │   ├── __init__.py
@@ -103,22 +156,32 @@ src/litefs/
 │
 ├── session/                # 会话管理
 │   ├── __init__.py
+│   ├── base.py             # 会话接口定义
 │   ├── cache_session.py    # 缓存会话
 │   ├── db.py               # 数据库会话
 │   ├── factory.py          # 会话工厂
 │   ├── manager.py          # 会话管理器
 │   ├── memcache.py         # Memcache 会话
 │   ├── redis.py            # Redis 会话
-│   └── session.py          # 会话基类
+│   └── session.py          # 会话基类实现
+│
+├── tasks/                  # Celery 任务队列集成
+│   └── __init__.py         # Celery 封装、任务装饰器、状态查询与健康检查
 │
 ├── templates/              # 模板文件
 │   └── scaffold/           # 脚手架模板
 │       ├── site/           # 站点模板
 │       └── __init__.py
 │
-└── utils/                  # 工具函数
+├── utils/                  # 工具函数
+│   ├── __init__.py
+│   └── utils.py            # 工具函数实现
+│
+└── websocket/              # WebSocket
     ├── __init__.py
-    └── utils.py            # 工具函数实现
+    ├── connection.py       # 连接管理
+    ├── protocol.py         # 帧编解码
+    └── server.py           # WebSocket 服务器
 ```
 
 ### 2.2 模块职责
@@ -128,9 +191,10 @@ src/litefs/
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | 主入口 | `__init__.py` | 导出公共 API，版本信息 |
-| 核心类 | `core.py` | Litefs 主类，应用初始化 |
+| 核心类 | `core.py` + `app/` | Litefs 主类（Mixin 组合），应用初始化与能力模块 |
 | 配置 | `config.py` | 配置加载和管理 |
 | CLI | `cli.py` | 命令行工具实现 |
+| 迁移 CLI | `cli_db.py` | `litefs db` 数据库迁移子命令 |
 
 #### 服务器模块
 
@@ -156,8 +220,12 @@ src/litefs/
 | CSRF | `middleware/csrf.py` | CSRF 保护 |
 | 健康检查 | `middleware/health_check.py` | 健康检查端点 |
 | 日志 | `middleware/logging.py` | 请求日志记录 |
+| 增强日志 | `middleware/enhanced_logging.py` | 请求追踪、结构化日志、敏感信息过滤 |
+| 监控 | `middleware/prometheus.py` | Prometheus 指标采集与 `/metrics` 端点 |
 | 限流 | `middleware/rate_limit.py` | 请求限流 |
 | 安全 | `middleware/security.py` | 安全头部和防护 |
+| 调试 | `debug/middleware.py` | 调试工具栏 |
+| 国际化 | `i18n/middleware.py` | 语言协商与 locale 回写 |
 
 #### 缓存模块
 
@@ -180,6 +248,19 @@ src/litefs/
 | Redis 会话 | `session/redis.py` | Redis 会话存储 |
 | Memcache 会话 | `session/memcache.py` | Memcache 会话存储 |
 | 管理器 | `session/manager.py` | 会话管理器 |
+
+#### 扩展能力模块
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| 认证 | `auth/` | JWT、OAuth2、密码哈希、权限装饰器 |
+| 数据库迁移 | `database/migrations.py` | Alembic 迁移环境与版本管理 |
+| 国际化 | `i18n/` | locale 协商、gettext 翻译、模板翻译注入 |
+| 邮件 | `mail/` | 邮件结构、SMTP 客户端、模板渲染、异步任务 |
+| 指标 | `metrics.py` | 指标注册中心与 Prometheus 文本渲染 |
+| OpenAPI | `openapi/` | 规范生成与 Swagger UI |
+| 任务队列 | `tasks/__init__.py` | Celery 封装与任务状态查询 |
+| WebSocket | `websocket/` | 连接管理、帧编解码、WebSocket 服务器 |
 
 ---
 
@@ -262,58 +343,79 @@ tests/
 
 ```
 examples/
-├── README.md               # 示例说明
-├── basic.py                # 基础示例
-├── advanced.py             # 高级示例
-├── asgi_example.py         # ASGI 示例
-├── fastapi_example.py      # FastAPI 集成示例
+├── README.md               # 示例索引
 │
-├── 01-hello-world/         # Hello World 示例
-│   ├── README.md
+├── 01-quickstart/          # 快速入门示例
 │   ├── app.py
-│   └── wsgi.py
-│
-├── 02-routing/             # 路由示例
-│   ├── README.md
-│   └── app.py
-│
-├── 03-blog/                # 博客示例
-│   ├── README.md
-│   ├── app.py
+│   ├── templates/
 │   └── static/
 │
-├── 04-api-service/         # API 服务示例
-│   ├── README.md
-│   └── app.py
-│
-├── 05-fullstack/           # 全栈应用示例
-│   ├── README.md
+├── 02-rest-api/            # REST API 示例
 │   ├── app.py
+│   ├── templates/
 │   └── static/
 │
-├── 06-sqlalchemy/          # SQLAlchemy 示例
-│   ├── README.md
+├── 03-web-app/             # 博客系统示例
 │   ├── app.py
 │   ├── models.py
-│   └── templates/
+│   ├── data/
+│   ├── templates/
+│   └── static/
 │
-└── 07-streaming/           # 流式响应示例
-    ├── README.md
+├── 04-realtime/            # 实时通信示例
+│   ├── app.py
+│   ├── templates/
+│   └── static/
+│
+├── 05-production/          # 生产部署示例
+│   ├── app.py
+│   ├── celery_tasks.py
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── nginx.conf
+│   └── requirements.txt
+│
+├── 06-prometheus-monitoring/   # Prometheus 监控示例
+│   ├── app.py
+│   ├── templates/
+│   └── static/
+│
+├── 07-database-migrations/    # 数据库迁移示例
+│   ├── app.py
+│   ├── models.py
+│   ├── templates/
+│   └── static/
+│
+├── 08-mail-service/            # 邮件服务示例
+│   ├── app.py
+│   ├── templates/
+│   │   └── email/              # 邮件双模板（txt / html）
+│   └── static/
+│
+└── 09-i18n/                   # 国际化示例
     ├── app.py
-    └── wsgi.py
+    ├── compile_messages.py     # .po -> .mo 编译器
+    ├── locales/
+    │   └── zh_CN/LC_MESSAGES/
+    │       ├── messages.po
+    │       └── messages.mo
+    ├── templates/
+    └── static/
 ```
 
 ### 4.2 示例分类
 
 | 示例 | 说明 | 难度 |
 |------|------|------|
-| 01-hello-world | 最简单的应用 | ⭐ |
-| 02-routing | 路由系统演示 | ⭐⭐ |
-| 03-blog | 完整博客系统 | ⭐⭐⭐ |
-| 04-api-service | RESTful API | ⭐⭐⭐ |
-| 05-fullstack | 全栈应用 | ⭐⭐⭐⭐ |
-| 06-sqlalchemy | 数据库集成 | ⭐⭐⭐ |
-| 07-streaming | 流式响应 | ⭐⭐⭐ |
+| 01-quickstart | 路由、中间件、模板、静态文件入门 | ⭐ |
+| 02-rest-api | JWT 认证与完整 REST API | ⭐⭐⭐ |
+| 03-web-app | 完整博客系统与 OAuth2 | ⭐⭐⭐⭐ |
+| 04-realtime | WebSocket 实时通信 | ⭐⭐ |
+| 05-production | 生产部署与容器化 | ⭐⭐⭐ |
+| 06-prometheus-monitoring | 监控指标采集与暴露 | ⭐⭐ |
+| 07-database-migrations | Alembic 版本化迁移 | ⭐⭐ |
+| 08-mail-service | 邮件模板与异步发送 | ⭐⭐ |
+| 09-i18n | 国际化与语言协商 | ⭐⭐ |
 
 ---
 
@@ -408,10 +510,12 @@ litefs (core)
 | greenlet | >=0.4.13 | 协程支持 |
 | Mako | >=1.0.6 | 模板引擎 |
 | MarkupSafe | >=1.1.1 | HTML 转义 |
-| pathtools | >=0.1.2 | 路径工具 |
 | PyYAML | >=5.1 | YAML 解析 |
 | watchdog | >=0.8.3 | 文件监控 |
 | SQLAlchemy | >=2.0.0 | ORM 支持 |
+
+> `pathtools` 已于 v0.9.0 移除：源码从未直接引用，且它是 `watchdog` 的子依赖；
+> 显式声明会导致其在 Python 3.12 上构建失败（`No module named 'imp'`）。
 
 ---
 

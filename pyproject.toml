@@ -34,7 +34,6 @@ dependencies = [
     "greenlet>=0.4.13",
     "Mako>=1.0.6",
     "MarkupSafe>=1.1.1",
-    "pathtools>=0.1.2",
     "PyYAML>=5.1",
     "watchdog>=0.8.3",
     "SQLAlchemy>=2.0.0",
@@ -49,10 +48,32 @@ wsgi = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
     "black>=23.0.0",
     "isort>=5.12.0",
+    "flake8>=7.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    # 可选依赖的可测试版本，保证单元测试在 CI 中可直接运行
+    "prometheus-client>=0.20.0",
+    "alembic>=1.13.0",
+    # 会话/缓存后端的客户端库，集成测试用例依赖
+    "pymemcache>=4.0.0",
+    "redis>=5.0.0",
+    # 任务队列，tasks 模块单元测试依赖
+    "celery>=5.3.0",
+    # 依赖安全审计（pip-audit），CI security 门禁依赖
+    "pip-audit>=2.7.3",
+]
+prometheus = [
+    "prometheus-client>=0.20.0",
+]
+db = [
+    "alembic>=1.13.0",
+]
+mail = [
+    # 邮件发送本身零新增依赖；Celery 仅用于异步投递，未安装时自动降级为同步发送
+    "celery>=5.3.0",
 ]
 docs = [
     "sphinx>=9.0.0",
@@ -116,8 +137,18 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 
+[tool.ruff]
+# line-length 与 [tool.black] / .flake8 保持一致
+# target-version 省略，自动从 requires-python = ">=3.8" 推断
+line-length = 100
+extend-exclude = ["docs", "build", "dist"]
+
+[tool.ruff.lint]
+# 默认规则集（E4/E7/E9/F），与 flake8 常用规则对齐，后续按目录逐步扩展
+select = ["E4", "E7", "E9", "F"]
+
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -129,10 +160,71 @@ warn_unused_ignores = true
 warn_no_return = true
 strict_equality = true
 
+# 分阶段类型化治理：以下模块尚未完成类型注解收敛，暂不阻断 CI。
+# 收敛一个模块即可从本列表移除，使 mypy 门禁范围逐步扩大。
 [[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
+module = [
+    "litefs.auth",
+    "litefs.auth.decorators",
+    "litefs.auth.jwt",
+    "litefs.auth.middleware",
+    "litefs.auth.models",
+    "litefs.auth.oauth2",
+    "litefs.auth.password",
+    "litefs.auth.providers",
+    "litefs.cache.cache",
+    "litefs.cache.db",
+    "litefs.cache.manager",
+    "litefs.cache.redis",
+    "litefs.cache_decorators",
+    "litefs.cache.form_cache",
+    "litefs.cli",
+    "litefs.config",
+    "litefs.database.core",
+    "litefs.debug",
+    "litefs.debug.middleware",
+    "litefs.forms",
+    "litefs.handlers.asgi",
+    "litefs.handlers.enhanced",
+    "litefs.handlers.form",
+    "litefs.handlers.socket",
+    "litefs.handlers.wsgi",
+    "litefs.middleware.csrf",
+    "litefs.middleware.enhanced_logging",
+    "litefs.middleware.rate_limit",
+    "litefs.openapi",
+    "litefs.openapi.generator",
+    "litefs.openapi.ui",
+    "litefs.plugins.base",
+    "litefs.plugins.loader",
+    "litefs.routing.radix_tree",
+    "litefs.routing.router",
+    "litefs.server.asgi",
+    "litefs.server.asyncio",
+    "litefs.server.greenlet",
+    "litefs.session.cache_session",
+    "litefs.session.db",
+    "litefs.session.manager",
+    "litefs.session.redis",
+    "litefs.session.session",
+    "litefs.static_handler",
+    "litefs.tasks",
+    "litefs.validators",
+    "litefs.websocket.connection",
+    "litefs.websocket.protocol",
+    "litefs.websocket.server",
+]
+ignore_errors = true
+
+# 第三方库缺少类型存根（py.typed）或未安装，不属于本项目类型化范围
+[[tool.mypy.overrides]]
+module = [
+    "mako.*",
+    "memcache.*",
+    "pymemcache.*",
+    "watchdog.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

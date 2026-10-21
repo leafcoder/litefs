@@ -2,8 +2,32 @@
 # coding: utf-8
 
 import asyncio
-import inspect
-from typing import Any, Callable, Optional
+from typing import Any, List, Optional, Tuple
+
+
+def _response_header_list(request_handler: Any) -> List[Tuple[str, str]]:
+    """
+    读取请求处理器上已设置的响应头
+
+    两条链路的头部存储方式不同：
+    - 原生 Socket：``_response_headers`` 字典
+    - WSGI / ASGI：``_headers`` 列表
+
+    Args:
+        request_handler: 请求处理器实例
+
+    Returns:
+        响应头列表，未设置时返回空列表
+    """
+    headers = getattr(request_handler, "_response_headers", None)
+    if isinstance(headers, dict):
+        return list(headers.items())
+
+    headers = getattr(request_handler, "_headers", None)
+    if isinstance(headers, (list, tuple)):
+        return list(headers)
+
+    return []
 
 
 class Middleware:
@@ -11,11 +35,11 @@ class Middleware:
     中间件基类
 
     所有中间件都应该继承此类并实现 process_request 和/或 process_response 方法。
-    
+
     支持同步和异步两种模式：
     - 同步模式：实现 process_request / process_response / process_exception
     - 异步模式：实现 async_process_request / async_process_response / async_process_exception
-    
+
     异步方法优先级高于同步方法。在 ASGI 路径中，如果中间件实现了异步方法，
     将使用异步调用；否则回退到同步调用（通过 run_in_executor 避免阻塞事件循环）。
     """
@@ -136,6 +160,67 @@ class Middleware:
             if method_name in cls.__dict__:
                 return cls is not Middleware
         return False
+
+    # ==================== 响应处理辅助 ====================
+
+    @staticmethod
+    def _extract_response_parts(
+        request_handler: Any,
+        response: Any,
+    ) -> Optional[Tuple[int, List[Tuple[str, str]], Any]]:
+        """
+        从响应对象中提取状态码、响应头与响应体
+
+        Litefs 存在两条响应链路，``process_response`` 收到的响应形态并不一致：
+
+        - WSGI / ASGI 路径：``(status_line, headers, content)`` 三元组
+        - 原生 Socket 路径（``app.run()`` 默认模式）：仅响应体字符串，
+          状态码保存在 ``request_handler._status_code``，
+          响应头保存在 ``request_handler._response_headers``
+
+        Args:
+            request_handler: 请求处理器实例
+            response: 响应数据
+
+        Returns:
+            (状态码, 响应头列表, 响应体) 三元组，无法解析时返回 None
+        """
+        if isinstance(response, tuple) and len(response) == 3:
+            status_line, headers, content = response
+            try:
+                status_code = int(str(status_line).split()[0])
+            except (ValueError, IndexError):
+                return None
+            return status_code, headers, content
+
+        handler_status = getattr(request_handler, "_status_code", None)
+        if not isinstance(handler_status, int):
+            return None
+
+        return handler_status, _response_header_list(request_handler), response
+
+    @staticmethod
+    def _append_response_header(request_handler: Any, key: str, value: str) -> None:
+        """
+        向响应追加一个响应头
+
+        统一走请求处理器的 ``_add_header``，由其按自身实现分发到
+        ``_response_headers``（原生 Socket）或 ``_headers``（WSGI / ASGI）。
+
+        Args:
+            request_handler: 请求处理器实例
+            key: 响应头名称
+            value: 响应头值
+        """
+        adder = getattr(request_handler, "_add_header", None)
+        if callable(adder):
+            adder(key, value)
+            return
+
+        # 兜底：仅处理列表型存储
+        headers = getattr(request_handler, "_headers", None)
+        if isinstance(headers, list):
+            headers.append((key, value))
 
 
 class MiddlewareManager:

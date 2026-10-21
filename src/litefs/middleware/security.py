@@ -2,7 +2,7 @@
 # coding: utf-8
 
 import json
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from .base import Middleware
 

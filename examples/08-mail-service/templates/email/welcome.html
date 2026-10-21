@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎加入 ${app_name}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color:#2c3e50;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                    <tr>
+                        <td style="background:#2c3e50;padding:24px 32px;color:#ffffff;">
+                            <h1 style="margin:0;font-size:20px;font-weight:600;">欢迎加入 ${app_name}</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px;font-size:14px;line-height:1.8;">
+                            <p>你好，<strong>${name}</strong>！</p>
+                            <p>欢迎加入 <strong>${app_name}</strong>，你的账号已经创建成功。</p>
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:6px;margin:20px 0;">
+                                <tr>
+                                    <td style="padding:16px 20px;font-size:13px;">
+                                        <div style="color:#7f8c8d;">登录邮箱</div>
+                                        <div style="font-size:15px;font-weight:600;margin-top:4px;">${email}</div>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p>接下来你可以：</p>
+                            <ol style="padding-left:20px;margin:0;">
+                                <li>登录控制台完成资料填写</li>
+                                <li>配置消息通知偏好</li>
+                                <li>邀请团队成员加入</li>
+                            </ol>
+                            <p style="margin-top:24px;color:#7f8c8d;font-size:13px;">
+                                如果这封邮件不是你预期的，请忽略它即可。
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background:#f8f9fa;padding:16px 32px;font-size:12px;color:#95a5a6;text-align:center;">
+                            ${app_name} 团队 · 本邮件由系统自动发送，请勿直接回复
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

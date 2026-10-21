@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>${_('Welcome to Litefs')}</h1>
+            <p>${_('The current locale is %s') % locale}</p>
+        </header>
+
+        <main>
+            <section>
+                <h2>${_('Language')}</h2>
+                <p>${_('Negotiation priority: query param > cookie > Accept-Language > default')}</p>
+                <ul class="lang-list">
+                    <li><a href="/?locale=zh_CN" class="lang-link ${'active' if locale == 'zh_CN' else ''}">简体中文</a></li>
+                    <li><a href="/?locale=en" class="lang-link ${'active' if locale == 'en' else ''}">English</a></li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>${_('Dashboard')}</h2>
+                <ul>
+                    % for menu in menus:
+                    <li>${menu['label']}</li>
+                    % endfor
+                </ul>
+                <p>${_('You have %s unread notifications') % message_count}</p>
+                <p>${message_text}</p>
+            </section>
+
+            <section>
+                <h2>${_('Switch language')}</h2>
+                <pre>curl "http://localhost:8086/?locale=en"
+curl -H "Accept-Language: en-US,en;q=0.9" http://localhost:8086/
+curl http://localhost:8086/api/locale</pre>
+                <p class="tip">切换后浏览器会收到 <code>Set-Cookie: locale=...</code>，下次访问自动沿用上次选择。</p>
+            </section>
+        </main>
+
+        <footer>
+            <p>${_('Sign in')} · ${_('Sign out')} · Powered by Litefs</p>
+        </footer>
+    </div>
+</body>
+</html>

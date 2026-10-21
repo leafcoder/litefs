@@ -1,266 +1,177 @@
 # Litefs 示例
 
-本目录包含 Litefs 框架的示例代码，展示框架的各种功能。
+本目录包含 Litefs 框架的可运行示例，按功能递进组织。每个示例都是独立目录，
+自带 `app.py`、模板与静态资源，可直接 `cd` 进入后运行。
 
-## 示例列表
+## 示例清单
 
-### 经典示例目录
+| 目录 | 主题 | 端口 | 核心内容 |
+| --- | --- | --- | --- |
+| `01-quickstart/` | 快速入门 | 8081 | 路由（装饰器风格）、中间件、模板渲染、静态文件 |
+| `02-rest-api/` | REST API | 8082 | JWT 认证、项目/任务/成员/评论 CRUD、分页排序过滤、OpenAPI 文档 |
+| `03-web-app/` | 全栈 Web 应用 | 8083 | 注册登录、OAuth2 社交登录、文章与评论、访问统计、管理后台 |
+| `04-realtime/` | 实时通信 | 8084 | WebSocket 连接、房间管理、消息广播、在线用户列表 |
+| `05-production/` | 生产部署 | 8085 | 多进程 workers、结构化日志、Redis/内存缓存、健康检查、优雅关闭、Celery |
+| `06-prometheus-monitoring/` | 监控指标 | 8083 | Prometheus 中间件、`/metrics` 端点、请求/错误/延迟/缓存/连接池指标 |
+| `07-database-migrations/` | 数据库迁移 | 8084 | Alembic 迁移环境、`litefs db` 命令组、模型与迁移脚本管理 |
+| `08-mail-service/` | 邮件服务 | 8085 | Mako 双模板渲染、SMTP 客户端（STARTTLS/SSL）、Celery 异步发送、附件 |
+| `09-i18n/` | 国际化 | 8086 | 四级语言协商、请求级 locale、模板翻译函数注入、`.po`/`.mo` 编译 |
 
-#### 1. Hello World (`01-hello-world/`)
+## 通用约定
 
-最简单的 Litefs 应用，展示基本的路由和响应。
-
-#### 2. 路由示例 (`02-routing/`)
-
-展示 Litefs 框架的路由系统，包括：
-- 基本路由
-- 带参数的路由
-- 正则表达式路由
-
-#### 3. 博客示例 (`03-blog/`)
-
-展示 Litefs 框架的完整功能，包括：
-- 路由系统
-- 模板渲染
-- 静态文件服务
-
-#### 4. API 服务示例 (`04-api-service/`)
-
-展示如何使用 Litefs 框架创建 RESTful API 服务，包括：
-- 用户认证
-- 用户管理 API
-- 文章管理 API
-- 分页和过滤
-- 统一的 API 响应格式
-
-#### 5. 全栈示例 (`05-fullstack/`)
-
-展示 Litefs 框架与前端技术的集成，包括：
-- 后端 API
-- 前端 JavaScript
-- 静态文件服务
-
-#### 6. SQLAlchemy 示例 (`06-sqlalchemy/`)
-
-展示 Litefs 框架与 SQLAlchemy ORM 的集成，包括：
-- 数据库模型定义
-- 数据库操作
-- 模板渲染
-- 表单处理
-
-#### 7. 流式响应示例 (`07-streaming/`)
-
-展示 Litefs 框架的流式响应功能。
-
-#### 8. 综合示例 (`08-comprehensive/`)
-
-展示 Litefs 框架的核心功能，包括：
-- 路由系统（装饰器和方法链风格）
-- 中间件系统（日志、安全、CORS、限流）
-- 会话管理
-- 缓存系统（MemoryCache + TreeCache）
-- 请求验证
-- 静态文件服务
-- 错误处理（404 + 500）
-- 健康检查
-
-### 独立示例目录
-
-#### 9. ASGI 示例 (`09-asgi/`)
-
-展示如何使用 Litefs 的 ASGI 功能，包括：
-- 基本路由
-- 异步处理函数
-- JSON 响应
-- 路径参数
-- 查询参数
-
-#### 10. FastAPI 示例 (`10-fastapi/`)
-
-展示如何将 Litefs 与 FastAPI 集成。
-
-#### 11. 投票系统示例 (`11-voting/`)
-
-展示完整的投票系统应用，包括：
-- 数据库模型
-- 表单处理
-- 模板渲染
-- 静态文件服务
-- 专业商务风格 UI
-
-#### 12. 增强日志中间件示例 (`12-enhanced-logging/`)
-
-展示 Litefs 的增强日志中间件功能，包括：
-- 请求追踪（Request ID）
-- 结构化日志输出
-- 性能监控
-- 敏感信息过滤
-- 智能日志级别
-- 灵活配置
+- **源码路径**：所有示例的 `app.py` 都会把仓库的 `src/` 加入 `sys.path`，
+  因此**无需先 `pip install` 本仓库**，在源码目录直接运行即可。
+- **端口**：示例端口互不冲突，可同时运行；但 `06`/`03` 同为 8083、`07`/`04` 同为 8084、
+  `08`/`05` 同为 8085，同时启动时需修改对应示例的 `port` 参数。
+- **数据存储**：示例数据默认落在内存或本地 SQLite 文件中，重启后重置。
 
 ## 运行示例
 
-### 安装依赖
+### 1. 快速入门（8081）
 
 ```bash
+cd examples/01-quickstart
+python app.py
+```
+
+访问 http://localhost:8081
+
+路由：`GET /`、`GET /about`、`GET /user/{id}`、`POST /api/data`
+
+### 2. REST API（8082）
+
+```bash
+cd examples/02-rest-api
+python app.py
+```
+
+访问 http://localhost:8082 ，API 文档在 `/api`，OpenAPI 规范在 `/openapi.json`。
+
+默认账号：`admin / admin123`、`john / john123`、`jane / jane123`
+
+### 3. 博客系统（8083）
+
+```bash
+cd examples/03-web-app
+python app.py
+```
+
+访问 http://localhost:8083
+
+包含用户注册登录、OAuth2（GitHub / Google）社交登录、文章与评论、访问统计与后台管理。
+
+### 4. 实时通信（8084）
+
+```bash
+cd examples/04-realtime
+python app.py
+```
+
+访问 http://localhost:8084 ，页面会自动建立 WebSocket 连接，支持房间切换与消息广播。
+
+### 5. 生产部署（8085）
+
+```bash
+cd examples/05-production
 pip install -r requirements.txt
+
+# 开发模式
+python app.py
+# 生产模式（多进程）
+WORKERS=4 python app.py
+# 开启调试工具栏
+DEBUG_TOOLBAR=true python app.py
 ```
 
-### 运行经典示例
+该目录同时提供 `Dockerfile`、`docker-compose.yml` 与 `nginx.conf`，
+可直接用于容器化与反向代理部署演练。
 
-#### Hello World 示例
+### 6. Prometheus 监控（8083）
 
 ```bash
-cd examples/01-hello-world
+cd examples/06-prometheus-monitoring
+pip install 'litefs[prometheus]'
 python app.py
 ```
 
-然后访问：http://localhost:8080
+```bash
+curl http://127.0.0.1:8083/api/items/1
+curl http://127.0.0.1:8083/api/cache/demo   # 第一次 miss，第二次 hit
+curl http://127.0.0.1:8083/api/error        # 产生 500 错误计数
+curl http://127.0.0.1:8083/metrics          # 查看指标
+```
 
-#### 路由示例
+> `/metrics` 会暴露内部路径与状态码分布，不要直接暴露到公网。
+
+### 7. 数据库迁移（8084）
 
 ```bash
-cd examples/02-routing
+cd examples/07-database-migrations
+pip install 'litefs[db]'
 python app.py
 ```
 
-然后访问：http://localhost:8080
-
-#### 博客示例
+迁移命令需在示例目录内执行（CLI 从当前目录的 `app.py` 读取 `database_url`）：
 
 ```bash
-cd examples/03-blog
+litefs db init
+litefs db migrate -m "初始迁移"
+litefs db upgrade
+litefs db current
+litefs db history
+litefs db downgrade
+```
+
+### 8. 邮件服务（8085）
+
+```bash
+cd examples/08-mail-service
 python app.py
 ```
 
-然后访问：http://localhost:8080
-
-#### API 服务示例
+默认开启**预览模式**，无需 SMTP 服务器即可体验：
 
 ```bash
-cd examples/04-api-service
+curl -X POST http://localhost:8085/api/mail/preview \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "张三", "email": "zhangsan@example.com"}'
+```
+
+接入真实 SMTP 服务器：
+
+```bash
+export MAIL_ENABLED=1
+export SMTP_HOST=smtp.example.com
+export SMTP_PORT=587
+export SMTP_USERNAME=noreply@example.com
+export SMTP_PASSWORD=your-password
 python app.py
 ```
 
-然后访问：http://localhost:8080
-
-#### 全栈示例
+### 9. 国际化（8086）
 
 ```bash
-cd examples/05-fullstack
+cd examples/09-i18n
+python compile_messages.py     # 先把 .po 编译为 .mo
 python app.py
 ```
 
-然后访问：http://localhost:8080
-
-#### SQLAlchemy 示例
-
 ```bash
-cd examples/06-sqlalchemy
-python app.py
+curl http://localhost:8086/                              # 按 Accept-Language 协商
+curl "http://localhost:8086/?locale=en"                  # 查询参数优先级最高
+curl -H "Accept-Language: en-US,en;q=0.9" http://localhost:8086/
 ```
 
-然后访问：http://localhost:8080
+`compile_messages.py` 是零依赖的 `.po` → `.mo` 编译器，修改 `locales/zh_CN/LC_MESSAGES/messages.po`
+后重新执行即可生效。
 
-#### 流式响应示例
+## 相关文档
 
-```bash
-cd examples/07-streaming
-python app.py
-```
-
-然后访问：http://localhost:8080
-
-#### 综合示例
-
-```bash
-cd examples/08-comprehensive
-python app.py
-```
-
-然后访问：http://localhost:8080
-
-#### 投票系统示例
-
-```bash
-cd examples/11-voting
-python app.py
-```
-
-然后访问：http://localhost:8080
-
-### 运行独立示例
-
-#### ASGI 示例
-
-```bash
-python examples/09-asgi/app.py
-```
-
-然后访问：http://localhost:8000
-
-#### FastAPI 示例
-
-```bash
-python examples/10-fastapi/app.py
-```
-
-然后访问：http://localhost:8001
-
-#### 投票系统示例
-
-```bash
-python examples/11-voting/app.py
-```
-
-然后访问：http://localhost:8080
-
-#### 增强日志中间件示例
-
-```bash
-python examples/12-enhanced-logging/app.py
-```
-
-然后访问：http://localhost:8080
-
-## 功能说明
-
-### Hello World 示例路由
-
-- GET `/` - 首页，返回 "Hello, World!"
-- GET `/about` - 关于页面，返回框架信息
-
-### API 服务示例路由
-
-#### 认证 API
-- POST `/api/auth/login` - 用户登录
-- POST `/api/auth/logout` - 用户登出
-- GET `/api/auth/me` - 获取当前用户信息
-
-#### 用户 API
-- GET `/api/users` - 获取用户列表（管理员）
-- GET `/api/users/{id}` - 获取用户详情
-- POST `/api/users` - 创建用户（管理员）
-- PUT `/api/users/{id}` - 更新用户
-- DELETE `/api/users/{id}` - 删除用户（管理员）
-
-#### 文章 API
-- GET `/api/posts` - 获取文章列表
-- GET `/api/posts/{id}` - 获取文章详情
-- POST `/api/posts` - 创建文章
-- PUT `/api/posts/{id}` - 更新文章
-- DELETE `/api/posts/{id}` - 删除文章
-
-## 默认账号
-
-API 服务示例包含以下默认账号：
-
-- **管理员**: admin / admin123
-- **普通用户**: john / john123, jane / jane123
-
-## 注意事项
-
-- 示例代码仅用于演示，实际生产环境中需要根据具体需求进行修改
-- API 服务示例中的用户数据存储在内存中，重启后会丢失
-- CSRF 保护需要在表单中包含 CSRF 令牌
-- 流式响应示例需要浏览器支持 SSE（Server-Sent Events）
+| 主题 | 文档 |
+| --- | --- |
+| Prometheus 监控 | [prometheus-monitoring.md](../docs/source/prometheus-monitoring.md) |
+| 数据库迁移 | [database-migrations.md](../docs/source/database-migrations.md) |
+| 邮件服务 | [mail-service.md](../docs/source/mail-service.md) |
+| 国际化 | [i18n.md](../docs/source/i18n.md) |
+| 性能回归基准 | [performance-regression.md](../docs/source/performance-regression.md) |
+| 依赖安全审计 | [dependency-audit.md](../docs/source/dependency-audit.md) |

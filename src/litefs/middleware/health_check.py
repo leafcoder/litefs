@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import json
 import time
-import sys
-import os
-from typing import Any, Dict, List, Optional, Callable
+from typing import Dict, Callable
 
 from .base import Middleware
 
@@ -85,7 +82,7 @@ class HealthCheck(Middleware):
             健康检查响应
         """
         from ..handlers import Response
-        
+
         status_code = 200
         checks = {}
 
@@ -125,7 +122,7 @@ class HealthCheck(Middleware):
             就绪检查响应
         """
         from ..handlers import Response
-        
+
         status_code = 200
         checks = {}
 

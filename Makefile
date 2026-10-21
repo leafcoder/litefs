@@ -1,4 +1,4 @@
-.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help sync-deps
+.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help sync-deps lint lint-fix benchmark benchmark-check audit help
 
 # 文档相关命令
 
@@ -53,6 +53,24 @@ docs-help:
 	@echo "  make docs-stats    - 显示文档统计"
 	@echo "  make docs-help     - 显示帮助信息"
 
+# 静态检查命令
+
+# 全量静态检查（flake8 + ruff + mypy），任一失败即返回非零退出码
+lint:
+	@echo ">>> flake8（PEP 8 规范检查）"
+	python -m flake8 src
+	@echo ">>> ruff（快速静态检查）"
+	python -m ruff check src
+	@echo ">>> mypy（类型检查）"
+	python -m mypy src
+	@echo "静态检查全部通过"
+
+# 应用 ruff 安全自动修复（仅 src 范围，不改变运行时行为）
+lint-fix:
+	@echo ">>> ruff 安全自动修复"
+	python -m ruff check src --fix
+	@echo "自动修复完成，请复核 diff 后再提交"
+
 # 打包和发布命令
 
 # 打包（构建sdist和wheel）
@@ -100,60 +118,29 @@ publish-help:
 # 同步依赖命令
 sync-deps:
 	@echo "Syncing dependencies from pyproject.toml to requirements.txt..."
-	@python -c """
-import tomli
-
-# 读取pyproject.toml
-with open('pyproject.toml', 'rb') as f:
-    config = tomli.load(f)
-
-# 提取核心依赖
-dependencies = config.get('project', {}).get('dependencies', [])
-
-# 读取现有的requirements.txt内容
-with open('requirements.txt', 'r', encoding='utf-8') as f:
-    lines = f.readlines()
-
-# 分离注释和依赖部分
-comment_lines = []
-dep_lines = []
-
-for line in lines:
-    if line.strip().startswith('#') or not line.strip():
-        comment_lines.append(line)
-    else:
-        dep_lines.append(line)
-
-# 创建新的依赖部分
-new_dep_lines = []
-new_dep_lines.append('# Litefs 核心依赖\n')
-for dep in dependencies:
-    new_dep_lines.append(f'{dep}\n')
-new_dep_lines.append('\n')
-
-# 保留其他注释部分
-core_comment_end = False
-for line in comment_lines:
-    if not core_comment_end:
-        if line.strip() == '# Litefs 核心依赖':
-            core_comment_end = True
-    else:
-        if line.strip() and not line.strip().startswith('#'):
-            core_comment_end = False
-        elif line.strip().startswith('# WSGI 服务器（可选）'):
-            new_dep_lines.append(line)
-        elif core_comment_end:
-            continue
-        else:
-            new_dep_lines.append(line)
-
-# 写入更新后的requirements.txt
-with open('requirements.txt', 'w', encoding='utf-8') as f:
-    f.writelines(new_dep_lines)
-
-print('Dependencies synced successfully!')
-"""
+	@python scripts/sync_deps.py
 	@echo "Dependencies synced successfully!"
+
+# 性能回归门禁：运行压测并比对已固化的阈值基线
+# 压测需独占 CPU，务必在专用压测机上执行
+benchmark:
+	@echo ">>> 运行性能基准测试"
+	@$(MAKE) -C benchmarks benchmark
+	@echo "性能基准测试完成"
+
+# 性能回归门禁：比对最新压测结果与已固化的阈值基线
+# 退出码 0 通过 / 1 存在性能回退 / 2 输入缺失（严格模式）
+benchmark-check:
+	@echo ">>> 性能回归阈值比对"
+	@python benchmarks/compare_benchmark.py
+	@echo "性能回归检查完成"
+
+# 依赖安全审计：pip-audit 扫描运行时依赖清单
+# 退出码 0 无漏洞 / 1 发现漏洞 / 2 工具不可用
+audit:
+	@echo ">>> 依赖安全审计（pip-audit）"
+	@python scripts/audit_deps.py
+	@echo "依赖安全审计完成"
 
 # 帮助信息
 help:
@@ -166,6 +153,10 @@ help:
 	@echo "  make docs-stats    - 显示文档统计"
 	@echo "  make docs-help     - 显示文档帮助信息"
 	@echo ""
+	@echo "静态检查:"
+	@echo "  make lint          - 全量静态检查（flake8 + ruff + mypy）"
+	@echo "  make lint-fix      - 应用 ruff 安全自动修复"
+	@echo ""
 	@echo "打包和发布:"
 	@echo "  make build         - 构建sdist和wheel包"
 	@echo "  make publish-test  - 发布到测试PyPI"
@@ -176,5 +167,10 @@ help:
 	@echo ""
 	@echo "依赖管理:"
 	@echo "  make sync-deps     - 从pyproject.toml同步依赖到requirements.txt"
+	@echo ""
+	@echo "性能与安全:"
+	@echo "  make benchmark      - 运行性能基准测试（需独占 CPU）"
+	@echo "  make benchmark-check - 比对压测结果与性能回归阈值基线"
+	@echo "  make audit          - pip-audit 依赖安全审计"
 	@echo ""
 	@echo "运行 'make <command>' 执行相应命令"

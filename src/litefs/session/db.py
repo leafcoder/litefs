@@ -7,11 +7,10 @@ Database Session 后端
 提供基于 SQLite 数据库的 Session 实现
 """
 
-from multiprocessing import current_process
 import sqlite3
 import time
 import json
-from typing import Any, Optional
+from typing import Optional
 
 try:
     from sqlalchemy import create_engine, text
@@ -27,7 +26,7 @@ from .session import Session
 class DatabaseSession(SessionStoreBase):
     """
     数据库 Session 实现
-    
+
     使用 SQLite 数据库作为 Session 存储，支持持久化存储
     """
 
@@ -45,7 +44,7 @@ class DatabaseSession(SessionStoreBase):
     ):
         """
         初始化 Database Session
-        
+
         Args:
             db_path: 数据库文件路径，默认为内存数据库
             table_name: Session 表名
@@ -65,10 +64,10 @@ class DatabaseSession(SessionStoreBase):
         self._pool_timeout = pool_timeout
         self._pool_recycle = pool_recycle
         self._use_pool = use_pool and SQLALCHEMY_AVAILABLE
-        
+
         self._engine = None
         self._conn = None
-        
+
         if self._use_pool:
             self._initialize_pool()
         else:
@@ -78,11 +77,11 @@ class DatabaseSession(SessionStoreBase):
         """初始化SQLAlchemy连接池"""
         if not SQLALCHEMY_AVAILABLE:
             raise ImportError("SQLAlchemy未安装，无法使用连接池功能")
-        
+
         # 对于内存数据库，使用StaticPool
         if self._db_path == ":memory:":
             self._engine = create_engine(
-                f"sqlite:///:memory:",
+                "sqlite:///:memory:",
                 connect_args={"check_same_thread": False},
                 poolclass=StaticPool,
                 echo=False
@@ -99,7 +98,7 @@ class DatabaseSession(SessionStoreBase):
                 connect_args={"check_same_thread": False},
                 echo=False
             )
-        
+
         # 创建表
         with self._engine.connect() as conn:
             conn.execute(text(f"""
@@ -146,7 +145,7 @@ class DatabaseSession(SessionStoreBase):
     def put(self, session_id: str, session: Session) -> None:
         """
         存储 Session
-        
+
         Args:
             session_id: Session ID
             session: Session 对象
@@ -156,16 +155,16 @@ class DatabaseSession(SessionStoreBase):
             data = json.dumps(dict(session))
         except Exception as e:
             raise ValueError(f"无法序列化 Session 数据: {e}")
-        
+
         created_at = int(time.time())
         expires_at = created_at + self._expiration_time
-        
+
         if self._use_pool:
             # 使用连接池
             with self._engine.connect() as conn:
                 conn.execute(text(f"""
-                    INSERT OR REPLACE INTO {self._table_name} 
-                    (session_id, data, created_at, expires_at) 
+                    INSERT OR REPLACE INTO {self._table_name}
+                    (session_id, data, created_at, expires_at)
                     VALUES (:session_id, :data, :created_at, :expires_at)
                 """), {
                     'session_id': session_id,
@@ -179,8 +178,8 @@ class DatabaseSession(SessionStoreBase):
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-                INSERT OR REPLACE INTO {self._table_name} 
-                (session_id, data, created_at, expires_at) 
+                INSERT OR REPLACE INTO {self._table_name}
+                (session_id, data, created_at, expires_at)
                 VALUES (?, ?, ?, ?)
             """, (session_id, data, created_at, expires_at))
             conn.commit()
@@ -188,10 +187,10 @@ class DatabaseSession(SessionStoreBase):
     def get(self, session_id: str) -> Optional[Session]:
         """
         获取 Session
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             Session 对象，如果不存在或已过期则返回 None
         """
@@ -199,7 +198,7 @@ class DatabaseSession(SessionStoreBase):
             # 使用连接池
             with self._engine.connect() as conn:
                 result = conn.execute(text(f"""
-                    SELECT data, expires_at FROM {self._table_name} 
+                    SELECT data, expires_at FROM {self._table_name}
                     WHERE session_id = :session_id
                 """), {'session_id': session_id})
                 row = result.fetchone()
@@ -208,36 +207,36 @@ class DatabaseSession(SessionStoreBase):
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-                SELECT data, expires_at FROM {self._table_name} 
+                SELECT data, expires_at FROM {self._table_name}
                 WHERE session_id = ?
             """, (session_id,))
             row = cursor.fetchone()
-        
+
         if row is None:
             return None
-        
+
         # 检查是否过期
         if self._use_pool:
             expires_at = row[1]
         else:
             expires_at = row['expires_at']
-        
+
         if int(time.time()) > expires_at:
             # 删除过期 Session
             self.delete(session_id)
             return None
-        
+
         # 反序列化 Session 数据
         try:
             if self._use_pool:
                 data = json.loads(row[0])
             else:
                 data = json.loads(row['data'])
-        except Exception as e:
+        except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)
             return None
-        
+
         # 创建 Session 对象
         session = Session(session_id)
         session.update(data)
@@ -246,7 +245,7 @@ class DatabaseSession(SessionStoreBase):
     def delete(self, session_id: str) -> None:
         """
         删除 Session
-        
+
         Args:
             session_id: Session ID
         """
@@ -254,7 +253,7 @@ class DatabaseSession(SessionStoreBase):
             # 使用连接池
             with self._engine.connect() as conn:
                 conn.execute(text(f"""
-                    DELETE FROM {self._table_name} 
+                    DELETE FROM {self._table_name}
                     WHERE session_id = :session_id
                 """), {'session_id': session_id})
                 conn.commit()
@@ -263,7 +262,7 @@ class DatabaseSession(SessionStoreBase):
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-                DELETE FROM {self._table_name} 
+                DELETE FROM {self._table_name}
                 WHERE session_id = ?
             """, (session_id,))
             conn.commit()
@@ -271,10 +270,10 @@ class DatabaseSession(SessionStoreBase):
     def exists(self, session_id: str) -> bool:
         """
         检查 Session 是否存在
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             Session 是否存在且未过期
         """
@@ -282,7 +281,7 @@ class DatabaseSession(SessionStoreBase):
             # 使用连接池
             with self._engine.connect() as conn:
                 result = conn.execute(text(f"""
-                    SELECT expires_at FROM {self._table_name} 
+                    SELECT expires_at FROM {self._table_name}
                     WHERE session_id = :session_id
                 """), {'session_id': session_id})
                 row = result.fetchone()
@@ -291,46 +290,46 @@ class DatabaseSession(SessionStoreBase):
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-                SELECT expires_at FROM {self._table_name} 
+                SELECT expires_at FROM {self._table_name}
                 WHERE session_id = ?
             """, (session_id,))
             row = cursor.fetchone()
-        
+
         if row is None:
             return False
-        
+
         # 检查是否过期
         if self._use_pool:
             expires_at = row[0]
         else:
             expires_at = row['expires_at']
-        
+
         return int(time.time()) <= expires_at
 
     def expire(self, session_id: str, expiration: int) -> bool:
         """
         设置 Session 过期时间
-        
+
         Args:
             session_id: Session ID
             expiration: 过期时间（秒）
-        
+
         Returns:
             是否设置成功
         """
         # 检查 Session 是否存在
         if not self.exists(session_id):
             return False
-        
+
         # 更新过期时间
         expires_at = int(time.time()) + expiration
-        
+
         if self._use_pool:
             # 使用连接池
             with self._engine.connect() as conn:
                 conn.execute(text(f"""
-                    UPDATE {self._table_name} 
-                    SET expires_at = :expires_at 
+                    UPDATE {self._table_name}
+                    SET expires_at = :expires_at
                     WHERE session_id = :session_id
                 """), {
                     'expires_at': expires_at,
@@ -342,21 +341,21 @@ class DatabaseSession(SessionStoreBase):
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-                UPDATE {self._table_name} 
-                SET expires_at = ? 
+                UPDATE {self._table_name}
+                SET expires_at = ?
                 WHERE session_id = ?
             """, (expires_at, session_id))
             conn.commit()
-        
+
         return True
 
     def ttl(self, session_id: str) -> int:
         """
         获取 Session 剩余过期时间
-        
+
         Args:
             session_id: Session ID
-        
+
         Returns:
             剩余过期时间（秒），如果 Session 不存在则返回 -2，已过期则返回 -1
         """
@@ -364,7 +363,7 @@ class DatabaseSession(SessionStoreBase):
             # 使用连接池
             with self._engine.connect() as conn:
                 result = conn.execute(text(f"""
-                    SELECT expires_at FROM {self._table_name} 
+                    SELECT expires_at FROM {self._table_name}
                     WHERE session_id = :session_id
                 """), {'session_id': session_id})
                 row = result.fetchone()
@@ -373,28 +372,28 @@ class DatabaseSession(SessionStoreBase):
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-                SELECT expires_at FROM {self._table_name} 
+                SELECT expires_at FROM {self._table_name}
                 WHERE session_id = ?
             """, (session_id,))
             row = cursor.fetchone()
-        
+
         if row is None:
             return -2
-        
+
         # 计算剩余过期时间
         if self._use_pool:
             expires_at = row[0]
         else:
             expires_at = row['expires_at']
-        
+
         current_time = int(time.time())
         ttl = expires_at - current_time
-        
+
         if ttl <= 0:
             # 删除过期 Session
             self.delete(session_id)
             return -1
-        
+
         return ttl
 
     def clear(self) -> None:
@@ -416,7 +415,7 @@ class DatabaseSession(SessionStoreBase):
     def __len__(self) -> int:
         """
         获取 Session 数量
-        
+
         Returns:
             Session 数量
         """
@@ -464,7 +463,7 @@ class DatabaseSession(SessionStoreBase):
     def create(self) -> Session:
         """
         创建新的 Session 对象
-        
+
         Returns:
             Session 对象
         """
@@ -474,7 +473,7 @@ class DatabaseSession(SessionStoreBase):
     def save(self, session: Session) -> None:
         """
         保存 Session 数据
-        
+
         Args:
             session: Session 对象
         """

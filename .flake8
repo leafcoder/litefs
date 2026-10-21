@@ -1,0 +1,16 @@
+# flake8 配置（flake8 不支持读取 pyproject.toml，独立配置）
+# 与 [tool.black] / [tool.ruff] 的 line-length 保持一致
+[flake8]
+max-line-length = 100
+extend-exclude =
+    .eggs,
+    .git,
+    __pycache__,
+    .mypy_cache,
+    .ruff_cache,
+    .tox,
+    .venv,
+    venv,
+    build,
+    dist,
+    docs

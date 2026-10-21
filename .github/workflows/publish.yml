@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  # 手动触发用于正式发布到 TestPyPI / PyPI
+  # 标签推送仅执行测试与构建，不自动发布
+  workflow_dispatch:
 
 permissions:
   id-token: write  # 用于 Trusted Publishing (OIDC)
@@ -16,6 +19,16 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+    # 会话 / 缓存后端的集成测试需要运行中的 memcached 与 redis
+    services:
+      memcached:
+        image: memcached:1.6-alpine
+        ports:
+          - 11211:11211
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +82,8 @@ jobs:
     name: Publish to TestPyPI
     runs-on: ubuntu-latest
     needs: build
+    # 仅在手动触发时发布，标签推送不自动发布
+    if: github.event_name == 'workflow_dispatch'
     environment:
       name: testpypi
       url: https://test.pypi.org/project/litefs/
@@ -89,6 +104,8 @@ jobs:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: publish-testpypi
+    # 仅在手动触发时发布，标签推送不自动发布
+    if: github.event_name == 'workflow_dispatch'
     environment:
       name: pypi
       url: https://pypi.org/project/litefs/

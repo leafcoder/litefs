@@ -109,27 +109,26 @@ app.run()
 
 Litefs 提供了丰富的示例代码，位于 [examples/](https://github.com/leafcoder/litefs/tree/main/examples) 目录：
 
-### 经典示例目录
+### 示例目录
 
-- `01-hello-world/` - 快速入门示例
-- `02-routing/` - 路由系统示例
-- `03-blog/` - 博客应用示例
-- `04-api-service/` - API 服务示例
-- `05-fullstack/` - 完整应用示例
-- `06-sqlalchemy/` - SQLAlchemy 集成示例
-- `07-streaming/` - 流式响应示例
-- `08-comprehensive/` - **综合示例**（推荐新手）
+- `01-quickstart/` - 快速入门示例（路由、中间件、模板、静态文件）
+- `02-rest-api/` - REST API 示例（JWT 认证、CRUD、OpenAPI 文档）
+- `03-web-app/` - 博客系统示例（注册登录、OAuth2、文章评论、统计）
+- `04-realtime/` - 实时通信示例（WebSocket、房间管理、消息广播）
+- `05-production/` - 生产部署示例（多进程、日志、缓存、健康检查）
+- `06-prometheus-monitoring/` - Prometheus 监控示例
+- `07-database-migrations/` - 数据库迁移示例（Alembic）
+- `08-mail-service/` - 邮件服务示例
+- `09-i18n/` - 国际化示例
+
+完整说明见 [examples/README.md](https://github.com/leafcoder/litefs/tree/main/examples)。
 
 运行方式：
 
 ```bash
-cd examples/01-hello-world
+cd examples/01-quickstart
 python app.py
 ```
-
-### 独立示例文件
-
-- `asgi_example.py` - ASGI 示例
 
 ## WSGI 部署
 

@@ -13,24 +13,26 @@
 - Token 刷新
 - 认证中间件
 
-使用示例：
+使用示例::
+
     from litefs.auth import Auth, login_required, role_required
-    
+
     auth = Auth(app, secret_key='your-secret-key')
-    
+
     @route('/protected')
     @login_required
     def protected(request):
         return {'user': request.user.username}
-    
+
     @route('/admin')
     @role_required('admin')
     def admin_only(request):
         return {'message': 'Admin access'}
 
-OAuth2 示例：
+OAuth2 示例::
+
     from litefs.auth import OAuth2
-    
+
     oauth = OAuth2(app)
     oauth.register(
         name='github',
@@ -38,11 +40,11 @@ OAuth2 示例：
         client_secret='your-client-secret',
         redirect_uri='http://localhost:8080/auth/github/callback'
     )
-    
+
     @route('/login/github')
     def github_login(request):
         return oauth.authorize_redirect(request, 'github')
-    
+
     @route('/auth/github/callback')
     def github_callback(request):
         user_info = oauth.authorize_user(request, 'github')
@@ -53,7 +55,16 @@ from .jwt import JWTManager, create_token, decode_token
 from .password import hash_password, verify_password
 from .middleware import AuthMiddleware, login_required, role_required
 from .decorators import permission_required, current_user
-from .models import User, Role, Permission, init_default_roles_and_permissions, BaseUserStore, MemoryUserStore, get_user_store, set_user_store
+from .models import (
+    User,
+    Role,
+    Permission,
+    init_default_roles_and_permissions,
+    BaseUserStore,
+    MemoryUserStore,
+    get_user_store,
+    set_user_store,
+)
 from .oauth2 import OAuth2, OAuth2State, create_oauth2_blueprint
 from .providers import (
     OAuth2Provider,
@@ -101,10 +112,10 @@ __all__ = [
 class Auth:
     """
     认证授权管理器
-    
+
     提供完整的用户认证和授权功能。
     """
-    
+
     def __init__(
         self,
         app=None,
@@ -118,7 +129,7 @@ class Auth:
     ):
         """
         初始化认证管理器
-        
+
         Args:
             app: Litefs 应用实例
             secret_key: JWT 密钥
@@ -136,38 +147,38 @@ class Auth:
         self.token_location = token_location
         self.token_name = token_name
         self.token_prefix = token_prefix
-        
+
         self._jwt = JWTManager(
             secret_key=self.secret_key,
             algorithm=self.algorithm,
             access_token_expires=self.access_token_expires,
             refresh_token_expires=self.refresh_token_expires,
         )
-        
+
         self._middleware = AuthMiddleware(
             jwt_manager=self._jwt,
             token_location=token_location,
             token_name=token_name,
             token_prefix=token_prefix,
         )
-        
+
         if app:
             self.init_app(app)
-    
+
     def init_app(self, app):
         """
         初始化应用
-        
+
         Args:
             app: Litefs 应用实例
         """
         app.add_middleware(self._middleware.__class__, jwt_manager=self._jwt)
-        
+
         app.add_post('/auth/login', self.login_handler, name='auth_login')
         app.add_post('/auth/register', self.register_handler, name='auth_register')
         app.add_post('/auth/refresh', self.refresh_handler, name='auth_refresh')
         app.add_post('/auth/logout', self.logout_handler, name='auth_logout')
-    
+
     def login_handler(self, request):
         """登录处理"""
         data = request.json or {}
@@ -240,11 +251,11 @@ class Auth:
             'token_type': 'Bearer',
             'expires_in': self.access_token_expires,
         }
-    
+
     def logout_handler(self, request):
         """登出处理"""
         return {'message': '登出成功'}
-    
+
     def create_user(self, username: str, password: str, **kwargs):
         """
         创建用户

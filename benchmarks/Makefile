@@ -1,9 +1,10 @@
-.PHONY: install benchmark clean report help
+.PHONY: install benchmark check clean report help
 
 # 颜色定义
 GREEN  := \033[0;32m
 YELLOW := \033[0;33m
 BLUE   := \033[0;34m
+RED    := \033[0;31m
 NC     := \033[0m
 
 # 简化 PATH，避免参数过长
@@ -15,6 +16,7 @@ help:
 	@echo "可用命令:"
 	@echo "  $(GREEN)make install$(NC)    - 安装测试依赖"
 	@echo "  $(GREEN)make benchmark$(NC)  - 运行基准测试（10s，1/6进程，500/1000并发）"
+	@echo "  $(GREEN)make check$(NC)      - 比对最新结果与阈值基线（性能回退检测）"
 	@echo "  $(GREEN)make report$(NC)     - 查看最新测试报告"
 	@echo "  $(GREEN)make clean$(NC)      - 清理测试结果"
 	@echo ""
@@ -28,6 +30,10 @@ install:
 benchmark:
 	@echo "$(BLUE)运行性能基准测试...$(NC)"
 	$(PATH_PREFIX) python run_benchmark.py
+
+check:
+	@echo "$(BLUE)比对性能回归阈值...$(NC)"
+	@python compare_benchmark.py
 
 clean:
 	@echo "$(YELLOW)清理测试结果...$(NC)"

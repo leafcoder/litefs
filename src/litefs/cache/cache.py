@@ -4,13 +4,12 @@
 import os
 import sqlite3
 import time
-from collections import OrderedDict, deque
+from collections import OrderedDict
 from gzip import GzipFile
 from hashlib import sha1
 from io import BytesIO
 from mimetypes import guess_type
 from os import stat
-from posixpath import splitext as path_splitext
 from weakref import proxy
 from zlib import compress
 
@@ -34,10 +33,10 @@ class FileEventHandler(FileSystemEventHandler):
     def _should_reload(self, path):
         """
         判断文件变化是否需要重新加载应用
-        
+
         Args:
             path: 文件路径
-            
+
         Returns:
             True 表示需要重新加载，False 表示不需要
         """
@@ -69,7 +68,7 @@ class FileEventHandler(FileSystemEventHandler):
         # node_modules 目录
         if '/node_modules/' in path:
             return False
-        
+
         # Python 源文件变化需要重新加载
         if path.endswith('.py'):
             return True
@@ -81,7 +80,7 @@ class FileEventHandler(FileSystemEventHandler):
     def _can_reload_now(self):
         """
         检查现在是否可以触发重载（防止频繁重载）
-        
+
         Returns:
             True 表示可以触发重载，False 表示需要等待
         """
@@ -95,7 +94,7 @@ class FileEventHandler(FileSystemEventHandler):
     def add_monitored_file(self, path):
         """
         添加需要监控的文件
-        
+
         Args:
             path: 文件路径
         """
@@ -104,7 +103,7 @@ class FileEventHandler(FileSystemEventHandler):
     def _reload_app(self, event_type, path):
         """
         重新加载应用
-        
+
         Args:
             event_type: 事件类型
             path: 文件路径
@@ -112,15 +111,15 @@ class FileEventHandler(FileSystemEventHandler):
         # 检查是否可以触发重载（防止频繁重载）
         if not self._can_reload_now():
             return
-        
+
         log_info(self._app.logger, "File %s: %s, reloading application..." % (event_type, path))
-        
+
         # 标记需要重新加载
         self._app._need_reload = True
-        
+
         # 清除所有缓存
         self._app.caches.data.clear()
-        
+
         # 关闭服务器，触发重新加载
         if hasattr(self._app, 'server') and self._app.server:
             try:
@@ -131,23 +130,23 @@ class FileEventHandler(FileSystemEventHandler):
     def on_moved(self, event):
         src_path = event.src_path
         dest_path = event.dest_path
-        
+
         # 对于移动事件，需要特殊处理
         # 如果是 .py 文件移动到备份文件（如 quickstart.py -> quickstart.py~），不触发重载
         # 这是编辑器保存文件时的常见行为
         src_is_backup = src_path.endswith('~') or '~' in os.path.basename(src_path)
         dest_is_backup = dest_path.endswith('~') or '~' in os.path.basename(dest_path)
-        
+
         # 如果源文件或目标文件是备份文件，不触发重载
         if src_is_backup or dest_is_backup:
             return
-        
+
         # 对于不需要触发重载的文件，不记录日志，避免循环触发
         if not self._should_reload(src_path) and not self._should_reload(dest_path):
             return
-        
+
         log_info(self._app.logger, "%s has been moved to %s" % (src_path, dest_path))
-        
+
         # 判断是否需要重新加载应用
         if self._should_reload(src_path) or self._should_reload(dest_path):
             self._reload_app('moved', dest_path)
@@ -157,13 +156,13 @@ class FileEventHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         src_path = event.src_path
-        
+
         # 对于不需要触发重载的文件，不记录日志，避免循环触发
         if not self._should_reload(src_path):
             return
-        
+
         log_info(self._app.logger, "%s has been created" % src_path)
-        
+
         # 判断是否需要重新加载应用
         if self._should_reload(src_path):
             self._reload_app('created', src_path)
@@ -173,13 +172,13 @@ class FileEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         src_path = event.src_path
-        
+
         # 对于不需要触发重载的文件，不记录日志，避免循环触发
         if not self._should_reload(src_path):
             return
-        
+
         log_info(self._app.logger, "%s has been modified" % src_path)
-        
+
         # 判断是否需要重新加载应用
         if self._should_reload(src_path):
             self._reload_app('modified', src_path)
@@ -189,13 +188,13 @@ class FileEventHandler(FileSystemEventHandler):
 
     def on_deleted(self, event):
         src_path = event.src_path
-        
+
         # 对于不需要触发重载的文件，不记录日志，避免循环触发
         if not self._should_reload(src_path):
             return
-        
+
         log_info(self._app.logger, "%s has been deleted" % src_path)
-        
+
         # 判断是否需要重新加载应用
         if self._should_reload(src_path):
             self._reload_app('deleted', src_path)
@@ -210,7 +209,7 @@ class LiteFile(object):
         self.status_code = int(status_code)
         self.path = path
         self.text = text
-        self.etag = etag = sha1(text).hexdigest()
+        self.etag = sha1(text).hexdigest()
         self.zlib_text = zlib_text = compress(text, 9)[2:-4]
         self.zlib_etag = sha1(zlib_text).hexdigest()
         stream = BytesIO()
@@ -278,14 +277,14 @@ class TreeCache(CacheBackendBase):
 
     def put(self, key, val, expiration=None):
         current_time = time.time()
-        
+
         # 检查是否需要清理
         if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
-        
+
         # 使用传入的 expiration 或默认的 expiration_time
         effective_expiration = expiration if expiration is not None else self.expiration_time
-        
+
         timestamp = int(current_time)
         if key not in self.data:
             self.conn.execute(
@@ -306,27 +305,32 @@ class TreeCache(CacheBackendBase):
 
     def get(self, key):
         current_time = time.time()
-        
+
         # 检查是否需要清理
         if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
-        
+
         ret = self.data.get(key)
         if ret is None:
+            self.stats.record_miss()
             return None
-        val, timestamp, expiration = ret[0], ret[1], ret[2] if len(ret) > 2 else self.expiration_time
+        val, timestamp, expiration = (
+            ret[0], ret[1], ret[2] if len(ret) > 2 else self.expiration_time
+        )
         if int(current_time - timestamp) > expiration:
             del self.data[key]
+            self.stats.record_miss()
             return None
+        self.stats.record_hit()
         return val
 
     def delete(self, key):
         current_time = time.time()
-        
+
         # 检查是否需要清理
         if current_time - self.clean_time >= self.clean_period:
             self.auto_clean()
-        
+
         curr = self.conn.execute(
             """\
             SELECT key FROM cache WHERE key=? OR key LIKE ?;
@@ -347,21 +351,21 @@ class TreeCache(CacheBackendBase):
 
     def auto_clean(self):
         """优化的清理机制
-        
+
         避免每次清理都查询数据库，只在清理周期到达时执行清理
         """
         current_time = time.time()
-        
+
         # 检查是否达到清理周期，避免频繁清理
         if current_time - self.clean_time < self.clean_period:
             return
-        
+
         # 使用批量删除，避免先查询再删除（默认过期时间）
         self.conn.execute(
             "DELETE FROM cache WHERE timestamp < ?;",
             (int(current_time - self.expiration_time),)
         )
-        
+
         # 清理内存缓存，考虑每条记录的独立过期时间
         expired_keys = [
             k for k, v in self.data.items()
@@ -369,7 +373,7 @@ class TreeCache(CacheBackendBase):
         ]
         for key in expired_keys:
             del self.data[key]
-        
+
         # 更新清理时间
         self.clean_time = current_time
 
@@ -438,11 +442,14 @@ class MemoryCache(CacheBackendBase):
 
     def get(self, key):
         if self._is_expired(key):
+            self.stats.record_miss()
             return None
         val = self._cache.get(key)
         if val is None:
+            self.stats.record_miss()
             return None
         self._cache.move_to_end(key)
+        self.stats.record_hit()
         return val
 
     def delete(self, key):

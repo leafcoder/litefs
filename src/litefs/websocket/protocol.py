@@ -11,7 +11,7 @@ import struct
 import hashlib
 import base64
 from enum import IntEnum
-from typing import Tuple, Optional, Union
+from typing import Tuple
 
 
 class Opcode(IntEnum):
@@ -44,7 +44,7 @@ class CloseCode(IntEnum):
 
 class Frame:
     """WebSocket 帧"""
-    
+
     def __init__(
         self,
         opcode: int,
@@ -64,35 +64,35 @@ class Frame:
         self.rsv3 = rsv3
         self.masked = masked
         self.masking_key = masking_key
-    
+
     @classmethod
     def parse(cls, data: bytes) -> Tuple['Frame', int]:
         """
         解析 WebSocket 帧
-        
+
         Args:
             data: 原始字节数据
-            
+
         Returns:
             (Frame 对象, 消耗的字节数)
         """
         if len(data) < 2:
             return None, 0
-        
+
         first_byte = data[0]
         second_byte = data[1]
-        
+
         fin = bool(first_byte & 0x80)
         rsv1 = bool(first_byte & 0x40)
         rsv2 = bool(first_byte & 0x20)
         rsv3 = bool(first_byte & 0x10)
         opcode = first_byte & 0x0F
-        
+
         masked = bool(second_byte & 0x80)
         payload_len = second_byte & 0x7F
-        
+
         offset = 2
-        
+
         if payload_len == 126:
             if len(data) < offset + 2:
                 return None, 0
@@ -103,22 +103,22 @@ class Frame:
                 return None, 0
             payload_len = struct.unpack('!Q', data[offset:offset+8])[0]
             offset += 8
-        
+
         masking_key = None
         if masked:
             if len(data) < offset + 4:
                 return None, 0
             masking_key = data[offset:offset+4]
             offset += 4
-        
+
         if len(data) < offset + payload_len:
             return None, 0
-        
+
         payload = data[offset:offset+payload_len]
-        
+
         if masked and masking_key:
             payload = cls._apply_mask(payload, masking_key)
-        
+
         frame = cls(
             opcode=opcode,
             payload=payload,
@@ -129,22 +129,22 @@ class Frame:
             masked=masked,
             masking_key=masking_key,
         )
-        
+
         return frame, offset + payload_len
-    
+
     def build(self, mask: bool = False, masking_key: bytes = None) -> bytes:
         """
         构建 WebSocket 帧字节
-        
+
         Args:
             mask: 是否掩码
             masking_key: 掩码密钥
-            
+
         Returns:
             帧字节数据
         """
         first_byte = self.opcode
-        
+
         if self.fin:
             first_byte |= 0x80
         if self.rsv1:
@@ -153,22 +153,22 @@ class Frame:
             first_byte |= 0x20
         if self.rsv3:
             first_byte |= 0x10
-        
+
         payload = self.payload
         payload_len = len(payload)
-        
+
         if mask:
             if masking_key is None:
                 import os
                 masking_key = os.urandom(4)
             payload = self._apply_mask(payload, masking_key)
-        
+
         second_byte = 0
         if mask:
             second_byte |= 0x80
-        
+
         header = bytes([first_byte])
-        
+
         if payload_len <= 125:
             header += bytes([second_byte | payload_len])
         elif payload_len <= 65535:
@@ -177,12 +177,12 @@ class Frame:
         else:
             header += bytes([second_byte | 127])
             header += struct.pack('!Q', payload_len)
-        
+
         if mask:
             header += masking_key
-        
+
         return header + payload
-    
+
     @staticmethod
     def _apply_mask(data: bytes, mask: bytes) -> bytes:
         """应用掩码"""
@@ -195,10 +195,10 @@ class Frame:
 def compute_accept_key(key: str) -> str:
     """
     计算 Sec-WebSocket-Accept 值
-    
+
     Args:
         key: Sec-WebSocket-Key 值
-        
+
     Returns:
         Sec-WebSocket-Accept 值
     """
@@ -210,30 +210,30 @@ def compute_accept_key(key: str) -> str:
 def parse_close_payload(payload: bytes) -> Tuple[int, str]:
     """
     解析关闭帧负载
-    
+
     Args:
         payload: 关闭帧负载
-        
+
     Returns:
         (状态码, 原因)
     """
     if len(payload) < 2:
         return CloseCode.NO_STATUS, ''
-    
+
     code = struct.unpack('!H', payload[:2])[0]
     reason = payload[2:].decode('utf-8', errors='replace')
-    
+
     return code, reason
 
 
 def build_close_payload(code: int, reason: str = '') -> bytes:
     """
     构建关闭帧负载
-    
+
     Args:
         code: 状态码
         reason: 原因
-        
+
     Returns:
         负载字节
     """

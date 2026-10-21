@@ -174,4 +174,5 @@ openapi.add_security_scheme('apiKey', {
 
 ## 完整示例
 
-参见 [examples/17-openapi-docs/app.py](../examples/17-openapi-docs/app.py)
+参见 [examples/02-rest-api/app.py](../../examples/02-rest-api/app.py)，
+其中通过 `OpenAPI(app, title='任务管理 API', ...)` 挂载了完整的 OpenAPI 规范。

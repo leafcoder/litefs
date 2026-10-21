@@ -2,7 +2,6 @@
 # coding: utf-8
 
 import os
-import sys
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
@@ -34,16 +33,16 @@ class Config:
         'config_file': None,              # 配置文件路径
         'error_pages_dir': None,          # 错误页面目录
         'config_env': None,               # 环境名称（如 development, production）
-        'default_page': 'index,index.html', # 默认页面
-        
+        'default_page': 'index,index.html',  # 默认页面
+
         # 缓存配置
         'cache_backend': 'tree',          # 缓存后端类型（memory, tree, redis, database, memcache）
         'cache_max_size': 10000,          # 内存缓存最大容量
         'cache_clean_period': 60,         # 缓存清理周期（秒）
         'cache_expiration_time': 3600,    # 缓存过期时间（秒）
         'file_cache_clean_period': 60,    # 文件缓存清理周期（秒）
-        'file_cache_expiration_time': 3600, # 文件缓存过期时间（秒）
-        
+        'file_cache_expiration_time': 3600,  # 文件缓存过期时间（秒）
+
         # 会话配置
         'session_backend': 'memory',      # 会话后端类型（memory, redis, database, memcache）
         'session_max_size': 1000000,      # 会话最大容量
@@ -52,41 +51,66 @@ class Config:
         'session_secure': None,           # 是否使用安全cookie (None=自动检测，生产环境True，开发环境False)
         'session_http_only': True,        # 是否仅HTTP访问
         'session_same_site': 'Lax',       # SameSite策略（Strict, Lax, None）
-        
+
         # Redis 配置
         'redis_host': 'localhost',        # Redis 主机地址
         'redis_port': 6379,               # Redis 端口
         'redis_db': 0,                    # Redis 数据库编号
         'redis_password': None,           # Redis 密码
         'redis_key_prefix': 'litefs:',    # Redis 缓存键前缀
-        'redis_session_key_prefix': 'litefs:session:', # Redis 会话键前缀
-        
+        'redis_session_key_prefix': 'litefs:session:',  # Redis 会话键前缀
+
         # 数据库配置
         'database_url': None,             # 数据库连接 URL
-        'database_session_table': 'sessions', # 会话表名
+        'database_session_table': 'sessions',  # 会话表名
         'database_cache_table': 'cache',  # 缓存表名
         'database_pool_size': 10,         # 连接池大小
         'database_max_overflow': 20,      # 连接池最大溢出数
         'database_pool_timeout': 30,      # 连接池超时时间（秒）
         'database_pool_recycle': 3600,    # 连接回收时间（秒）
-        
+
         # Memcache 配置
-        'memcache_servers': 'localhost:11211', # Memcache 服务器列表
-        'memcache_key_prefix': 'litefs:', # Memcache 缓存键前缀
-        'memcache_session_key_prefix': 'litefs:session:', # Memcache 会话键前缀
-        
+        'memcache_servers': 'localhost:11211',  # Memcache 服务器列表
+        'memcache_key_prefix': 'litefs:',  # Memcache 缓存键前缀
+        'memcache_session_key_prefix': 'litefs:session:',  # Memcache 会话键前缀
+
         # Celery 任务队列配置
         'celery_broker': None,            # Celery Broker URL (如 redis://localhost:6379/0)
         'celery_backend': None,           # Celery Result Backend URL
         'celery_config': None,            # Celery 额外配置字典
-        
+
+        # Prometheus 监控配置
+        'prometheus_enabled': False,      # 是否启用 Prometheus 监控中间件
+        'prometheus_path': '/metrics',    # 指标暴露路径
+        'prometheus_namespace': 'litefs',  # 指标命名空间前缀
+
+        # 邮件发送配置
+        'mail_host': 'localhost',          # SMTP 服务器地址
+        'mail_port': 25,                   # SMTP 服务器端口
+        'mail_username': None,             # SMTP 认证用户名
+        'mail_password': None,             # SMTP 认证密码
+        'mail_use_tls': True,              # 是否使用 STARTTLS 加密
+        'mail_use_ssl': False,             # 是否使用隐式 SSL
+        'mail_timeout': 30,                # 连接与发送超时（秒）
+        'mail_default_from': None,         # 默认发件人地址
+        'mail_template_dir': 'templates/email',  # 邮件模板目录
+        'mail_max_retries': 3,             # 发送失败的最大重试次数
+
+        # 国际化配置
+        'i18n_enabled': False,             # 是否启用国际化中间件
+        'i18n_default_locale': 'en',       # 默认 locale
+        'i18n_supported_locales': ['en'],  # 受支持的 locale 列表
+        'i18n_locale_dir': 'locales',      # 翻译文件根目录
+        'i18n_cookie_name': 'locale',      # 存放 locale 的 Cookie 名称
+        'i18n_param_name': 'locale',       # 存放 locale 的查询参数名称
+
         # 配置管理
         'config_encrypted_keys': [],      # 需要加密的配置键
         'config_secret_key': None,        # 配置加密密钥
     }
 
     ENV_PREFIX = 'LITEFS_'
-    
+
     def __init__(self, config_file: Optional[str] = None, **kwargs):
         """
         初始化配置
@@ -97,52 +121,52 @@ class Config:
         """
         self._config: Dict[str, Any] = {}
         self._config_files: List[str] = []  # 已加载的配置文件列表
-        
+
         # 加载默认配置
         self._load_default_config()
-        
+
         # 确定配置文件路径
         config_path = config_file or kwargs.get('config_file')
-        
+
         # 加载分层配置
         if config_path:
             self._load_layered_configs(config_path)
         else:
             # 尝试自动加载配置文件
             self._load_auto_configs()
-        
+
         # 加载环境变量
         self._load_env_vars()
-        
+
         # 应用代码配置
         self._update_config(kwargs)
-        
+
         # 验证配置
         self._validate_config()
-    
+
     def _load_default_config(self):
         """加载默认配置"""
         self._config.update(self.DEFAULT_CONFIG.copy())
-    
+
     def _load_auto_configs(self):
         """自动加载配置文件"""
         config_dir = Path('.')
         env = os.getenv(f'{self.ENV_PREFIX}CONFIG_ENV', 'development')
-        
+
         # 尝试加载环境配置和本地配置
         env_config = config_dir / f'config.{env}.yaml'
         local_config = config_dir / 'config.local.yaml'
-        
+
         if env_config.exists():
             self._load_config_file(str(env_config))
-        
+
         if local_config.exists():
             self._load_config_file(str(local_config))
-    
+
     def _load_layered_configs(self, config_file: str):
         """
         加载分层配置文件
-        
+
         1. 基础配置文件（如 config.yaml）
         2. 环境配置文件（如 config.production.yaml）
         3. 本地配置文件（如 config.local.yaml）
@@ -151,22 +175,22 @@ class Config:
         config_dir = config_path.parent
         base_name = config_path.stem
         ext = config_path.suffix
-        
+
         # 加载基础配置
         if config_path.exists():
             self._load_config_file(str(config_path))
-        
+
         # 加载环境配置
         env = os.getenv(f'{self.ENV_PREFIX}CONFIG_ENV', 'development')
         env_config = config_dir / f'{base_name}.{env}{ext}'
         if env_config.exists():
             self._load_config_file(str(env_config))
-        
+
         # 加载本地配置
         local_config = config_dir / f'{base_name}.local{ext}'
         if local_config.exists():
             self._load_config_file(str(local_config))
-    
+
     def _load_config_file(self, config_file: str):
         """
         加载配置文件
@@ -177,16 +201,16 @@ class Config:
             config_file: 配置文件路径
         """
         config_path = Path(config_file)
-        
+
         if not config_path.exists():
             raise FileNotFoundError(f"配置文件不存在: {config_file}")
-        
+
         # 记录已加载的配置文件
         if str(config_path) not in self._config_files:
             self._config_files.append(str(config_path))
-        
+
         file_ext = config_path.suffix.lower()
-        
+
         if file_ext in ['.yaml', '.yml']:
             self._load_yaml_config(config_path)
         elif file_ext == '.json':
@@ -195,7 +219,7 @@ class Config:
             self._load_toml_config(config_path)
         else:
             raise ValueError(f"不支持的配置文件格式: {file_ext}")
-    
+
     def _validate_config(self):
         """
         验证配置的有效性
@@ -204,29 +228,29 @@ class Config:
         valid_cache_backends = ['memory', 'tree', 'redis', 'database', 'memcache']
         if self._config.get('cache_backend') not in valid_cache_backends:
             raise ValueError(f"无效的缓存后端: {self._config.get('cache_backend')}")
-        
+
         # 验证会话后端
         valid_session_backends = ['memory', 'redis', 'database', 'memcache']
         if self._config.get('session_backend') not in valid_session_backends:
             raise ValueError(f"无效的会话后端: {self._config.get('session_backend')}")
-        
+
         # 验证 SameSite 策略
         valid_same_site = ['Strict', 'Lax', 'None']
         if self._config.get('session_same_site') not in valid_same_site:
             raise ValueError(f"无效的 SameSite 策略: {self._config.get('session_same_site')}")
-        
+
         # 验证端口
         port = self._config.get('port')
         if not isinstance(port, int) or port < 1 or port > 65535:
             raise ValueError(f"无效的端口: {port}")
-        
+
         # 环境感知的安全配置
         self._apply_security_defaults()
-    
+
     def _apply_security_defaults(self):
         """
         应用环境感知的安全配置默认值
-        
+
         根据运行环境自动调整安全相关配置：
         - 生产环境：启用所有安全特性
         - 开发环境：放宽部分安全限制以便于开发
@@ -234,7 +258,7 @@ class Config:
         # 检测是否为生产环境
         env = os.getenv(f'{self.ENV_PREFIX}CONFIG_ENV', 'development')
         is_production = env.lower() in ('production', 'prod', 'live')
-        
+
         # 自动设置 session_secure
         if self._config.get('session_secure') is None:
             self._config['session_secure'] = is_production
@@ -250,7 +274,7 @@ class Config:
                     UserWarning,
                     stacklevel=3
                 )
-        
+
         # 生产环境强制安全配置检查
         if is_production:
             if not self._config.get('session_secure'):
@@ -261,7 +285,7 @@ class Config:
                     UserWarning,
                     stacklevel=3
                 )
-            
+
             if self._config.get('debug'):
                 import warnings
                 warnings.warn(
@@ -270,16 +294,14 @@ class Config:
                     UserWarning,
                     stacklevel=3
                 )
-            
+
             if self._config.get('session_same_site') == 'None':
                 if not self._config.get('session_secure'):
                     raise ValueError(
                         "安全配置错误：SameSite=None 必须配合 Secure=True 使用。"
                         "请设置 session_secure=True 或更改 session_same_site 配置。"
                     )
-    
 
-    
     @staticmethod
     def _derive_fernet_key(secret_key: str) -> bytes:
         """
@@ -375,7 +397,7 @@ class Config:
         # 反序列化
         import json
         return json.loads(decrypted.decode())
-    
+
     def _load_yaml_config(self, config_path: Path):
         """加载 YAML 配置文件"""
         try:
@@ -386,7 +408,7 @@ class Config:
                     self._update_config(config_data)
         except ImportError:
             raise ImportError("需要安装 PyYAML: pip install pyyaml")
-    
+
     def _load_json_config(self, config_path: Path):
         """加载 JSON 配置文件"""
         import json
@@ -394,7 +416,7 @@ class Config:
             config_data = json.load(f)
             if config_data:
                 self._update_config(config_data)
-    
+
     def _load_toml_config(self, config_path: Path):
         """加载 TOML 配置文件"""
         try:
@@ -412,20 +434,22 @@ class Config:
                         self._update_config(config_data)
             except ImportError:
                 raise ImportError("需要安装 tomli (Python < 3.11): pip install tomli")
-    
+
     def _load_env_vars(self):
         """加载环境变量"""
         for key, default_value in self.DEFAULT_CONFIG.items():
             env_key = f"{self.ENV_PREFIX}{key.upper()}"
             env_value = os.getenv(env_key)
-            
+
             if env_value is not None:
                 self._config[key] = self._parse_env_value(env_value, default_value)
-        
+
         # 处理 memcache_servers 配置，确保它是一个列表
         if isinstance(self._config.get('memcache_servers'), str):
-            self._config['memcache_servers'] = [s.strip() for s in self._config['memcache_servers'].split(',')]
-    
+            self._config['memcache_servers'] = [
+                s.strip() for s in self._config['memcache_servers'].split(',')
+            ]
+
     def _parse_env_value(self, value: str, default_value: Any) -> Any:
         """
         解析环境变量值
@@ -447,7 +471,7 @@ class Config:
             return [v.strip() for v in value.split(',')]
         else:
             return value
-    
+
     def _update_config(self, config_data: Dict[str, Any]):
         """
         更新配置
@@ -468,11 +492,13 @@ class Config:
                         self._config[key] = value
                 else:
                     self._config[key] = value
-        
+
         # 处理 memcache_servers 配置，确保它是一个列表
         if isinstance(self._config.get('memcache_servers'), str):
-            self._config['memcache_servers'] = [s.strip() for s in self._config['memcache_servers'].split(',')]
-    
+            self._config['memcache_servers'] = [
+                s.strip() for s in self._config['memcache_servers'].split(',')
+            ]
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         获取配置项
@@ -485,7 +511,7 @@ class Config:
             配置值
         """
         return self._config.get(key, default)
-    
+
     def set(self, key: str, value: Any):
         """
         设置配置项
@@ -498,7 +524,7 @@ class Config:
             self._config[key] = value
         else:
             raise ValueError(f"未知的配置项: {key}")
-    
+
     def update(self, **kwargs):
         """
         批量更新配置
@@ -508,7 +534,7 @@ class Config:
         """
         for key, value in kwargs.items():
             self.set(key, value)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         转换为字典
@@ -517,13 +543,13 @@ class Config:
             配置字典
         """
         return self._config.copy()
-    
+
     def __getattr__(self, name: str) -> Any:
         """通过属性访问配置"""
         if name in self._config:
             return self._config[name]
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
-    
+
     def __setattr__(self, name: str, value: Any):
         """通过属性设置配置"""
         if name.startswith('_') or name == 'ENV_PREFIX':
@@ -532,23 +558,23 @@ class Config:
             self._config[name] = value
         else:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
-    
+
     def __repr__(self) -> str:
         """字符串表示"""
         return f"Config({self._config})"
-    
+
     def __contains__(self, key: str) -> bool:
         """检查配置项是否存在"""
         return key in self._config
-    
+
     def keys(self) -> List[str]:
         """获取所有配置键"""
         return list(self._config.keys())
-    
+
     def values(self) -> List[Any]:
         """获取所有配置值"""
         return list(self._config.values())
-    
+
     def items(self) -> List[tuple]:
         """获取所有配置项"""
         return list(self._config.items())
@@ -564,18 +590,18 @@ def load_config(
 
     Args:
         config_file: 配置文件路径
-        env_prefix: 环境变量前缀（默认为 LITEFS_）
+        env_prefix: 环境变量前缀（默认为 ``LITEFS_``）
         **kwargs: 其他配置项
 
     Returns:
         Config 对象
     """
     config = Config(config_file=config_file, **kwargs)
-    
+
     if env_prefix:
         config.ENV_PREFIX = env_prefix
         config._load_env_vars()
-    
+
     return config
 
 
@@ -592,11 +618,11 @@ def merge_configs(*configs: Union[Config, Dict[str, Any]]) -> Config:
     merged_config = Config.__new__(Config)
     merged_config._config = {}
     merged_config._config.update(merged_config.DEFAULT_CONFIG.copy())
-    
+
     for config in configs:
         if isinstance(config, Config):
             merged_config._config.update(config.to_dict())
         elif isinstance(config, dict):
             merged_config._config.update(config)
-    
+
     return merged_config

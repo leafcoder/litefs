@@ -7,5 +7,6 @@
 
 from .core import Database, DatabaseManager
 from .models import Base
+from .migrations import AlembicManager
 
-__all__ = ['Database', 'DatabaseManager', 'Base']
+__all__ = ['Database', 'DatabaseManager', 'Base', 'AlembicManager']

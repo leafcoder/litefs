@@ -13,7 +13,7 @@
 """
 
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .exceptions import ValidationError
 
@@ -27,14 +27,14 @@ class Validator:
     def validate(self, value: Any, field_name: str = None) -> Any:
         """
         验证值
-        
+
         Args:
             value: 要验证的值
             field_name: 字段名称
-        
+
         Returns:
             验证后的值
-        
+
         Raises:
             ValidationError: 验证失败
         """
@@ -172,7 +172,8 @@ class URLValidator(Validator):
         message: str = "请输入有效的 URL"
     ):
         self.pattern = re.compile(
-            r'^https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b(?:[-a-zA-Z0-9@:%_\+.~#?&//=]*)$'
+            r'^https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b'
+            r'(?:[-a-zA-Z0-9@:%_\+.~#?&//=]*)$'
         )
         super().__init__(message)
 
@@ -250,7 +251,7 @@ class FormValidator:
     ):
         """
         添加字段验证器
-        
+
         Args:
             field_name: 字段名称
             validators: 验证器或验证器列表
@@ -262,10 +263,10 @@ class FormValidator:
     def validate(self, data: Dict[str, Any]) -> Tuple[bool, Dict[str, List[str]]]:
         """
         验证表单数据
-        
+
         Args:
             data: 表单数据字典
-        
+
         Returns:
             (是否验证成功, 错误字典)
         """

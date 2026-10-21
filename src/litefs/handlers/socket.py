@@ -10,21 +10,23 @@
 
 import itertools
 import json
+import re
+from errno import EAGAIN, EWOULDBLOCK
 from http.cookies import SimpleCookie
-from io import BytesIO, DEFAULT_BUFFER_SIZE, StringIO
-from tempfile import TemporaryFile
+from io import DEFAULT_BUFFER_SIZE, StringIO
 from urllib.parse import unquote_plus
 
 from ..exceptions import HttpError
 from ..session import Session
-from ..utils import gmt_date, log_debug, log_error, render_error
+from ..utils import log_error, render_error
 from .base import BaseRequestHandler
 from .form import parse_form, parse_header, parse_multipart_stream
-from .response import (
+from .response import (  # noqa: F401  # server_info/server_software 为对外再导出
     DEFAULT_STATUS_MESSAGE,
     default_content_type,
     json_content_type,
     server_info,
+    server_software,
 )
 
 
@@ -47,7 +49,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
     default_headers = {
         "Content-Type": default_content_type,
-        "Server": "litefs/0.8.3",
+        "Server": server_software,
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "X-XSS-Protection": "1; mode=block"
@@ -304,7 +306,10 @@ class SocketRequestHandler(BaseRequestHandler):
 
         # 先检查是否是可迭代对象（但不是字符串、字节、元组、列表或字典）
         from collections.abc import Iterable
-        if not isinstance(s, (str, bytes, tuple, list, dict, type(None))) and isinstance(s, Iterable):
+        if (
+            not isinstance(s, (str, bytes, tuple, list, dict, type(None)))
+            and isinstance(s, Iterable)
+        ):
             try:
                 iter_s = iter(s)
                 first = next(iter_s)
@@ -315,7 +320,11 @@ class SocketRequestHandler(BaseRequestHandler):
             if is_bytes(first):
                 new_iter_s = itertools.chain([first], iter_s)
             elif isinstance(first, str):
-                encoder = lambda item: str(item).encode("utf-8")
+
+                def encoder(item):
+                    """将元素编码为 UTF-8 字节串"""
+                    return str(item).encode("utf-8")
+
                 new_iter_s = itertools.chain([first], iter_s)
                 new_iter_s = imap(encoder, new_iter_s)
             else:
@@ -384,8 +393,6 @@ class SocketRequestHandler(BaseRequestHandler):
         Returns:
             响应头字典
         """
-        from http.client import responses as http_status_codes
-
         # 添加 self._response_headers 中的响应头
         existing_header_names = [h[0].lower() for h in (extra_headers or [])]
         for header, value in self._response_headers.items():
@@ -398,7 +405,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
         # 添加标准头部
         standard_headers = [
-            ("Server", "litefs/0.8.3"),
+            ("Server", server_software),
             ("X-Content-Type-Options", "nosniff"),
             ("X-Frame-Options", "SAMEORIGIN"),
             ("X-XSS-Protection", "1; mode=block")
@@ -430,9 +437,14 @@ class SocketRequestHandler(BaseRequestHandler):
             elif isinstance(content, bytes):
                 # 字节内容，默认为二进制流
                 extra_headers = [("Content-Type", "application/octet-stream")] + list(extra_headers)
-            elif not isinstance(content, (str, bytes, type(None))) and isinstance(content, Iterable):
+            elif (
+                not isinstance(content, (str, bytes, type(None)))
+                and isinstance(content, Iterable)
+            ):
                 # 其他可迭代对象
-                extra_headers = [("Content-Type", "text/plain; charset=utf-8")] + list(extra_headers)
+                extra_headers = [
+                    ("Content-Type", "text/plain; charset=utf-8")
+                ] + list(extra_headers)
             else:
                 # 其他类型默认为 text/html
                 extra_headers = [("Content-Type", default_content_type)] + list(extra_headers)
@@ -474,7 +486,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
         # 添加标准头部
         standard_headers = [
-            ("Server", "litefs/0.8.3"),
+            ("Server", server_software),
             ("X-Content-Type-Options", "nosniff"),
             ("X-Frame-Options", "SAMEORIGIN"),
             ("X-XSS-Protection", "1; mode=block")
@@ -504,7 +516,10 @@ class SocketRequestHandler(BaseRequestHandler):
             elif isinstance(content, bytes):
                 # 字节内容，默认为二进制流
                 headers = [("Content-Type", "application/octet-stream")] + list(headers)
-            elif not isinstance(content, (str, bytes, type(None))) and isinstance(content, Iterable):
+            elif (
+                not isinstance(content, (str, bytes, type(None)))
+                and isinstance(content, Iterable)
+            ):
                 # 其他可迭代对象
                 headers = [("Content-Type", "text/plain; charset=utf-8")] + list(headers)
             else:
@@ -540,7 +555,10 @@ class SocketRequestHandler(BaseRequestHandler):
                 else:
                     content_length = len(content)
                 headers.append(("Content-Length", str(content_length)))
-            elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+            elif (
+                not isinstance(content, (dict, list, tuple, type(None)))
+                and isinstance(content, Iterable)
+            ):
                 # 对于生成器等可迭代对象，使用 Transfer-Encoding: chunked
                 headers.append(("Transfer-Encoding", "chunked"))
 
@@ -597,7 +615,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
             # 添加标准头部（如果不存在）
             standard_headers = {
-                "Server": "litefs/0.8.3",
+                "Server": server_software,
                 "X-Content-Type-Options": "nosniff",
                 "X-Frame-Options": "SAMEORIGIN",
                 "X-XSS-Protection": "1; mode=block"
@@ -642,7 +660,10 @@ class SocketRequestHandler(BaseRequestHandler):
                     else:
                         content_length = len(content)
                     headers["Content-Length"] = str(content_length)
-                elif not isinstance(content, (dict, list, tuple, type(None))) and isinstance(content, Iterable):
+                elif (
+                    not isinstance(content, (dict, list, tuple, type(None)))
+                    and isinstance(content, Iterable)
+                ):
                     # 对于生成器等可迭代对象，使用 Transfer-Encoding: chunked
                     headers["Transfer-Encoding"] = "chunked"
 
@@ -663,7 +684,10 @@ class SocketRequestHandler(BaseRequestHandler):
                 rw.write(b"")
             else:
                 # 检查是否使用 chunked 编码
-                if has_transfer_encoding and headers.get("Transfer-Encoding", "").lower() == "chunked":
+                if (
+                    has_transfer_encoding
+                    and headers.get("Transfer-Encoding", "").lower() == "chunked"
+                ):
                     # 使用 chunked 编码格式写入数据
                     for chunk in self._cast(content):
                         # 计算 chunk 长度并转换为十六进制
@@ -694,7 +718,7 @@ class SocketRequestHandler(BaseRequestHandler):
                     line = line.encode("utf-8")
                     rw.write(line)
                     rw.write("Content-Type: text/html; charset=utf-8\r\n".encode("utf-8"))
-                    rw.write("Server: litefs/0.8.3\r\n".encode("utf-8"))
+                    rw.write(f"Server: {server_software}\r\n".encode("utf-8"))
                     rw.write("X-Content-Type-Options: nosniff\r\n".encode("utf-8"))
                     rw.write("X-Frame-Options: SAMEORIGIN\r\n".encode("utf-8"))
                     rw.write("X-XSS-Protection: 1; mode=block\r\n".encode("utf-8"))
@@ -740,12 +764,15 @@ class SocketRequestHandler(BaseRequestHandler):
             request_method = environ["REQUEST_METHOD"]
 
             # 尝试使用路由系统处理请求
-            route_match = app.router.match(path_info, request_method)
+            route_match = app.router.match_with_route(path_info, request_method)
             if route_match:
-                handler, params = route_match
+                route, params = route_match
+                handler = route.handler
                 try:
                     # 将路由参数添加到请求对象
+                    setattr(self, 'route_path', route.path)
                     setattr(self, 'route_params', params)
+                    setattr(self, 'path_params', params)
                     result = handler(self, **params)
 
                     # 处理 Response 对象
@@ -778,9 +805,6 @@ class SocketRequestHandler(BaseRequestHandler):
 RequestHandler = SocketRequestHandler
 
 # 导出常量以保持向后兼容
-from errno import EAGAIN, EWOULDBLOCK
-import re
-
 EOFS = ("", "\n", "\r\n")
 POSTS_HEADER_NAME = "litefs.posts"
 FILES_HEADER_NAME = "litefs.files"
