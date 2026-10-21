@@ -8,8 +8,9 @@
 """
 
 import os
-import warnings
 from typing import TYPE_CHECKING, Any, List, Optional
+
+from ..deprecation import deprecated
 
 if TYPE_CHECKING:
     from ..config import Config
@@ -199,6 +200,7 @@ class ExtensionMixin:
         """
         return self.db_manager.get_session(name)
 
+    @deprecated(symbol="litefs.core:Litefs.session")
     def session(self, name: str = 'default') -> Any:
         """
         获取数据库会话（别名，已废弃，建议使用 db_session）
@@ -209,10 +211,6 @@ class ExtensionMixin:
         Returns:
             数据库会话实例
         """
-        warnings.warn(
-            'session() method is deprecated, use db_session() instead',
-            DeprecationWarning,
-        )
         return self.db_session(name)
 
     def create_all_tables(self, name: str = 'default'):
