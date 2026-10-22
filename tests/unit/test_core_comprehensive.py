@@ -232,19 +232,31 @@ class TestLitefsErrorHandling:
         assert app.error_page_renderer is not None
     
     def test_custom_error_handler(self):
-        """测试自定义错误处理器"""
+        """测试自定义错误页面渲染（ErrorPageRenderer 自定义模板）"""
         app = Litefs()
-        
-        def custom_error_handler(request, error):
-            return f"Custom Error: {error}"
-        
-        # 检查是否有 set_error_handler 方法
-        if hasattr(app, 'set_error_handler'):
-            app.set_error_handler(custom_error_handler)
-            assert app.error_handler == custom_error_handler
-        else:
-            # 如果没有该方法，跳过此测试
-            pytest.skip("set_error_handler method not available")
+
+        # 框架的自定义错误处理机制为 ErrorPageRenderer 自定义模板目录
+        with tempfile.TemporaryDirectory() as error_dir:
+            with open(os.path.join(error_dir, "404.html"), "w", encoding="utf-8") as f:
+                f.write(
+                    "<html><body>Custom 404:"
+                    "{{ERROR_MESSAGE}}{{ERROR_DETAIL}}</body></html>"
+                )
+
+            from litefs.error_pages import ErrorPageRenderer
+
+            app.error_page_renderer = ErrorPageRenderer(error_dir)
+            renderer = app.error_page_renderer
+
+            # 自定义模板被加载，默认模板被覆盖
+            assert 404 in renderer._custom_templates
+            status, content_type, content = renderer.get_error_page(
+                404, message="not found"
+            )
+            assert status == 404
+            assert content_type == "text/html; charset=utf-8"
+            assert "Custom 404" in content
+            assert "not found" in content
 
 
 class TestLitefsServer:
