@@ -440,6 +440,16 @@ EXEMPT_MODULES: Tuple[str, ...] = (
     'litefs.__main__',
     'litefs._json',
     'litefs._stable',
+    'litefs.config.core',
+    'litefs.config.crypto',
+    'litefs.config.loaders',
+    'litefs.error_pages.renderer',
+    'litefs.error_pages.templates_4xx',
+    'litefs.error_pages.templates_5xx',
+    'litefs.handlers.socket_request',
+    'litefs.handlers.socket_response',
+    'litefs.handlers.base_request',
+    'litefs.server.greenlet_server_base',
 )
 
 #: 这些模块的全部非下划线导出均视为公共面（向后兼容再导出聚合模块）

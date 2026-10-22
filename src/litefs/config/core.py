@@ -5,10 +5,11 @@ import os
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
-from ._json import dumps, load, loads
+from .crypto import ConfigCryptoMixin
+from .loaders import ConfigLoadersMixin
 
 
-class Config:
+class Config(ConfigLoadersMixin, ConfigCryptoMixin):
     """
     配置管理类
 
@@ -303,173 +304,6 @@ class Config:
                         "安全配置错误：SameSite=None 必须配合 Secure=True 使用。"
                         "请设置 session_secure=True 或更改 session_same_site 配置。"
                     )
-
-    @staticmethod
-    def _derive_fernet_key(secret_key: str) -> bytes:
-        """
-        从用户提供的密钥派生合规的 Fernet 密钥
-
-        Fernet 要求密钥为 32 字节 base64 编码（即 44 字符 URL-safe base64），
-        其中前 16 字节为 signing key，后 16 字节为 encryption key。
-        直接用 '0' 填充或截断都是不安全的。
-
-        本方法使用 HKDF-SHA256 进行密钥派生，确保：
-        1. 任意长度的输入密钥都能派生出合规的 Fernet 密钥
-        2. 不同的输入密钥产生不同的派生密钥
-        3. 符合密码学最佳实践
-
-        Args:
-            secret_key: 用户提供的原始密钥
-
-        Returns:
-            合规的 Fernet 密钥（base64 编码的 32 字节）
-        """
-        import base64
-        import hashlib
-        import hmac
-
-        # 使用 HKDF-SHA256 从用户密钥派生 32 字节密钥
-        # 1. Extract: 从输入密钥提取伪随机密钥
-        salt = b'litefs-config-encryption-salt'
-        prk = hmac.new(salt, secret_key.encode('utf-8'), hashlib.sha256).digest()
-
-        # 2. Expand: 扩展为 32 字节密钥
-        info = b'litefs-fernet-key'
-        t = hmac.new(prk, info + b'\x01', hashlib.sha256).digest()
-
-        # 3. 编码为 Fernet 所需的 base64 格式
-        return base64.urlsafe_b64encode(t)
-
-    def encrypt_config(self, key: str, value: Any) -> str:
-        """
-        加密配置值
-
-        Args:
-            key: 配置键
-            value: 配置值
-
-        Returns:
-            加密后的字符串
-        """
-        import base64
-        from cryptography.fernet import Fernet
-
-        secret_key = self._config.get('config_secret_key')
-        if not secret_key:
-            raise ValueError("配置加密密钥未设置")
-
-        # 使用 HKDF 派生合规的 Fernet 密钥
-        fernet_key = self._derive_fernet_key(secret_key)
-        fernet = Fernet(fernet_key)
-
-        # 序列化值
-        serialized_value = dumps(value)
-
-        # 加密
-        encrypted = fernet.encrypt(serialized_value)
-
-        return base64.b64encode(encrypted).decode()
-
-    def decrypt_config(self, encrypted_value: str) -> Any:
-        """
-        解密配置值
-
-        Args:
-            encrypted_value: 加密后的字符串
-
-        Returns:
-            解密后的值
-        """
-        import base64
-        from cryptography.fernet import Fernet
-
-        secret_key = self._config.get('config_secret_key')
-        if not secret_key:
-            raise ValueError("配置加密密钥未设置")
-
-        # 使用 HKDF 派生合规的 Fernet 密钥
-        fernet_key = self._derive_fernet_key(secret_key)
-        fernet = Fernet(fernet_key)
-
-        # 解密
-        encrypted = base64.b64decode(encrypted_value.encode())
-        decrypted = fernet.decrypt(encrypted)
-
-        # 反序列化
-        return loads(decrypted)
-
-    def _load_yaml_config(self, config_path: Path):
-        """加载 YAML 配置文件"""
-        try:
-            import yaml
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config_data = yaml.safe_load(f)
-                if config_data:
-                    self._update_config(config_data)
-        except ImportError:
-            raise ImportError("需要安装 PyYAML: pip install pyyaml")
-
-    def _load_json_config(self, config_path: Path):
-        """加载 JSON 配置文件"""
-        with open(config_path, 'rb') as f:
-            config_data = load(f)
-            if config_data:
-                self._update_config(config_data)
-
-    def _load_toml_config(self, config_path: Path):
-        """加载 TOML 配置文件"""
-        try:
-            import tomli
-            with open(config_path, 'rb') as f:
-                config_data = tomli.load(f)
-                if config_data:
-                    self._update_config(config_data)
-        except ImportError:
-            try:
-                import tomllib
-                with open(config_path, 'rb') as f:
-                    config_data = tomllib.load(f)
-                    if config_data:
-                        self._update_config(config_data)
-            except ImportError:
-                raise ImportError("需要安装 tomli (Python < 3.11): pip install tomli")
-
-    def _load_env_vars(self):
-        """加载环境变量"""
-        for key, default_value in self.DEFAULT_CONFIG.items():
-            env_key = f"{self.ENV_PREFIX}{key.upper()}"
-            env_value = os.getenv(env_key)
-
-            if env_value is not None:
-                self._config[key] = self._parse_env_value(env_value, default_value)
-
-        # 处理 memcache_servers 配置，确保它是一个列表
-        if isinstance(self._config.get('memcache_servers'), str):
-            self._config['memcache_servers'] = [
-                s.strip() for s in self._config['memcache_servers'].split(',')
-            ]
-
-    def _parse_env_value(self, value: str, default_value: Any) -> Any:
-        """
-        解析环境变量值
-
-        Args:
-            value: 环境变量值
-            default_value: 默认值，用于推断类型
-
-        Returns:
-            解析后的值
-        """
-        if isinstance(default_value, bool):
-            return value.lower() in ('true', '1', 'yes', 'on')
-        elif isinstance(default_value, int):
-            return int(value)
-        elif isinstance(default_value, float):
-            return float(value)
-        elif isinstance(default_value, list):
-            return [v.strip() for v in value.split(',')]
-        else:
-            return value
 
     def _update_config(self, config_data: Dict[str, Any]):
         """

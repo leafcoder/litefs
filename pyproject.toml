@@ -224,6 +224,14 @@ module = [
     "memcache.*",
     "pymemcache.*",
     "watchdog.*",
+    "yaml.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    # 标准库 3.11+ 模块，CI 的 py3.8 环境下 mypy 找不到实现
+    "tomllib",
 ]
 ignore_missing_imports = true
 
