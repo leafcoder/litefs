@@ -7,12 +7,12 @@ WebSocket 连接管理模块
 管理单个 WebSocket 连接的生命周期。
 """
 
-import json
 import socket
 import time
 from typing import Any, Dict, List, Optional, Set, Iterator
 from urllib.parse import parse_qs
 
+from .._json import JSONDecodeError, dumps, loads
 from .protocol import (  # noqa: F401  # parse_close_payload 为对外再导出
     Frame,
     Opcode,
@@ -94,7 +94,7 @@ class WebSocketConnection:
 
         try:
             if isinstance(data, (dict, list)):
-                payload = json.dumps(data, ensure_ascii=False).encode('utf-8')
+                payload = dumps(data)
                 opcode = Opcode.TEXT
             elif isinstance(data, str):
                 payload = data.encode('utf-8')
@@ -231,8 +231,8 @@ class WebSocketConnection:
 
                 if frame.opcode == Opcode.TEXT:
                     try:
-                        return json.loads(frame.payload.decode('utf-8'))
-                    except json.JSONDecodeError:
+                        return loads(frame.payload)
+                    except JSONDecodeError:
                         return frame.payload.decode('utf-8')
                 elif frame.opcode == Opcode.BINARY:
                     return frame.payload

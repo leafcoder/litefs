@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import json
 from typing import Callable, Optional
 
+from .._json import dumps
 from .base import Middleware
 
 
@@ -211,6 +211,6 @@ class AuthMiddleware(Middleware):
             ("Content-Type", "application/json; charset=utf-8"),
             ("WWW-Authenticate", 'Bearer realm="Litefs"'),
         ]
-        content = json.dumps({"error": message}).encode("utf-8")
+        content = dumps({"error": message})
 
         return status, headers, content

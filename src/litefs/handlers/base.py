@@ -7,12 +7,12 @@
 提供所有请求处理器共用的基础功能
 """
 
-import json
 from hashlib import sha256
 from http.cookies import SimpleCookie
 from http.client import responses as http_status_codes
 from os import urandom
 
+from .._json import loads
 from .response import (
     DEFAULT_STATUS_MESSAGE,
     default_content_type,
@@ -447,7 +447,7 @@ class BaseRequestHandler:
         content_type = content_type.lower()
         if content_type not in ("application/json", "application/json-rpc"):
             return {}
-        return json.loads(body)
+        return loads(body)
 
     @property
     def environ(self):

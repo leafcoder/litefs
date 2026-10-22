@@ -111,10 +111,19 @@ class TestMemcacheCache:
         # 创建一个无法序列化的对象
         class Unserializable:
             pass
-        
+
         with pytest.raises(ValueError, match="无法序列化值"):
             cache.put('test_key', Unserializable())
-    
+
+    def test_put_writes_ascii_safe_value(self, cache, mock_memcache_client):
+        """回归：写入值必须是纯 ASCII（pymemcache 默认按 ASCII 编码）"""
+        cache.put('test_key', {'chinese': '中文测试', 'emoji': '😀'})
+
+        stored = mock_memcache_client.set.call_args[0][1]
+        assert stored.isascii()
+        # 转义后仍可还原原始内容
+        assert json.loads(stored) == {'chinese': '中文测试', 'emoji': '😀'}
+
     def test_get(self, cache, mock_memcache_client):
         """测试获取值"""
         # 设置模拟返回值

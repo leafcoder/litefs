@@ -9,13 +9,13 @@
 """
 
 import itertools
-import json
 import re
 from errno import EAGAIN, EWOULDBLOCK
 from http.cookies import SimpleCookie
 from io import DEFAULT_BUFFER_SIZE, StringIO
 from urllib.parse import unquote_plus
 
+from .._json import dumps, dumps_str, loads
 from ..exceptions import HttpError
 from ..session import Session
 from ..utils import log_error, render_error
@@ -157,7 +157,7 @@ class SocketRequestHandler(BaseRequestHandler):
         content_type = content_type.lower()
         if content_type not in ("application/json", "application/json-rpc"):
             return {}
-        return json.loads(body)
+        return loads(body)
 
     @property
     def environ(self):
@@ -298,7 +298,7 @@ class SocketRequestHandler(BaseRequestHandler):
         if isinstance(s, dict):
             if is_json_response:
                 try:
-                    s = json.dumps(s, ensure_ascii=False)
+                    s = dumps(s)
                 except (TypeError, ValueError) as e:
                     raise TypeError("Response data cannot be JSON serialized: %s" % e)
             else:
@@ -333,8 +333,7 @@ class SocketRequestHandler(BaseRequestHandler):
 
         if isinstance(s, (tuple, list)):
             if is_json_response:
-                s = [json.dumps(item, ensure_ascii=False) for item in s]
-                s = "[" + ",".join(s) + "]"
+                s = dumps(s)
             else:
                 if len(s) > 0 and (isinstance(s[0], str) or is_bytes(s[0])):
                     first_type = type(s[0])
@@ -352,7 +351,7 @@ class SocketRequestHandler(BaseRequestHandler):
         elif not (isinstance(s, str) or is_bytes(s)):
             if is_json_response:
                 try:
-                    s = json.dumps(s, ensure_ascii=False)
+                    s = dumps(s)
                 except (TypeError, ValueError) as e:
                     raise TypeError("Response data cannot be JSON serialized: %s" % e)
             else:
@@ -377,7 +376,7 @@ class SocketRequestHandler(BaseRequestHandler):
                 self._add_header(header, value)
             content = result.content
             if isinstance(content, dict):
-                return json.dumps(content, ensure_ascii=False)
+                return dumps_str(content)
             return content
         return result
 

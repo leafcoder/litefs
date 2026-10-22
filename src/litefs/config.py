@@ -5,6 +5,8 @@ import os
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
+from ._json import dumps, load, loads
+
 
 class Config:
     """
@@ -361,11 +363,10 @@ class Config:
         fernet = Fernet(fernet_key)
 
         # 序列化值
-        import json
-        serialized_value = json.dumps(value)
+        serialized_value = dumps(value)
 
         # 加密
-        encrypted = fernet.encrypt(serialized_value.encode())
+        encrypted = fernet.encrypt(serialized_value)
 
         return base64.b64encode(encrypted).decode()
 
@@ -395,8 +396,7 @@ class Config:
         decrypted = fernet.decrypt(encrypted)
 
         # 反序列化
-        import json
-        return json.loads(decrypted.decode())
+        return loads(decrypted)
 
     def _load_yaml_config(self, config_path: Path):
         """加载 YAML 配置文件"""
@@ -411,9 +411,8 @@ class Config:
 
     def _load_json_config(self, config_path: Path):
         """加载 JSON 配置文件"""
-        import json
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config_data = json.load(f)
+        with open(config_path, 'rb') as f:
+            config_data = load(f)
             if config_data:
                 self._update_config(config_data)
 

@@ -7,9 +7,9 @@ Memcache 缓存后端
 提供基于 Memcache 的缓存实现
 """
 
-import json
 from typing import Any, Optional
 
+from .._json import dumps_ascii, loads
 from .base import CacheBackendBase
 
 
@@ -90,7 +90,9 @@ class MemcacheCache(CacheBackendBase):
 
         # 序列化值
         try:
-            val_str = json.dumps(val)
+            # 使用 ASCII 安全序列化：pymemcache 客户端默认按 ASCII 编码值，
+            # 非 ASCII 内容会直接写入失败
+            val_str = dumps_ascii(val)
         except Exception as e:
             raise ValueError(f"无法序列化值: {e}")
 
@@ -118,7 +120,7 @@ class MemcacheCache(CacheBackendBase):
 
         # 反序列化值
         try:
-            value = json.loads(val_str)
+            value = loads(val_str)
         except Exception:
             # 如果反序列化失败，返回原始字符串
             value = val_str
@@ -246,7 +248,7 @@ class MemcacheCache(CacheBackendBase):
                 if val_str is not None:
                     # 反序列化值
                     try:
-                        result[original_key] = json.loads(val_str)
+                        result[original_key] = loads(val_str)
                     except Exception:
                         # 如果反序列化失败，返回原始字符串
                         result[original_key] = val_str
@@ -259,7 +261,7 @@ class MemcacheCache(CacheBackendBase):
                 if val_str is not None:
                     # 反序列化值
                     try:
-                        result[original_key] = json.loads(val_str)
+                        result[original_key] = loads(val_str)
                     except Exception:
                         # 如果反序列化失败，返回原始字符串
                         result[original_key] = val_str
@@ -282,7 +284,9 @@ class MemcacheCache(CacheBackendBase):
         for key, value in mapping.items():
             # 序列化值
             try:
-                val_str = json.dumps(value)
+                # 使用 ASCII 安全序列化：pymemcache 客户端默认按 ASCII 编码值，
+                # 非 ASCII 内容会直接写入失败
+                val_str = dumps_ascii(value)
             except Exception as e:
                 raise ValueError(f"无法序列化值: {e}")
 

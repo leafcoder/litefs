@@ -7,11 +7,11 @@ HTTP 响应对象和响应构建工具
 提供 Response 类和相关的响应构建方法
 """
 
-import json
 import os
 import sys
 from http.client import responses as http_status_codes
 
+from .._json import dumps_str
 from .._version import __version__
 
 # 默认配置
@@ -55,7 +55,7 @@ class Response:
         """
         返回 JSON 响应
         """
-        content = json.dumps(data, ensure_ascii=False)
+        content = dumps_str(data)
         headers = headers or []
         # 确保设置正确的 Content-Type
         has_content_type = any(h[0].lower() == 'content-type' for h in headers)

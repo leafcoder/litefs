@@ -9,8 +9,9 @@ Database Session 后端
 
 import sqlite3
 import time
-import json
 from typing import Optional
+
+from .._json import dumps_str, loads
 
 try:
     from sqlalchemy import create_engine, text
@@ -152,7 +153,7 @@ class DatabaseSession(SessionStoreBase):
         """
         # 序列化 Session 数据
         try:
-            data = json.dumps(dict(session))
+            data = dumps_str(dict(session))
         except Exception as e:
             raise ValueError(f"无法序列化 Session 数据: {e}")
 
@@ -229,9 +230,9 @@ class DatabaseSession(SessionStoreBase):
         # 反序列化 Session 数据
         try:
             if self._use_pool:
-                data = json.loads(row[0])
+                data = loads(row[0])
             else:
-                data = json.loads(row['data'])
+                data = loads(row['data'])
         except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)

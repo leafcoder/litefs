@@ -158,6 +158,13 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 
 **本版允许的破坏性变更**：B4（内部符号加 `_` 前缀）、B5（`ValidationError` 导入路径收敛）、B6（`core.py` 拆分后私有方法迁移）。
 
+**支撑项（已完成，不占用版本额度）**：
+
+| 支撑项 | 内容 | 验收标准 |
+| ------ | ---- | -------- |
+| JSON 序列化换用 orjson | 新增 `litefs/_json.py` 抽象层，框架内 24 处 `import json` 全部替换 | 源码无 `import json` 残留；`dumps_ascii` 保证 Memcache 值契约不变；全量回归通过 |
+| 公共 API 分级注册表 | 新增 `litefs/_stable.py`，符号按 `stable` / `provisional` / `internal` 三级登记 | 契约测试强制每个模块必须被分类 |
+
 **出口门禁**：
 
 - [ ] H1、H2、H3、H6 达成

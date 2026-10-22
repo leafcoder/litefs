@@ -438,6 +438,7 @@ PROVISIONAL: Dict[str, Tuple[str, ...]] = {
 #: 不纳入契约检查的模块（入口脚本等非库接口模块）
 EXEMPT_MODULES: Tuple[str, ...] = (
     'litefs.__main__',
+    'litefs._json',
     'litefs._stable',
 )
 

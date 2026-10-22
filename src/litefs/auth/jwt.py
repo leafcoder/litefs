@@ -10,9 +10,10 @@ JWT Token 管理
 import base64
 import hashlib
 import hmac
-import json
 import time
 from typing import Any, Dict, Optional
+
+from .._json import dumps, loads
 
 
 class TokenBlacklist:
@@ -181,8 +182,8 @@ class JWTManager:
         if expires_in:
             token_payload['exp'] = now + expires_in
 
-        header_encoded = self._base64url_encode(json.dumps(header).encode('utf-8'))
-        payload_encoded = self._base64url_encode(json.dumps(token_payload).encode('utf-8'))
+        header_encoded = self._base64url_encode(dumps(header))
+        payload_encoded = self._base64url_encode(dumps(token_payload))
 
         signature = self._create_signature(header_encoded, payload_encoded)
 
@@ -212,7 +213,7 @@ class JWTManager:
             if not hmac.compare_digest(signature, expected_signature):
                 return None
 
-            payload = json.loads(self._base64url_decode(payload_encoded))
+            payload = loads(self._base64url_decode(payload_encoded))
 
             if 'exp' in payload:
                 if payload['exp'] < int(time.time()):
@@ -267,7 +268,7 @@ class JWTManager:
         try:
             parts = token.split('.')
             if len(parts) == 3:
-                payload = json.loads(self._base64url_decode(parts[1]))
+                payload = loads(self._base64url_decode(parts[1]))
                 exp = payload.get('exp', 0)
                 ttl = max(exp - int(time.time()), 0)
                 # 额外增加 60 秒缓冲，确保 token 过期后黑名单仍短暂有效

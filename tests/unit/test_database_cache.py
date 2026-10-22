@@ -143,10 +143,16 @@ class TestDatabaseCache(unittest.TestCase):
     def test_json_serialization_used(self):
         """测试使用 JSON 序列化（替代 pickle）"""
         import inspect
+        from litefs.cache import db as db_module
         from litefs.cache.db import DatabaseCache
         source = inspect.getsource(DatabaseCache)
-        self.assertIn("json.dumps", source, "DatabaseCache 应使用 json.dumps 序列化")
-        self.assertIn("json.loads", source, "DatabaseCache 应使用 json.loads 反序列化")
+        self.assertIn("dumps(", source, "DatabaseCache 应使用 JSON 序列化（dumps）")
+        self.assertIn("loads(", source, "DatabaseCache 应使用 JSON 反序列化（loads）")
+        # 序列化出口必须来自框架统一的 JSON 抽象层
+        self.assertTrue(
+            hasattr(db_module, "dumps") and hasattr(db_module, "loads"),
+            "DatabaseCache 应复用统一的 JSON 抽象层",
+        )
 
     def test_serialize_deserialize_dict(self):
         """测试字典的序列化/反序列化"""

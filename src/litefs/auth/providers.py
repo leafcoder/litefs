@@ -15,6 +15,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from .._json import loads
+
 
 @dataclass
 class OAuth2UserInfo:
@@ -142,8 +144,6 @@ class OAuth2Provider(ABC):
         Returns:
             响应数据
         """
-        import json
-
         try:
             import urllib.request
             import urllib.error
@@ -164,7 +164,7 @@ class OAuth2Provider(ABC):
                 req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
 
             with urllib.request.urlopen(req, timeout=30) as resp:
-                return json.loads(resp.read().decode('utf-8'))
+                return loads(resp.read())
 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8') if e.fp else ''

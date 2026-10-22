@@ -11,6 +11,8 @@ import time
 
 from litefs.middleware.base import Middleware
 
+from .._json import dumps
+
 from . import DebugToolbar, RequestDebug, get_current_debug, is_debug_enabled  # noqa: F401  # 对外再导出
 
 
@@ -108,10 +110,7 @@ class DebugMiddleware(Middleware):
                 elif isinstance(response, bytes):
                     debug.response_size = len(response)
                 elif isinstance(response, (dict, list, tuple)):
-                    import json
-                    debug.response_size = len(
-                        json.dumps(response, ensure_ascii=False).encode('utf-8')
-                    )
+                    debug.response_size = len(dumps(response))
 
         debug.handler_time = (
             (time.time() - debug.start_time) * 1000 - debug.routing_time - debug.db_time

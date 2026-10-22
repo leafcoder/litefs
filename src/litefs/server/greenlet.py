@@ -31,6 +31,7 @@ except (ImportError, AttributeError):
     EPOLLIN = EPOLLOUT = EPOLLHUP = EPOLLERR = EPOLLET = 0
     select_epoll = None
 
+from .._json import dump, load
 from ..exceptions import HttpError
 from ..handlers import RequestHandler, parse_form, server_software  # noqa: F401  # 对外再导出
 
@@ -42,7 +43,6 @@ import os
 import signal
 import select
 import tempfile
-import json
 
 
 should_retry_error = (EWOULDBLOCK, EAGAIN)
@@ -516,8 +516,8 @@ class ProcessHTTPServer(HTTPServer):
             'starttime': time.time()
         }
         try:
-            with open(pid_file, 'w') as f:
-                json.dump(pid_data, f)
+            with open(pid_file, 'wb') as f:
+                dump(pid_data, f)
         except Exception as e:
             logging.warning(f"无法写入 PID 文件: {e}")
 
@@ -526,8 +526,8 @@ class ProcessHTTPServer(HTTPServer):
         pid_file = self._get_pid_file()
         try:
             if os.path.exists(pid_file):
-                with open(pid_file, 'r') as f:
-                    return json.load(f)
+                with open(pid_file, 'rb') as f:
+                    return load(f)
         except Exception:
             pass
         return None

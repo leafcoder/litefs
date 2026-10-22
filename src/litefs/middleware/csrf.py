@@ -9,10 +9,10 @@ CSRF 保护中间件
 
 import hashlib
 import hmac
-import json
 import secrets
 from typing import Optional
 
+from .._json import dumps
 from .base import Middleware
 
 
@@ -298,6 +298,6 @@ class CSRFMiddleware(Middleware):
         headers = [
             ("Content-Type", "application/json; charset=utf-8"),
         ]
-        content = json.dumps({"error": message}).encode("utf-8")
+        content = dumps({"error": message})
 
         return status, headers, content

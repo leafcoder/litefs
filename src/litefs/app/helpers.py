@@ -8,11 +8,11 @@
 Session 管理器初始化等无状态辅助逻辑。
 """
 
-import json
 import socket
 from collections.abc import Iterable
 from typing import Any, Dict, List, Tuple
 
+from .._json import dumps
 from ..config import Config, load_config
 
 
@@ -41,12 +41,11 @@ def _serialize_content(content, is_json: bool = False) -> List[bytes]:
         list[bytes]: 序列化后的字节列表
     """
     if isinstance(content, (dict,)):
-        return [json.dumps(content, ensure_ascii=False).encode("utf-8")]
+        return [dumps(content)]
 
     if isinstance(content, (list, tuple)):
         if is_json:
-            serialized = json.dumps(content, ensure_ascii=False, default=str)
-            return [serialized.encode("utf-8")]
+            return [dumps(content, default=str)]
         result = []
         for item in content:
             if isinstance(item, str):
@@ -59,7 +58,7 @@ def _serialize_content(content, is_json: bool = False) -> List[bytes]:
 
     if isinstance(content, str):
         if is_json:
-            return [json.dumps(content, ensure_ascii=False).encode("utf-8")]
+            return [dumps(content)]
         return [content.encode("utf-8")]
 
     if isinstance(content, bytes):

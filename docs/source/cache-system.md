@@ -211,7 +211,6 @@ assert cache is cache2
 
 ```python
 from litefs.cache import RedisCache
-import json
 
 cache = RedisCache(
     host="localhost",

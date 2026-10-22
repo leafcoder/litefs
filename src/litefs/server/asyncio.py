@@ -14,6 +14,7 @@ import traceback
 from typing import Dict, Any, Tuple
 from email.message import Message
 
+from .._json import dumps
 from ..exceptions import HttpError
 from ..handlers import ASGIRequestHandler
 
@@ -97,8 +98,7 @@ class AsyncHTTPRequestHandler:
                                 for chunk in content
                             )
                         elif isinstance(content, dict):
-                            import json
-                            content = json.dumps(content).encode('utf-8')
+                            content = dumps(content)
                         elif not isinstance(content, bytes):
                             content = str(content).encode('utf-8')
 

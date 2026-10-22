@@ -5,7 +5,33 @@
 
 ## [未发布]
 
-暂无。
+### Changed
+
+- **JSON 序列化统一改用 orjson，框架内不再使用标准库 `json`**
+  - 新增 `src/litefs/_json.py` 序列化抽象层，作为框架内唯一的 JSON 编解码出口
+  - 24 处 `import json` 全部替换为抽象层调用，覆盖：会话后端（DB / Redis / Memcache）、
+    缓存后端（DB / Redis / Memcache）、HTTP 响应与请求体解析、Socket 处理器、
+    中间件（增强日志 / 安全 / CSRF）、JWT 与 OAuth2 提供方、配置加密、
+    Asyncio / Greenlet 服务器、调试中间件、WebSocket 帧编解码
+  - orjson 基于 Rust 实现，JSON 编解码吞吐约为标准库的 3~5 倍，
+    直接改善请求热路径的 P99 延迟
+  - 依赖声明同步至 `pyproject.toml`、`requirements.txt` 与脚手架模板
+    （`orjson>=3.10`，3.10.15 为支持 Python 3.8 的最高版本）
+
+### Fixed
+
+- 修复 Memcache 后端写入非 ASCII 内容失败的问题
+  - 根因：标准库 `json.dumps` 默认 `ensure_ascii=True` 保证了纯 ASCII 输出，
+    而 orjson 始终输出原始 UTF-8，`pymemcache` 客户端默认按 ASCII 编码值，
+    导致 `MemcacheIllegalInputError: Data values must be binary-safe`
+  - 修复：抽象层新增 `dumps_ascii` 出口（非 ASCII 字符转义为 `\uXXXX`），
+    与标准库 `ensure_ascii=True` 逐字节一致，Memcache 缓存与 Session 后端改用该出口
+  - 迁移前写入的旧缓存数据可被新代码正确读取，双向兼容
+
+### 文档
+
+- 新增 `docs/source/json-serialization.md`：JSON 序列化规范，
+  记录抽象层 API、语义对齐策略、与标准库的固有差异、ASCII 安全出口与迁移检查清单
 
 ## [0.9.0] - 2026-10-21
 

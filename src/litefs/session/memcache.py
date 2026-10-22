@@ -7,9 +7,9 @@ Memcache Session 后端
 提供基于 Memcache 的 Session 实现
 """
 
-import json
 from typing import Optional
 
+from .._json import dumps_ascii, loads
 from .base import SessionStoreBase
 from .session import Session
 
@@ -90,7 +90,9 @@ class MemcacheSession(SessionStoreBase):
 
         # 序列化 Session 数据
         try:
-            data = json.dumps(dict(session))
+            # 使用 ASCII 安全序列化：pymemcache 客户端默认按 ASCII 编码值，
+            # 非 ASCII 内容会直接写入失败
+            data = dumps_ascii(dict(session))
         except Exception as e:
             raise ValueError(f"无法序列化 Session 数据: {e}")
 
@@ -117,7 +119,7 @@ class MemcacheSession(SessionStoreBase):
 
         # 反序列化 Session 数据
         try:
-            data = json.loads(data_str)
+            data = loads(data_str)
         except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)
