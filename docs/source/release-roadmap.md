@@ -167,10 +167,15 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 
 **出口门禁**：
 
-- [ ] H1、H2、H3、H6 达成
-- [ ] 全部源文件 ≤600 行
-- [ ] 全量 pytest 通过，无行为回归
-- [ ] CHANGELOG 含 `Changed` / `Removed` 专章
+- [x] H1、H2、H3、H6 达成
+- [x] 全部源文件 ≤600 行
+- [x] 全量 pytest 通过，无行为回归
+- [x] CHANGELOG 含 `Changed` / `Removed` 专章
+
+> **v0.10.0 交付备注**：分级实际落地为 `stable` / `provisional` / `internal` 三级，
+> 登记 70 个 stable 模块 410 符号 + 32 个 provisional 模块 138 符号（合计 548），
+> 较原计划的 196 符号覆盖更完整；弃用机制与契约测试（`tests/unit/test_api_contract.py`）
+> 提前至本版完成。5 个超限文件全部拆分至 ≤600 行，公开 API 零变更。
 
 ### 4.2 v0.11.0 —— 类型系统与打包契约
 
