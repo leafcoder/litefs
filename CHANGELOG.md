@@ -3,15 +3,26 @@
 本文件记录 Litefs 的所有重要变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.10.0] - 2026-10-22
+
+v0.10.0 是「契约与结构重构」版本：公共 API 首次全量分级冻结、弃用机制落地、
+JSON 序列化切换 orjson，5 个超 600 行的大文件全部拆分至规范上限以内。
 
 ### Added
 
+- **公共 API 分级冻结（H2）**：`litefs/_stable.py` 登记全部 548 个公共符号
+  - `stable`：70 个模块 410 符号；`provisional`：32 个模块 138 符号
+  - 契约测试（`tests/unit/test_api_contract.py`）强制包内每个模块登记分级或豁免，
+    登记模块的公共符号面不得缩小
+- **弃用机制（H6）**：新增 `litefs/deprecation.py`
+  - `LitefsDeprecationWarning` 专用告警类别、`deprecated` 装饰器、`warn_deprecated` 运行时告警，
+    替代符号与移除版本自动从 `_stable.DEPRECATED` 登记表回填
 - Memcache 缓存后端新增 `incr` / `decr` 原子计数器方法
   - 基于 memcached 原生 `incr` / `decr` 命令，与 JSON 整数存储天然兼容
   - pymemcache 分支显式关闭 `noreply` 以获取返回值；键不存在返回 `None`；
     递减下限钳位为 0
   - 补充 mock 单元测试与真实服务集成测试（原先因方法缺失被 skip 的 2 个用例转正）
+- Makefile 新增 `test` / `test-unit` / `test-cov` 目标（覆盖率报告含 HTML 输出）
 
 ### Changed
 
@@ -25,6 +36,17 @@
     直接改善请求热路径的 P99 延迟
   - 依赖声明同步至 `pyproject.toml`、`requirements.txt` 与脚手架模板
     （`orjson>=3.10`，3.10.15 为支持 Python 3.8 的最高版本）
+- **拆分 5 个超 600 行源文件（H3），全部 ≤600 行，公开 API 零变更**
+  - `handlers/socket.py` 827 → 598（请求属性 / 响应转换拆为 Mixin 模块）
+  - `server/greenlet.py` 780 → 365（SocketIO / Epoll / TCPServer 拆至 `greenlet_server_base`）
+  - `error_pages.py` 775 → 包（HTML 模板拆至 `templates_4xx` / `templates_5xx`）
+  - `config.py` 627 → 包（加密与文件加载拆为 `crypto` / `loaders` Mixin）
+  - `handlers/base.py` 639 → 489（请求属性拆至 `base_request` Mixin）
+
+### Deprecated
+
+- `Litefs.session` 自 0.10.0 起废弃，计划 1.3.0 移除，替代符号 `Litefs.db_session`
+  （详见 `docs/source/deprecation-timeline.md`）
 
 ### Fixed
 
@@ -42,6 +64,9 @@
 
 ### 文档
 
+- 新增 `docs/source/api-stability.md`：API 稳定性与 SemVer 政策（分级体系、冻结基线、
+  SemVer 语义、破坏性变更流程）
+- 新增 `docs/source/deprecation-timeline.md`：弃用机制说明与废弃时间表
 - 新增 `docs/source/json-serialization.md`：JSON 序列化规范，
   记录抽象层 API、语义对齐策略、与标准库的固有差异、ASCII 安全出口与迁移检查清单
 
