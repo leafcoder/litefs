@@ -49,9 +49,21 @@ class TestMemcacheSessionInit:
             key_prefix='test:',
             expiration_time=3600
         )
-        
+
         assert session._key_prefix == 'test:'
         assert session._expiration_time == 3600
+
+    def test_init_with_injected_client_detection(self):
+        """回归：注入客户端时自动判定后端类型，put 不再抛 AttributeError"""
+        client = MagicMock()
+        client.stats.return_value = {}
+        session = MemcacheSession(memcache_client=client)
+
+        # Mock 所属模块为 unittest.mock，按 python-memcached 分支处理
+        assert session._use_pymemcache is False
+
+        session.put('injected', {'k': 'v'})
+        assert client.set.called
     
     def test_init_with_custom_params(self):
         """测试自定义参数初始化"""

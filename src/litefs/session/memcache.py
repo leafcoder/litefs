@@ -44,6 +44,12 @@ class MemcacheSession(SessionStoreBase):
 
         if memcache_client is not None:
             self._mc = memcache_client
+            # 按客户端类型判定调用约定：pymemcache 的 set 带 expire= 参数，
+            # python-memcached 带 time= 参数。依据客户端所属模块判定，
+            # 未标注模块的客户端（如测试 Mock）按 python-memcached 分支处理
+            self._use_pymemcache = (
+                type(memcache_client).__module__.split(".")[0] == "pymemcache"
+            )
         else:
             try:
                 import pymemcache  # noqa: F401  # 仅用于探测 pymemcache 是否可用

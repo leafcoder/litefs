@@ -256,20 +256,61 @@ class TestMemcacheCache:
         assert not mock_memcache_client.set_many.called
     
     def test_incr(self, cache, mock_memcache_client):
-        """测试递增（Memcache 不支持）"""
-        # MemcacheCache 没有 incr 方法
-        # 验证方法不存在
-        assert not hasattr(cache, 'incr')
-        # 跳过实际测试
-        pytest.skip("incr 方法不存在")
-    
+        """测试递增计数器"""
+        mock_memcache_client.incr.return_value = 11
+
+        assert cache.incr('counter', 1) == 11
+        call_args = mock_memcache_client.incr.call_args
+        assert call_args[0][0] == 'litefs:counter'
+        assert call_args[0][1] == 1
+        # pymemcache 分支必须关闭 noreply 才能拿到返回值
+        assert call_args[1]['noreply'] is False
+
+    def test_incr_default_delta(self, cache, mock_memcache_client):
+        """测试递增默认步长为 1"""
+        mock_memcache_client.incr.return_value = 1
+
+        assert cache.incr('counter') == 1
+        assert mock_memcache_client.incr.call_args[0][1] == 1
+
+    def test_incr_key_missing(self, cache, mock_memcache_client):
+        """测试键不存在时递增返回 None"""
+        mock_memcache_client.incr.return_value = None
+
+        assert cache.incr('missing') is None
+
     def test_decr(self, cache, mock_memcache_client):
-        """测试递减（Memcache 不支持）"""
-        # MemcacheCache 没有 decr 方法
-        # 验证方法不存在
-        assert not hasattr(cache, 'decr')
-        # 跳过实际测试
-        pytest.skip("decr 方法不存在")
+        """测试递减计数器"""
+        mock_memcache_client.decr.return_value = 9
+
+        assert cache.decr('counter', 3) == 9
+        call_args = mock_memcache_client.decr.call_args
+        assert call_args[0][0] == 'litefs:counter'
+        assert call_args[0][1] == 3
+        assert call_args[1]['noreply'] is False
+
+    def test_decr_key_missing(self, cache, mock_memcache_client):
+        """测试键不存在时递减返回 None"""
+        mock_memcache_client.decr.return_value = None
+
+        assert cache.decr('missing') is None
+
+    def test_injected_client_detection(self, mock_memcache_client):
+        """测试注入客户端时按模块自动判定后端类型"""
+        from litefs.cache.memcache import MemcacheCache
+
+        # Mock 所属模块为 unittest.mock，按 python-memcached 分支处理
+        cache = MemcacheCache(memcache_client=mock_memcache_client)
+        assert cache._use_pymemcache is False
+
+    def test_injected_client_put_no_attribute_error(self, mock_memcache_client):
+        """回归：注入客户端后 put 不再抛 AttributeError"""
+        from litefs.cache.memcache import MemcacheCache
+
+        cache = MemcacheCache(memcache_client=mock_memcache_client)
+
+        cache.put('injected', {'k': 'v'})
+        assert mock_memcache_client.set.called
     
     def test_repr(self, cache):
         """测试字符串表示"""
@@ -320,6 +361,51 @@ class TestMemcacheCacheIntegration:
 
         # 清理测试数据
         cache.delete('test_expire')
+        cache.close()
+
+    def test_real_memcache_incr_decr(self):
+        """测试真实的 Memcache 计数器（原生 incr/decr 命令）"""
+        from litefs.cache.memcache import MemcacheCache
+
+        cache = MemcacheCache(servers=['localhost:11211'])
+
+        # 原子递增 / 递减
+        cache.put('counter', 10)
+        assert cache.incr('counter', 5) == 15
+        assert cache.decr('counter', 3) == 12
+        # 递增后 get 仍能反序列化为整数
+        assert cache.get('counter') == 12
+
+        # 默认步长为 1
+        assert cache.incr('counter') == 13
+
+        # 键不存在时返回 None
+        assert cache.incr('no_such_counter') is None
+        assert cache.decr('no_such_counter') is None
+
+        # 递减下限钳位为 0
+        cache.put('floor', 1)
+        assert cache.decr('floor', 9) == 0
+
+        # 清理测试数据
+        cache.delete('counter')
+        cache.delete('floor')
+        cache.close()
+
+    def test_real_memcache_injected_client(self):
+        """测试注入 pymemcache 客户端实例（回归：不再抛 AttributeError）"""
+        from pymemcache.client.base import Client
+
+        from litefs.cache.memcache import MemcacheCache
+
+        client = Client(('localhost', 11211))
+        cache = MemcacheCache(memcache_client=client)
+        assert cache._use_pymemcache is True
+
+        cache.put('injected_key', {'k': 'v'})
+        assert cache.get('injected_key') == {'k': 'v'}
+
+        cache.delete('injected_key')
         cache.close()
 
 

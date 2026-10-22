@@ -5,6 +5,14 @@
 
 ## [未发布]
 
+### Added
+
+- Memcache 缓存后端新增 `incr` / `decr` 原子计数器方法
+  - 基于 memcached 原生 `incr` / `decr` 命令，与 JSON 整数存储天然兼容
+  - pymemcache 分支显式关闭 `noreply` 以获取返回值；键不存在返回 `None`；
+    递减下限钳位为 0
+  - 补充 mock 单元测试与真实服务集成测试（原先因方法缺失被 skip 的 2 个用例转正）
+
 ### Changed
 
 - **JSON 序列化统一改用 orjson，框架内不再使用标准库 `json`**
@@ -20,6 +28,10 @@
 
 ### Fixed
 
+- 修复 `MemcacheCache` / `MemcacheSession` 注入 `memcache_client` 实例时
+  未设置 `_use_pymemcache` 属性的问题：调用 `put()` 会抛 `AttributeError`
+  - 修复：按客户端所属模块自动判定调用约定（pymemcache 用 `expire=`，
+    python-memcached 用 `time=`），注入原生 pymemcache 客户端开箱即用
 - 修复 Memcache 后端写入非 ASCII 内容失败的问题
   - 根因：标准库 `json.dumps` 默认 `ensure_ascii=True` 保证了纯 ASCII 输出，
     而 orjson 始终输出原始 UTF-8，`pymemcache` 客户端默认按 ASCII 编码值，

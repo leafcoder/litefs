@@ -236,6 +236,11 @@ cache.put("temp_key", "temp_value")
 ttl = cache.ttl("temp_key")    # 查询剩余过期时间
 cache.expire("temp_key", 7200) # 设置新的过期时间
 
+# 计数器（Memcache 后端，基于原生 incr/decr 原子命令）
+cache.put("counter", 10)
+cache.incr("counter", 5)       # 15，键不存在返回 None
+cache.decr("counter", 3)       # 12，下限钳位为 0
+
 # 批量操作
 cache.set_many({
     "user:1": '{"id": 1, "name": "张三"}',

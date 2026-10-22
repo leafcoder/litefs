@@ -43,6 +43,12 @@ class MemcacheCache(CacheBackendBase):
 
         if memcache_client is not None:
             self._mc = memcache_client
+            # 按客户端类型判定调用约定：pymemcache 的 set 带 expire= 参数，
+            # python-memcached 带 time= 参数。依据客户端所属模块判定，
+            # 未标注模块的客户端（如测试 Mock）按 python-memcached 分支处理
+            self._use_pymemcache = (
+                type(memcache_client).__module__.split(".")[0] == "pymemcache"
+            )
         else:
             try:
                 import pymemcache  # noqa: F401  # 仅用于探测 pymemcache 是否可用
@@ -205,6 +211,51 @@ class MemcacheCache(CacheBackendBase):
         if self._mc.get(memcache_key) is None:
             return -2
         return -1
+
+    def incr(self, key: str, delta: int = 1) -> Optional[int]:
+        """
+        原子递增计数器
+
+        基于 memcached 原生 ``incr`` 命令，要求缓存值为数字字符串。
+        经由 :meth:`put` 存储的整数会序列化为 ``"42"`` 这类数字字符串，
+        与原生命令天然兼容；递增后 :meth:`get` 仍能正确反序列化为整数。
+
+        Args:
+            key: 缓存键
+            delta: 递增步长
+
+        Returns:
+            递增后的新值，键不存在时返回 None
+        """
+        memcache_key = self._make_key(key)
+        if self._use_pymemcache:
+            # pymemcache 默认 noreply=True 会导致拿不到返回值，须显式关闭
+            result = self._mc.incr(memcache_key, delta, noreply=False)
+        else:
+            result = self._mc.incr(memcache_key, delta)
+        return result if isinstance(result, int) else None
+
+    def decr(self, key: str, delta: int = 1) -> Optional[int]:
+        """
+        原子递减计数器
+
+        基于 memcached 原生 ``decr`` 命令，要求缓存值为数字字符串。
+        memcached 保证计数不会递减至 0 以下（下限钳位为 0）。
+
+        Args:
+            key: 缓存键
+            delta: 递减步长
+
+        Returns:
+            递减后的新值，键不存在时返回 None
+        """
+        memcache_key = self._make_key(key)
+        if self._use_pymemcache:
+            # pymemcache 默认 noreply=True 会导致拿不到返回值，须显式关闭
+            result = self._mc.decr(memcache_key, delta, noreply=False)
+        else:
+            result = self._mc.decr(memcache_key, delta)
+        return result if isinstance(result, int) else None
 
     def clear(self) -> None:
         """
