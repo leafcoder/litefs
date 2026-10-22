@@ -59,17 +59,17 @@ pip install -e ".[dev,docs,performance]"
 ### 1.5 验证安装
 
 ```bash
-# 运行测试
+# 运行全量测试
 make test
 
-# 或
-python -m pytest tests/
+# 仅运行单元测试
+make test-unit
 
-# 检查代码风格
+# 运行测试并生成覆盖率报告（HTML 报告位于 htmlcov/index.html）
+make test-cov
+
+# 检查代码风格与类型（flake8 + ruff + mypy）
 make lint
-
-# 类型检查
-make type-check
 ```
 
 ---
