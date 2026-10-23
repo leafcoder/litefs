@@ -10,8 +10,10 @@ WebSocket 连接与服务器测试
 
 import json
 import socket
+import struct
 import time
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -19,7 +21,9 @@ from litefs.websocket.protocol import (
     Frame,
     Opcode,
     CloseCode,
+    FrameTooLargeError,
     compute_accept_key,
+    parse_close_payload,
 )
 from litefs.websocket.connection import (
     WebSocketConnection,
@@ -879,3 +883,144 @@ class TestWebSocketIntegrationClass:
         """测试未启动时 stop 为无操作"""
         ws = WebSocket()
         ws.stop()  # 不抛异常
+
+
+class _EndlessByteSocket:
+    """永远返回单个 0xFF 字节的伪 socket
+
+    模拟无法组成有效帧的恶意流，用于验证接收缓冲区上限。
+    """
+
+    def __init__(self):
+        self.sent = b''
+        self.closed = False
+
+    def recv(self, n):
+        return b'\xff'
+
+    def sendall(self, data):
+        self.sent += data
+
+    def close(self):
+        self.closed = True
+
+
+class TestWebSocketFrameLimits:
+    """WebSocket 帧上限与接收缓冲区上限（超限回 1009 关闭帧并断连）"""
+
+    @staticmethod
+    def _recv_close_code(peer):
+        """从对端读取数据直到 EOF，解析关闭帧状态码"""
+        chunks = []
+        while True:
+            chunk = peer.recv(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        frame, _ = Frame.parse(b''.join(chunks))
+        assert frame is not None and frame.opcode == Opcode.CLOSE
+        code, _ = parse_close_payload(frame.payload)
+        return code
+
+    def test_frame_parse_oversize_declared_length_raises(self):
+        """测试声明负载超限的帧头在解析期立即拒绝"""
+        data = b'\x82\xff' + struct.pack('!Q', 16 * 1024 * 1024) + b'\x00\x00\x00\x00'
+        with pytest.raises(FrameTooLargeError):
+            Frame.parse(data, max_payload_size=1024 * 1024)
+
+    def test_frame_parse_within_limit_ok(self):
+        """测试未超限帧正常解析"""
+        data = Frame(opcode=Opcode.BINARY, payload=b'A' * 32).build()
+        parsed, _ = Frame.parse(data, max_payload_size=1024)
+        assert parsed is not None
+        assert parsed.payload == b'A' * 32
+
+    def test_frame_parse_unlimited_by_default(self):
+        """测试默认不限制帧负载大小（向后兼容）"""
+        data = Frame(opcode=Opcode.BINARY, payload=b'A' * 32).build()
+        parsed, _ = Frame.parse(data)
+        assert parsed is not None
+
+    def test_connection_default_max_message_size(self):
+        """测试连接默认消息上限为 1MB"""
+        conn, b, a = _make_pair_conn()
+        try:
+            assert conn.max_message_size == 1048576
+        finally:
+            a.close()
+            b.close()
+
+    def test_receive_oversize_frame_closes_with_1009(self):
+        """测试超限消息触发 1009 关闭帧并断连"""
+        conn, b, a = _make_pair_conn(max_message_size=64)
+        try:
+            # 对端 b 发送超限帧，连接（a 端）接收
+            b.sendall(Frame(opcode=Opcode.BINARY, payload=b'A' * 128).build())
+            assert conn.receive() is None
+            assert conn.is_closed is True
+            assert self._recv_close_code(b) == CloseCode.MESSAGE_TOO_BIG
+        finally:
+            a.close()
+            b.close()
+
+    def test_receive_buffer_overflow_closes_with_1009(self):
+        """测试接收缓冲区超限触发 1009 关闭帧并断连
+
+        通过让 Frame.parse 持续返回"不完整"模拟流中始终无有效帧边界的
+        恶意数据（如注入的字节流使帧头永远无法闭合），验证缓冲区上限
+        的纵深防御逻辑。
+        """
+        fake = _EndlessByteSocket()
+        conn = WebSocketConnection(
+            socket=fake,
+            address=("127.0.0.1", 12345),
+            path="/ws",
+            max_message_size=64,
+        )
+        with patch.object(
+            Frame, 'parse',
+            classmethod(lambda cls, data, max_payload_size=None: (None, 0)),
+        ):
+            assert conn.receive() is None
+
+        assert conn.is_closed is True
+        assert fake.closed is True
+        frame, _ = Frame.parse(fake.sent)
+        assert frame is not None and frame.opcode == Opcode.CLOSE
+        code, _ = parse_close_payload(frame.payload)
+        assert code == CloseCode.MESSAGE_TOO_BIG
+
+    def test_server_read_http_request_rejects_oversized_header(self):
+        """测试握手请求头超限时直接拒绝"""
+        server = WebSocketServer(max_message_size=64)
+        a, b = socket.socketpair()
+        try:
+            a.sendall(b'GET /ws HTTP/1.1\r\nX-Junk: ' + b'A' * 4096 + b'\r\n\r\n')
+            assert server._read_http_request(b) is None
+        finally:
+            a.close()
+            b.close()
+
+    def test_init_app_reads_config_max_message_size(self):
+        """测试 init_app 从应用配置读取消息上限"""
+        app = SimpleNamespace(
+            config=SimpleNamespace(
+                host="127.0.0.1",
+                port=9000,
+                websocket_max_message_size=4096,
+            )
+        )
+        ws = WebSocket()
+        ws.init_app(app)
+        assert ws._max_message_size == 4096
+
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        s.close()
+        ws._ws_port = port
+        ws.start()
+        try:
+            assert ws._server.max_message_size == 4096
+        finally:
+            ws.stop()

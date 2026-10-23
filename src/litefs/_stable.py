@@ -310,8 +310,8 @@ STABLE: Dict[str, Tuple[str, ...]] = {
         "ConnectionManager", "WebSocketConnection",
     ),
     "litefs.websocket.protocol": (
-        "CloseCode", "Frame", "Opcode", "build_close_payload", "compute_accept_key",
-        "parse_close_payload",
+        "CloseCode", "Frame", "FrameTooLargeError", "Opcode", "build_close_payload",
+        "compute_accept_key", "parse_close_payload",
     ),
     "litefs.websocket.server": (
         "WebSocket", "WebSocketServer",

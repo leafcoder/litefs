@@ -17,9 +17,13 @@ from .protocol import (  # noqa: F401  # parse_close_payload 为对外再导出
     Frame,
     Opcode,
     CloseCode,
+    FrameTooLargeError,
     parse_close_payload,
     build_close_payload,
 )
+
+#: 单条消息（帧负载）默认上限：1MB
+DEFAULT_MAX_MESSAGE_SIZE = 1048576
 
 
 class WebSocketConnection:
@@ -36,12 +40,14 @@ class WebSocketConnection:
         path: str,
         query_string: str = '',
         headers: dict = None,
+        max_message_size: int = DEFAULT_MAX_MESSAGE_SIZE,
     ):
         self.socket = socket
         self.address = address
         self.path = path
         self.query_string = query_string
         self.headers = headers or {}
+        self.max_message_size = max_message_size
 
         self._query_params = None
         self._rooms: Set[str] = set()
@@ -247,12 +253,33 @@ class WebSocketConnection:
             return None
 
     def _read_frame(self) -> Optional[Frame]:
-        """读取一个完整帧"""
+        """读取一个完整帧
+
+        超过 ``max_message_size`` 上限（帧头声明长度或接收缓冲区）时，
+        回 1009（Message Too Big）关闭帧并断开连接。
+        """
+        buffer_limit = self.max_message_size + 4096
         while True:
-            frame, consumed = Frame.parse(self._buffer)
+            try:
+                frame, consumed = Frame.parse(
+                    self._buffer, max_payload_size=self.max_message_size
+                )
+            except FrameTooLargeError:
+                self.close(
+                    code=CloseCode.MESSAGE_TOO_BIG, reason='Message too big'
+                )
+                return None
+
             if frame:
                 self._buffer = self._buffer[consumed:]
                 return frame
+
+            if len(self._buffer) > buffer_limit:
+                # 接收缓冲区超限（流中无有效帧边界），防御性断连
+                self.close(
+                    code=CloseCode.MESSAGE_TOO_BIG, reason='Message too big'
+                )
+                return None
 
             try:
                 chunk = self.socket.recv(4096)

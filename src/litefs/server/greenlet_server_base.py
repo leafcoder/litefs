@@ -161,6 +161,10 @@ class SocketIO(RawIOBase):
             real_epoll.register(fileno, EPOLLIN | EPOLLET)
         else:
             real_epoll.modify(fileno, EPOLLIN | EPOLLOUT | EPOLLET)
+        # 登记空闲读超时截止时间，超过后由 Epoll._check_read_deadlines 断连
+        idle_timeout = getattr(self._server, 'idle_read_timeout', None)
+        if idle_timeout and idle_timeout > 0:
+            epoll._read_deadlines[fileno] = time.time() + idle_timeout
         data = b""
         try:
             curr.parent.switch()
@@ -170,6 +174,7 @@ class SocketIO(RawIOBase):
                 raise
         finally:
             self.read_gr = None
+            epoll._read_deadlines.pop(fileno, None)
             if self.write_gr is None:
                 real_epoll.unregister(fileno)
             else:
@@ -232,6 +237,8 @@ class Epoll(object):
         self._servers: Dict[int, socket.socket] = {}
         self._greenlets: Dict[int, Any] = {}
         self._idles: List[Tuple[float, Any]] = []
+        # 连接读等待的空闲超时截止时间：fileno -> 绝对时间戳
+        self._read_deadlines: Dict[int, float] = {}
 
     def register(self, server_socket: socket.socket) -> None:
         servers = self._servers
@@ -251,6 +258,26 @@ class Epoll(object):
             self._epoll.unregister(fileno)
             server_socket.server_close()
         self._epoll.close()
+
+    def _check_read_deadlines(self) -> None:
+        """检查空闲读超时
+
+        对超过 idle_read_timeout 仍无数据到达的连接，向其 greenlet 注入
+        socket.timeout 使请求处理流程退出并关闭连接（慢速连接攻击防护）。
+        """
+        deadlines = self._read_deadlines
+        if not deadlines:
+            return
+        now_ts = time.time()
+        expired = [fileno for fileno, ts in deadlines.items() if ts <= now_ts]
+        for fileno in expired:
+            deadlines.pop(fileno, None)
+            gr = self._greenlets.pop(fileno, None)
+            if gr is not None:
+                try:
+                    gr.throw(socket.timeout('idle read timeout'))
+                except Exception:
+                    pass
 
     def poll(self, poll_interval: float = 0.2) -> None:
         servers = self._servers
@@ -298,6 +325,7 @@ class Epoll(object):
                             gr = greenlets.pop(fileno, None)
                             if gr is not None:
                                 gr.throw()
+                self._check_read_deadlines()
             while len(idles):
                 now_ts = time.time()
                 ts, gr = idles.pop(0)
@@ -314,6 +342,12 @@ class TCPServer(object):
 
     allow_reuse_address = True
     request_queue_size = 4194304
+    # 最大并发连接数（None 表示不限制），达到上限后新连接被快速拒绝；
+    # 可由应用配置 max_connections 覆盖
+    max_connections = None
+    # 空闲读超时（秒）：连接阻塞等待读数据超过该时长将被断开，
+    # 设为 0 或 None 可禁用；可由应用配置 idle_read_timeout 覆盖
+    idle_read_timeout = 30.0
     address_family, socket_type = socket.AF_INET, socket.SOCK_STREAM
 
     def __init__(
@@ -385,6 +419,11 @@ class TCPServer(object):
         pass
 
     def verify_request(self, request: socket.socket, client_address: Tuple[str, int]) -> bool:
+        if self.max_connections is not None and epoll is not None:
+            # 连接数达到上限：快速拒绝（shutdown_request 立即关闭连接），
+            # 不为其创建 greenlet 与 epoll 注册项
+            if len(epoll._greenlets) >= self.max_connections:
+                return False
         return True
 
     def process_request(self, request: socket.socket, client_address: Tuple[str, int]) -> None:

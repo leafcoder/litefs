@@ -180,6 +180,29 @@
 | 0.10.1-3 | 500 响应去掉异常细节，统一返回通用消息（debug 模式保留详情） | D3 | 三条服务器路径统一断言 |
 | 0.10.1-4 | CORS：字符串响应补齐响应头写入；`*` + credentials 组合启动期抛错 | D5 | Socket 链路 CORS 用例 |
 
+实施状态（全部完成，待随 0.10.1 发布）：
+
+- **0.10.1-1 已完成**：`Frame.parse` 新增 `max_payload_size` 参数（帧头声明长度
+  超限立即抛 `FrameTooLargeError`，无需等待完整负载到达）；
+  `WebSocketConnection` 默认上限 1MB（含接收缓冲区纵深防御上限），超限回
+  1009 关闭帧并断连；`WebSocketServer` 握手请求头同步设上限。
+  配置项：`websocket_max_message_size`。
+  测试：`tests/unit/test_websocket_server.py::TestWebSocketFrameLimits`
+- **0.10.1-2 已完成**：`TCPServer` 新增 `max_connections`（达上限快速拒绝，
+  不创建 greenlet 与 epoll 注册项）与 `idle_read_timeout`（默认 30s，
+  `Epoll._check_read_deadlines` 对阻塞读超时的连接注入 `socket.timeout` 断连）；
+  asyncio 路径（`AsyncHTTPServer`）同语义实现。
+  配置项：`max_connections`（默认 1024）、`idle_read_timeout`（默认 30.0）。
+  测试：`tests/unit/test_server_connection_governance.py`
+- **0.10.1-3 已完成**：三条服务器路径逐一核实——socket / wsgi（`base.py`
+  `_process_route_error`）与 asgi 路径此前已按 `config.debug` 门控，无需改动；
+  asyncio 路径（`server/asyncio.py`）为唯一泄露点，已改为 `_internal_error_message`
+  统一脱敏（debug 模式保留细节）。测试同上文件
+- **0.10.1-4 已完成**：`CORSMiddleware.process_response` 对非 tuple 响应
+  经 `request_handler._add_header` 补写 CORS 头（Socket 链路响应构建流程统一输出）；
+  `allow_origins=['*']` 与 `allow_credentials=True` 组合在中间件构造期（启动期）
+  抛 `ValueError`。测试：`tests/unit/test_middleware.py::TestCORSMiddlewareSecurity`
+
 ### 4.3 并入 v0.11.0 —— 并发安全与认证加固
 
 | # | 任务 | 对应缺陷 |

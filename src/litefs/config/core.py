@@ -33,6 +33,9 @@ class Config(ConfigLoadersMixin, ConfigCryptoMixin):
         'listen': 1024,                   # 最大监听连接数
         'max_request_size': 10485760,     # 最大请求大小（10MB）
         'max_upload_size': 52428800,      # 最大上传大小（50MB）
+        'max_connections': 1024,          # 原生服务器最大并发连接数（None 表示不限制）
+        'idle_read_timeout': 30.0,        # 原生服务器空闲读超时（秒，0/None 禁用）
+        'websocket_max_message_size': 1048576,  # WebSocket 单条消息上限（字节）
         'config_file': None,              # 配置文件路径
         'error_pages_dir': None,          # 错误页面目录
         'config_env': None,               # 环境名称（如 development, production）

@@ -20,6 +20,9 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``listen`` | int | ``1024`` | 服务器监听队列大小 |
 | ``max_request_size`` | int | ``10485760`` | 最大请求体大小（字节，默认 10MB） |
 | ``max_upload_size`` | int | ``52428800`` | 最大上传文件大小（字节，默认 50MB） |
+| ``max_connections`` | int | ``1024`` | 原生服务器最大并发连接数，达到上限后新连接被快速拒绝（``None`` 表示不限制） |
+| ``idle_read_timeout`` | float | ``30.0`` | 原生服务器空闲读超时（秒），连接阻塞等待读数据超时后断开（slowloris 防护；0/``None`` 禁用） |
+| ``websocket_max_message_size`` | int | ``1048576`` | WebSocket 单条消息（帧负载）上限（字节），超限回 1009 关闭帧并断连 |
 | ``config_file`` | str | ``None`` | 配置文件路径 |
 | ``session_backend`` | str | ``memory`` | 会话后端（memory/redis/database/memcache） |
 | ``session_expiration_time`` | int | ``3600`` | 会话过期时间（秒） |

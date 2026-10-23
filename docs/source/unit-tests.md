@@ -28,7 +28,8 @@ tests/
 │   │   ├── test_asgi_server.py / test_asyncio_server.py / test_greenlet_server.py
 │   │   ├── test_streaming.py / test_max_request_size.py / test_error_pages.py
 │   │   ├── test_static_handler.py / test_default_page.py / test_health_check.py
-│   │   └── test_handlers_form.py / test_handlers_enhanced.py   # 表单/增强处理器
+│   │   ├── test_handlers_form.py / test_handlers_enhanced.py   # 表单/增强处理器
+│   │   └── test_server_connection_governance.py                # 连接治理（max_connections/空闲读超时/500 脱敏）
 │   ├── 中间件
 │   │   ├── test_middleware.py / test_middleware_base.py        # 管理器与基类
 │   │   ├── test_middleware_security.py / test_middleware_csrf.py / test_middleware_params.py

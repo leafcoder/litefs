@@ -212,6 +212,25 @@ if __name__ == '__main__':
 | `port` | int | HTTP端口+1 | WebSocket 服务器端口 |
 | `auth_required` | bool | False | 是否需要认证 |
 | `auth_handler` | Callable | None | 认证处理函数 |
+| `max_message_size` | int | 1048576 | 单条消息（帧负载）上限（字节），应用配置项 `websocket_max_message_size` 可全局设置 |
+
+## 消息大小限制
+
+为防止恶意客户端声明的超大帧耗尽服务器内存（内存放大 DoS），连接在
+协议解析层强制执行消息大小上限：
+
+- 帧头声明长度超过上限时**立即拒绝**（无需等待完整负载到达），
+  抛出 `FrameTooLargeError`
+- 接收缓冲区设有纵深防御上限（上限 + 4KB），流中无法形成有效帧边界时
+  同样触发断连
+- 超限时服务器回 **1009（Message Too Big）** 关闭帧并断开连接
+- 握手阶段的 HTTP 请求头受同一上限约束，超限直接拒绝
+
+可通过应用配置调整（字节）：
+
+```yaml
+websocket_max_message_size: 1048576  # 默认 1MB
+```
 
 ## 协议支持
 
@@ -230,6 +249,7 @@ if __name__ == '__main__':
 | 1001 | 离开 |
 | 1002 | 协议错误 |
 | 1003 | 不支持的数据类型 |
+| 1009 | 消息超过大小上限 |
 | 4001 | 未授权（自定义） |
 
 ```python

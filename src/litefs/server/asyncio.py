@@ -26,17 +26,31 @@ def parse_header(line: str) -> Tuple[Tuple[str, str], Dict[str, str]]:
     return msg.get_params()[0], dict(msg.get_params()[1:])
 
 
+def _internal_error_message(app: Any, exc: Exception) -> str:
+    """构建 500 响应消息
+
+    仅在应用开启 debug 模式时包含异常细节，否则返回通用文案，
+    避免内部实现信息（堆栈、路径、依赖细节）泄露给客户端。
+    """
+    debug = bool(getattr(getattr(app, 'config', None), 'debug', False))
+    if debug:
+        return f"Internal server error: {exc}\n{traceback.format_exc()}"
+    return "Internal Server Error"
+
+
 class AsyncHTTPRequestHandler:
     """异步 HTTP 请求处理器"""
 
     def __init__(self, app, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                 client_address: Tuple[str, int], server, keep_alive_timeout: float = 5.0):
+                 client_address: Tuple[str, int], server, keep_alive_timeout: float = 5.0,
+                 idle_read_timeout: float = 30.0):
         self.app = app
         self.reader = reader
         self.writer = writer
         self.client_address = client_address
         self.server = server
         self.keep_alive_timeout = keep_alive_timeout
+        self.idle_read_timeout = idle_read_timeout
         self.keep_alive = False
 
     async def handle_request(self):
@@ -47,8 +61,10 @@ class AsyncHTTPRequestHandler:
                     # 设置读取超时
                     self.reader._timeout = self.keep_alive_timeout
 
-                    # 构建 ASGI scope
-                    scope = await self._build_scope()
+                    # 构建 ASGI scope（受空闲读超时约束，慢速请求头攻击防护）
+                    scope = await asyncio.wait_for(
+                        self._build_scope(), timeout=self.idle_read_timeout
+                    )
 
                     # 检查是否支持 keep-alive
                     self._check_keep_alive(scope)
@@ -122,7 +138,7 @@ class AsyncHTTPRequestHandler:
                 except Exception as e:
                     logging.error(f"Error handling request: {e}")
                     traceback.print_exc()
-                    await self._send_error(500, f"Internal server error: {str(e)}")
+                    await self._send_error(500, _internal_error_message(self.app, e))
                     break
 
         except Exception as e:
@@ -278,29 +294,51 @@ class AsyncHTTPServer:
     """基于 asyncio 的 HTTP 服务器"""
 
     def __init__(self, app, host: str = '0.0.0.0', port: int = 8080,
-                 processes: int = 1, keep_alive_timeout: float = 5.0, **kwargs):
+                 processes: int = 1, keep_alive_timeout: float = 5.0,
+                 max_connections: int = None, idle_read_timeout: float = 30.0,
+                 **kwargs):
         self.app = app
         self.host = host
         self.port = port
         self.processes = processes
         self.keep_alive_timeout = keep_alive_timeout
+        self.max_connections = max_connections
+        self.idle_read_timeout = idle_read_timeout
         self.server_name = host
         self.server_port = str(port)
 
         self._server = None
         self._loop = None
+        self._connection_count = 0
 
     async def handle_client(self, reader: asyncio.StreamReader,
                             writer: asyncio.StreamWriter):
         """处理客户端连接"""
-        peername = writer.get_extra_info('peername')
-        client_address = peername if peername else ('unknown', 0)
+        if self.max_connections is not None and \
+                self._connection_count >= self.max_connections:
+            # 连接数达到上限：快速拒绝并立即关闭（不读取任何请求数据）
+            logging.warning(
+                "Connection rejected: max_connections=%d reached" % self.max_connections
+            )
+            try:
+                writer.close()
+            except Exception:
+                pass
+            return
 
-        handler = AsyncHTTPRequestHandler(
-            self.app, reader, writer, client_address, self, self.keep_alive_timeout
-        )
+        self._connection_count += 1
+        try:
+            peername = writer.get_extra_info('peername')
+            client_address = peername if peername else ('unknown', 0)
 
-        await handler.handle_request()
+            handler = AsyncHTTPRequestHandler(
+                self.app, reader, writer, client_address, self,
+                self.keep_alive_timeout, self.idle_read_timeout,
+            )
+
+            await handler.handle_request()
+        finally:
+            self._connection_count -= 1
 
     async def start(self):
         """启动服务器"""
@@ -341,7 +379,9 @@ class AsyncHTTPServer:
 
 
 def run_asyncio(app, host: str = '0.0.0.0', port: int = 8080,
-                processes: int = 1, keep_alive_timeout: float = 5.0, **kwargs):
+                processes: int = 1, keep_alive_timeout: float = 5.0,
+                max_connections: int = None, idle_read_timeout: float = 30.0,
+                **kwargs):
     """运行基于 asyncio 的 HTTP 服务器
 
     Args:
@@ -350,7 +390,13 @@ def run_asyncio(app, host: str = '0.0.0.0', port: int = 8080,
         port: 监听端口
         processes: 进程数（asyncio 版本不支持多进程）
         keep_alive_timeout: Keep-Alive 超时时间（秒）
+        max_connections: 最大并发连接数（None 表示不限制）
+        idle_read_timeout: 空闲读超时时间（秒）
         **kwargs: 其他参数
     """
-    server = AsyncHTTPServer(app, host, port, processes, keep_alive_timeout, **kwargs)
+    server = AsyncHTTPServer(
+        app, host, port, processes, keep_alive_timeout,
+        max_connections=max_connections, idle_read_timeout=idle_read_timeout,
+        **kwargs,
+    )
     server.run()

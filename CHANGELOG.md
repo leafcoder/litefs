@@ -48,6 +48,29 @@
 - 示例（01-quickstart / 03-web-app / 05-production）中间件改为 config.yaml
   配置驱动，03-web-app 演示自定义中间件模块路径配置
 
+### Security
+
+安全修复包（对应代码审计文档 `code-audit-upgrade-plan` 4.2 节，D1 / D2 / D3 / D5）：
+
+- **WebSocket 帧与缓冲区上限（D1）**：`Frame.parse` 新增 `max_payload_size`
+  参数，帧头声明长度超限立即拒绝（`FrameTooLargeError`）；
+  `WebSocketConnection` 默认单条消息上限 1MB（含接收缓冲区纵深防御上限），
+  超限回 1009（Message Too Big）关闭帧并断连；`WebSocketServer` 握手请求头
+  同步设上限。新增配置项 `websocket_max_message_size`（默认 1048576）
+- **原生服务器连接治理（D2）**：`TCPServer` 新增 `max_connections`
+  （达到上限后新连接被快速拒绝，不再无限接受）与 `idle_read_timeout`
+  （默认 30 秒，阻塞读超时的连接被断开，slowloris 防护）；asyncio 服务器
+  同语义支持。新增配置项 `max_connections`（默认 1024）、
+  `idle_read_timeout`（默认 30.0，0/None 禁用）
+- **500 响应信息泄露（D3）**：asyncio 服务器路径的 500 响应不再携带
+  内部异常细节与堆栈，统一返回 `Internal Server Error`；
+  debug 模式保留完整细节。socket / wsgi / asgi 路径经核实此前已按
+  `config.debug` 门控，无泄露
+- **CORS 加固（D5）**：`CORSMiddleware.process_response` 修复非 tuple
+  响应（Socket 链路 str/bytes 返回值）丢失全部 CORS 响应头的问题，
+  现经请求处理器 `_add_header` 补写；`allow_origins=['*']` 与
+  `allow_credentials=True` 危险组合改为启动期（中间件构造期）抛 `ValueError`
+
 ## [0.10.0] - 2026-10-22
 
 v0.10.0 是「契约与结构重构」版本：公共 API 首次全量分级冻结、弃用机制落地、
