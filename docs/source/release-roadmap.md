@@ -18,7 +18,7 @@
 | 破坏性变更 | 集中在 v1.0.0 一次性执行（B1–B8） | **分散到各 0.x 版本**，利用 SemVer 0.x 允许破坏的特性 |
 | v1.0.0 性质 | 「大量变更的交付版本」 | **「稳定性声明版本」** —— 几乎零代码变更，只做 API 冻结宣告 + 政策定稿 + 标签 |
 | 晋级条件 | 一次性满足 15 条 DoD | **每一版 0.x 都是可发布版本**；15 条 DoD 全部达成才允许打 v1.0.0 标签 |
-| 发布粒度 | 1 次大版本 | 7 次发布（0.10.0 – 0.15.0 + 1.0.0），每次均含 CHANGELOG 与 Release Notes |
+| 发布粒度 | 1 次大版本 | 8 次发布（0.10.0 – 0.16.0 + 1.0.0），每次均含 CHANGELOG 与 Release Notes |
 
 **变更理由**：行业数据显示 0.x → 1.0 的中位耗时是 3–8 年（Starlette 7.8 年，Flask 约 8 年，FastAPI 8 年仍未达成 1.0）。把 3–8 年的工程量压进单次发布，风险不可控且无法持续验证。分版本路线让每一批改动都被真实用户验证过 —— **1.0 应该是「验证完毕的既有事实」，而不是「一次性押注的未来承诺」**。
 
@@ -33,8 +33,9 @@ SemVer 规范中 `0.y.z` 阶段「任何变更都可能发生」，因此：
 ### 1.3 与既有决策的关系
 
 - 决策「范围定位 = 聚焦稳定性硬指标」**保持不变**。
-- 决策「Python 基线 = 3.10–3.14」**保持不变**，落地于 v0.14.0。
-- 决策「ASGI 深度 = 渐进增强」**保持不变**，落地于 v0.13.0。
+- 决策「Python 基线 = 3.10–3.14」**保持不变**，落地于 v0.15.0。
+- 决策「ASGI 深度 = 渐进增强」**保持不变**，落地于 v0.14.0（原规划 v0.13.0，
+  因 v0.13.0 实际交付代码审计加固项而顺延，见 §4.4）。
 - 原决策「破坏性变更 = 1.0.0 一次性执行」**被本方案覆盖**，改为分散执行。
 
 ---
@@ -67,10 +68,10 @@ SemVer 规范中 `0.y.z` 阶段「任何变更都可能发生」，因此：
 | 2 | 长弃用期，破坏性变更只走 major | Django：弃用后至少保留 2 个 feature release | ❌ 无弃用机制 | v0.10.0 |
 | 3 | 覆盖率成为硬门禁 | FastAPI / Starlette 公开声明 **100% 覆盖率**，pytest 开 `filterwarnings=error` | ⚠️ 72.2%，无 `fail_under` | v0.12.0 |
 | 4 | 完整类型注解 + `py.typed` + `mypy --strict` | Starlette / FastAPI 均 `strict = true`；Django 是唯一无 `py.typed` 的一线框架 | ❌ 无 `py.typed`，53 模块豁免 | v0.11.0 |
-| 5 | 明确的 Python 版本淘汰节奏 | Starlette 1.8 抬到 3.11、Sanic 25.12 弃 3.9、Quart 0.23 抬到 3.13 | ⚠️ 3.8–3.12，3.8 已 EOL | v0.14.0 |
-| 6 | 安全响应闭环（GHSA / CVE / 分支回补） | Django 明确「security trumps the compatibility guarantee」 | ⚠️ 有依赖审计，无响应流程 | v0.15.0 |
-| 7 | 版本化文档 + 迁移指南 + 废弃时间表 | Django 有专门的 Deprecation Timeline 页 | ❌ 无 | v0.10.0 / v0.15.0 |
-| 8 | 生态可互操作（ASGI 中间件规范、插件注册） | Starlette `BaseHTTPMiddleware` 互操作 | ❌ 无 lifespan、无 entry_points | v0.13.0 |
+| 5 | 明确的 Python 版本淘汰节奏 | Starlette 1.8 抬到 3.11、Sanic 25.12 弃 3.9、Quart 0.23 抬到 3.13 | ⚠️ 3.8–3.12，3.8 已 EOL | v0.15.0 |
+| 6 | 安全响应闭环（GHSA / CVE / 分支回补） | Django 明确「security trumps the compatibility guarantee」 | ⚠️ 有依赖审计，无响应流程 | v0.16.0 |
+| 7 | 版本化文档 + 迁移指南 + 废弃时间表 | Django 有专门的 Deprecation Timeline 页 | ❌ 无 | v0.10.0 / v0.16.0 |
+| 8 | 生态可互操作（ASGI 中间件规范、插件注册） | Starlette `BaseHTTPMiddleware` 互操作 | ❌ 无 lifespan、无 entry_points | v0.14.0 |
 
 ### 2.3 Litefs 硬性标准总表（15 条 DoD）
 
@@ -88,11 +89,11 @@ SemVer 规范中 `0.y.z` 阶段「任何变更都可能发生」，因此：
 | H8 | 核心模块覆盖率 ≥80% | `handlers/socket.py` / `server/greenlet.py` / `app/server_mixin.py` ≥80%，`websocket/` ≥75% | v0.12.0 |
 | H9 | `filterwarnings = error` 生效 | pytest 配置核对 | v0.12.0 |
 | H10 | `TestClient` 与 `tests/conftest.py` 就位 | 单元测试 + 文档示例 | v0.12.0 |
-| H11 | ASGI lifespan 可被 uvicorn / hypercorn 托管 | 集成测试用例 | v0.13.0 |
-| H12 | ASGI 中间件签名兼容 + `entry_points` 插件可被发现 | 集成测试 + 示例 | v0.13.0 |
-| H13 | GitHub PR 级 CI 全部通过 + Python 3.10–3.14 矩阵全绿 | PR 状态检查 + CI 矩阵 | v0.14.0 |
-| H14 | `SECURITY.md` + SBOM + 签名就绪 + 版本化文档站 | 发布产物核验 | v0.15.0 |
-| H15 | 迁移指南 + 变更日志齐备，无未登记的破坏性变更 | 文档评审 + 破坏性变更清单逐条核对 | v0.15.0 / v1.0.0 |
+| H11 | ASGI lifespan 可被 uvicorn / hypercorn 托管 | 集成测试用例 | v0.14.0 |
+| H12 | ASGI 中间件签名兼容 + `entry_points` 插件可被发现 | 集成测试 + 示例 | v0.14.0 |
+| H13 | GitHub PR 级 CI 全部通过 + Python 3.10–3.14 矩阵全绿 | PR 状态检查 + CI 矩阵 | v0.15.0 |
+| H14 | `SECURITY.md` + SBOM + 签名就绪 + 版本化文档站 | 发布产物核验 | v0.16.0 |
+| H15 | 迁移指南 + 变更日志齐备，无未登记的破坏性变更 | 文档评审 + 破坏性变更清单逐条核对 | v0.16.0 / v1.0.0 |
 
 ---
 
@@ -109,11 +110,14 @@ v0.11.0  类型系统与打包契约 py.typed 落盘 + mypy --strict 零豁免
    │
 v0.12.0  测试基础设施与质量基线 conftest + TestClient + 覆盖率 ≥85% + warnings 严格化
    │
-v0.13.0  ASGI 协议与插件生态  lifespan + streaming + 中间件兼容 + entry_points
+v0.13.0  请求体解析与连接治理加固（审计方案插入：multipart 流式化 + chunked
+         + request_queue_size + 插件异常隔离 + OpenAPI 签名推断）
    │
-v0.14.0  工程化与 Python 基线收敛 PR CI 门禁 + 删 setup.py + 依赖 optional 化 + 3.10–3.14
+v0.14.0  ASGI 协议与插件生态  lifespan + streaming + 中间件兼容 + entry_points（原 v0.13.0 规划顺延）
    │
-v0.15.0  发布基础设施与安全闭环 SECURITY.md + SBOM/签名 + 版本化文档站 + 迁移指南
+v0.15.0  工程化与 Python 基线收敛 PR CI 门禁 + 删 setup.py + 依赖 optional 化 + 3.10–3.14
+   │
+v0.16.0  发布基础设施与安全闭环 SECURITY.md + SBOM/签名 + 版本化文档站 + 迁移指南
    │
 v1.0.0   稳定性声明发布   API 冻结宣告 + 政策定稿 + 标签（几乎零代码变更）
    │
@@ -133,9 +137,10 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 | **v0.10.0** | 契约与结构重构 | ① ② ⑦ | 用户可依赖「哪些 API 会变、什么会被弃用」，代码结构达标 | ≈7d |
 | **v0.11.0** | 类型系统与打包契约 | ④ | 首次提供完整类型支持，IDE 补全与静态检查全量可用 | ≈6d |
 | **v0.12.0** | 测试基础设施与质量基线 | ③ | 质量可度量、可门禁，回归风险显著下降 | ≈12d |
-| **v0.13.0** | ASGI 协议与插件生态 | ⑧ | 可被 uvicorn/hypercorn 直接托管，插件生态开放 | ≈10.5d |
-| **v0.14.0** | 工程化与 Python 基线收敛 | ⑤ | 安装更轻，Python 淘汰节奏明确 | ≈8d |
-| **v0.15.0** | 发布基础设施与安全闭环 | ⑥ ⑦ | 供应链可信，安全响应有流程 | ≈7d |
+| **v0.13.0** | 请求体解析与连接治理加固（审计方案插入） | — | multipart 流式化、chunked 支持、backlog 配置化、插件异常隔离、OpenAPI 签名推断 | ≈6d |
+| **v0.14.0** | ASGI 协议与插件生态 | ⑧ | 可被 uvicorn/hypercorn 直接托管，插件生态开放 | ≈10.5d |
+| **v0.15.0** | 工程化与 Python 基线收敛 | ⑤ | 安装更轻，Python 淘汰节奏明确 | ≈8d |
+| **v0.16.0** | 发布基础设施与安全闭环 | ⑥ ⑦ | 供应链可信，安全响应有流程 | ≈7d |
 | **v1.0.0** | 稳定性声明发布 | 全部 8 条 | 兑现可依赖的长期承诺 | ≈4d |
 | | | | **合计** | **≈54.5d** |
 
@@ -213,15 +218,19 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 - [ ] `pytest` 在 `filterwarnings = error` 下全绿
 - [ ] 性能回归门禁 RPS ≥ v0.9.0 基线
 
-### 4.4 v0.13.0 —— ASGI 协议与插件生态
+### 4.4 v0.14.0 —— ASGI 协议与插件生态（原 v0.13.0 规划顺延）
+
+> **顺延说明**：v0.13.0 实际交付代码审计方案（`code-audit-upgrade-plan.md`
+> 4.4 / 4.5 节：multipart 流式化、chunked 支持、`request_queue_size`、
+> 插件加载异常隔离、OpenAPI 签名推断），本版任务原样顺延至 v0.14.0。
 
 | # | 任务 | 产出 | 验收标准 | 工作量 |
 |---|------|------|---------|--------|
-| 0.13-1 | ASGI lifespan 协议 | `handlers/asgi.py` 支持 `scope['type'] == 'lifespan'` | uvicorn / hypercorn 直接托管 Litefs ASGI app 正常启停；`startup` / `shutdown` 钩子可注册 | 2d |
-| 0.13-2 | 原生 ASGI streaming 响应 | 响应对象直通 `send()` | 不再经过 WSGI environ 转换；SSE / 流式大文件不缓冲 | 3d |
-| 0.13-3 | ASGI 中间件签名兼容 | `litefs/middleware/asgi.py` | Starlette 风格 `async def mw(request, call_next)` 中间件可直接挂载 | 2d |
-| 0.13-4 | `entry_points` 插件发现 | `plugins/loader.py` 双通道 | 支持 `[project.entry-points."litefs.plugins"]`；保留现有目录扫描 | 1.5d |
-| 0.13-5 | 集成测试与示例 | 测试 + `examples/` | uvicorn/hypercorn 托管用例；entry_points 示例；streaming 示例 | 2d |
+| 0.14-1 | ASGI lifespan 协议 | `handlers/asgi.py` 支持 `scope['type'] == 'lifespan'` | uvicorn / hypercorn 直接托管 Litefs ASGI app 正常启停；`startup` / `shutdown` 钩子可注册 | 2d |
+| 0.14-2 | 原生 ASGI streaming 响应 | 响应对象直通 `send()` | 不再经过 WSGI environ 转换；SSE / 流式大文件不缓冲 | 3d |
+| 0.14-3 | ASGI 中间件签名兼容 | `litefs/middleware/asgi.py` | Starlette 风格 `async def mw(request, call_next)` 中间件可直接挂载 | 2d |
+| 0.14-4 | `entry_points` 插件发现 | `plugins/loader.py` 双通道 | 支持 `[project.entry-points."litefs.plugins"]`；保留现有目录扫描 | 1.5d |
+| 0.14-5 | 集成测试与示例 | 测试 + `examples/` | uvicorn/hypercorn 托管用例；entry_points 示例；streaming 示例 | 2d |
 
 **出口门禁**：
 
@@ -230,16 +239,16 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 - [ ] Starlette 风格中间件可直接挂载并通过用例
 - [ ] `entry_points` 插件可被发现（集成测试通过）
 
-### 4.5 v0.14.0 —— 工程化与 Python 基线收敛
+### 4.5 v0.15.0 —— 工程化与 Python 基线收敛
 
 | # | 任务 | 产出 | 验收标准 | 工作量 |
 |---|------|------|---------|--------|
-| 0.14-1 | GitHub PR 级 CI 门禁 | `.github/workflows/ci.yml` | PR 触发 lint（flake8+ruff+mypy strict）+ test（3.10–3.14 矩阵）+ coverage 门禁；`allow_failure: false` | 2d |
-| 0.14-2 | 删除 `setup.py` | 单一 `pyproject.toml` | 全部元数据迁入 PEP 621；`pip install .` 与 `python -m build` 均通过 | 1d |
-| 0.14-3 | 核心依赖 optional 化 | `pyproject.toml` extras 重整 | `SQLAlchemy` / `watchdog` / `greenlet` 移出必装；`cache/cache.py` 与 `database/core.py` 的模块级 import 改为懒加载 | 2d |
-| 0.14-4 | extras 矩阵重整 | `litefs[standard\|full\|db\|server\|mail\|i18n\|monitoring\|dev\|docs]` | 每个 extra 有明确用途与文档说明；`litefs[full]` 可复现全部功能 | 1d |
-| 0.14-5 | Python 基线收敛 3.10–3.14 | `requires-python` + classifiers + CI 矩阵 | 弃 3.8/3.9；新增 3.13/3.14；`black` target-version 同步 | 1d |
-| 0.14-6 | 可选依赖缺失时的友好提示 | 启动期检查 | 缺失可选依赖时给出**明确的中文错误提示与安装命令**（不做静默降级） | 1d |
+| 0.15-1 | GitHub PR 级 CI 门禁 | `.github/workflows/ci.yml` | PR 触发 lint（flake8+ruff+mypy strict）+ test（3.10–3.14 矩阵）+ coverage 门禁；`allow_failure: false` | 2d |
+| 0.15-2 | 删除 `setup.py` | 单一 `pyproject.toml` | 全部元数据迁入 PEP 621；`pip install .` 与 `python -m build` 均通过 | 1d |
+| 0.15-3 | 核心依赖 optional 化 | `pyproject.toml` extras 重整 | `SQLAlchemy` / `watchdog` / `greenlet` 移出必装；`cache/cache.py` 与 `database/core.py` 的模块级 import 改为懒加载 | 2d |
+| 0.15-4 | extras 矩阵重整 | `litefs[standard\|full\|db\|server\|mail\|i18n\|monitoring\|dev\|docs]` | 每个 extra 有明确用途与文档说明；`litefs[full]` 可复现全部功能 | 1d |
+| 0.15-5 | Python 基线收敛 3.10–3.14 | `requires-python` + classifiers + CI 矩阵 | 弃 3.8/3.9；新增 3.13/3.14；`black` target-version 同步 | 1d |
+| 0.15-6 | 可选依赖缺失时的友好提示 | 启动期检查 | 缺失可选依赖时给出**明确的中文错误提示与安装命令**（不做静默降级） | 1d |
 
 **本版允许的破坏性变更**：B1（核心依赖 optional 化）、B2（删除 `setup.py`）、B3（Python 基线 3.10+）。
 
@@ -250,27 +259,27 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 - [ ] `pip install litefs` 不再拉入 SQLAlchemy / watchdog / greenlet
 - [ ] 迁移说明已在 CHANGELOG 给出（`pip install litefs[full]` 一键方案）
 
-### 4.6 v0.15.0 —— 发布基础设施与安全闭环
+### 4.6 v0.16.0 —— 发布基础设施与安全闭环
 
 | # | 任务 | 产出 | 验收标准 | 工作量 |
 |---|------|------|---------|--------|
-| 0.15-1 | `SECURITY.md` 与 CVE 响应流程 | 安全策略文档 + 私有报告通道 | 明确漏洞报告方式、响应时限、分支回补规则（对标 Django「安全优先于兼容承诺」） | 0.5d |
-| 0.15-2 | SBOM 与签名发布 | `cyclonedx-py` 产物 + Sigstore 签名 | 每版发布附带 SBOM；wheel/sdist 签名并在 PyPI 展示 | 1.5d |
-| 0.15-3 | 版本化文档站 | ReadTheDocs 配置 | 按版本发布；每版含迁移指南与废弃时间表 | 1.5d |
-| 0.15-4 | LTS 政策 | 政策文档 | 对标 Django：每 2 年一个 LTS、支持期 3 年、LTS 命名为 `X.0` | 0.5d |
-| 0.15-5 | 迁移指南 `migration-v1.md` | 文档 | 从 v0.9.0 逐版升级到 v0.15.0 的操作说明 + 0.15.0 → 1.0.0 预告 | 1.5d |
-| 0.15-6 | 全量回归 + 性能基线复核 | 回归报告 | 覆盖率 ≥85%、mypy strict 零错误、pytest 全绿、RPS ≥ v0.9.0 基线 100% | 1.5d |
+| 0.16-1 | `SECURITY.md` 与 CVE 响应流程 | 安全策略文档 + 私有报告通道 | 明确漏洞报告方式、响应时限、分支回补规则（对标 Django「安全优先于兼容承诺」） | 0.5d |
+| 0.16-2 | SBOM 与签名发布 | `cyclonedx-py` 产物 + Sigstore 签名 | 每版发布附带 SBOM；wheel/sdist 签名并在 PyPI 展示 | 1.5d |
+| 0.16-3 | 版本化文档站 | ReadTheDocs 配置 | 按版本发布；每版含迁移指南与废弃时间表 | 1.5d |
+| 0.16-4 | LTS 政策 | 政策文档 | 对标 Django：每 2 年一个 LTS、支持期 3 年、LTS 命名为 `X.0` | 0.5d |
+| 0.16-5 | 迁移指南 `migration-v1.md` | 文档 | 从 v0.9.0 逐版升级到 v0.16.0 的操作说明 + 0.16.0 → 1.0.0 预告 | 1.5d |
+| 0.16-6 | 全量回归 + 性能基线复核 | 回归报告 | 覆盖率 ≥85%、mypy strict 零错误、pytest 全绿、RPS ≥ v0.9.0 基线 100% | 1.5d |
 
 **出口门禁**：
 
 - [ ] H14、H15 达成
 - [ ] SBOM 与签名产物随发布产出
 - [ ] 文档站可按版本访问
-- [ ] 迁移指南覆盖 0.9.0 → 0.10.0 → … → 0.15.0 的全部破坏性变更
+- [ ] 迁移指南覆盖 0.9.0 → 0.10.0 → … → 0.16.0 的全部破坏性变更
 
 ### 4.7 v1.0.0 —— 稳定性声明发布
 
-> **本版几乎不做代码变更。** 当 0.10.0 – 0.15.0 逐版交付完毕、15 条硬性标准全部达成后，1.0.0 只是把「事实上已经稳定」的状态**正式宣告**出来。
+> **本版几乎不做代码变更。** 当 0.10.0 – 0.16.0 逐版交付完毕、15 条硬性标准全部达成后，1.0.0 只是把「事实上已经稳定」的状态**正式宣告**出来。
 
 | # | 任务 | 验收标准 | 工作量 |
 |---|------|---------|--------|
@@ -285,9 +294,9 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 **出口门禁（硬性）**：
 
 - [ ] **H1 – H15 全部达成，无一例外**
-- [ ] 0.10.0 – 0.15.0 全部已发布并可被用户安装
+- [ ] 0.10.0 – 0.16.0 全部已发布并可被用户安装
 - [ ] `Development Status` 为 `5 - Production/Stable`
-- [ ] v1.0.0 相对 v0.15.0 的代码变更量 ≤ 政策性改动（无功能性变更）
+- [ ] v1.0.0 相对 v0.16.0 的代码变更量 ≤ 政策性改动（无功能性变更）
 
 ---
 
@@ -297,9 +306,9 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 
 | # | 变更 | 影响 | 兼容处理 | 分配版本 |
 |---|------|------|---------|---------|
-| B1 | 核心依赖 optional 化 | `pip install litefs` 不再装 SQLAlchemy / watchdog / greenlet | 需功能者改用 `litefs[db]` / `litefs[standard]`；提供一键迁移提示 | v0.14.0 |
-| B2 | 删除 `setup.py` | 仅影响源码安装者 | `pip install -e .` 行为不变 | v0.14.0 |
-| B3 | Python 基线 3.10+ | 弃 3.8 / 3.9 | `Requires-Python` 声明；文档给出升级指引 | v0.14.0 |
+| B1 | 核心依赖 optional 化 | `pip install litefs` 不再装 SQLAlchemy / watchdog / greenlet | 需功能者改用 `litefs[db]` / `litefs[standard]`；提供一键迁移提示 | v0.15.0 |
+| B2 | 删除 `setup.py` | 仅影响源码安装者 | `pip install -e .` 行为不变 | v0.15.0 |
+| B3 | Python 基线 3.10+ | 弃 3.8 / 3.9 | `Requires-Python` 声明；文档给出升级指引 | v0.15.0 |
 | B4 | 内部符号加 `_` 前缀 | 少数用户可能引用了内部符号 | 保留旧名别名 + `DeprecationWarning` 一个 minor 周期 | v0.10.0 |
 | B5 | `ValidationError` 导入路径收敛 | `forms.py` / `validators.py` / `exceptions.py` 三处 | 统一到 `litefs.exceptions`；旧路径保留别名 + 警告 | v0.10.0 |
 | B6 | `core.py` 拆分后的私有方法迁移 | 极少数用户直接调 `core.py` 私有方法 | `_` 前缀标记为私有，文档明示不承诺兼容 | v0.10.0 |
@@ -343,7 +352,7 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 ### 8.1 里程碑与版本策略
 
 ```
-0.x 阶段（v0.10.0 – v0.15.0）：minor 递增即可能含破坏性变更
+0.x 阶段（v0.10.0 – v0.16.0）：minor 递增即可能含破坏性变更
    每一版独立可发布、独立验证、独立维护
 
 1.0 之后：严格 SemVer
@@ -391,8 +400,8 @@ v2.0.x   ASGI 原生重写 / HTTP/3 / 边缘轻量构建
 | API 稳定性政策 | `docs/source/api-stability.md` | v0.10.0 |
 | 公共 API 分级清单 | `docs/source/api-stability.md`（附录，196 个符号逐项判定） | v0.10.0 |
 | 弃用时间表 | `docs/source/deprecation-timeline.md` | v0.10.0 |
-| 迁移指南 | `docs/source/migration-v1.md` | v0.15.0 |
-| 安全策略 | `SECURITY.md`（仓库根目录） | v0.15.0 |
+| 迁移指南 | `docs/source/migration-v1.md` | v0.16.0 |
+| 安全策略 | `SECURITY.md`（仓库根目录） | v0.16.0 |
 | 本文 | `docs/source/release-roadmap.md` | 本方案 |
 
 ---

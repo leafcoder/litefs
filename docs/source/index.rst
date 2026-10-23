@@ -114,7 +114,7 @@ Litefs 是一个轻量级的 Python Web 框架，提供高性能的 HTTP 服务�
 * 性能回归门禁（基线阈值固化，自动比对 RPS 与 P99）
 * 依赖安全审计（pip-audit 定期扫描，CI 报告归档）
 * 文件监控和热重载
-* Python 3.8+ 支持（v0.14.0 起收敛至 3.10+，详见 :doc:`release-roadmap`）
+* Python 3.8+ 支持（v0.15.0 起收敛至 3.10+，详见 :doc:`release-roadmap`）
 
 快速开始
 --------
