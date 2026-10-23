@@ -78,8 +78,12 @@ class ProcessHTTPServer(HTTPServer):
     4. 信号管道通信，确保信号可靠传递
     """
 
-    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True, processes=4):
-        super().__init__(server_address, RequestHandlerClass, False)
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True, processes=4,
+                 request_queue_size=None):
+        super().__init__(
+            server_address, RequestHandlerClass, False,
+            request_queue_size=request_queue_size,
+        )
         self.processes = processes
         self.workers = []
         self._shutdown_requested = False

@@ -243,6 +243,36 @@
 | 0.12-⭐2 | 自研服务器链路 chunked 请求体支持与实际读取大小强制限制 | D11 |
 | 0.12-⭐3 | `request_queue_size` 暴露为配置项并给出合理默认值 | D12 |
 
+实施状态（全部完成，待随 0.12.0 发布）：
+
+- **0.12-⭐1 已完成**：`handlers/form.py` 新增流式核心解析器
+  `_parse_multipart_fp`（逐块读取 + 滑动缓冲增量扫描），三条路径
+  （WSGI / ASGI / Socket 流式）统一收敛到该实现：
+  仅识别行首 `--boundary`（首个边界允许无 CRLF 前缀，RFC 2046），
+  内容中类边界字节序列不再破坏解析；边界分隔符前的 CRLF 归属分隔符，
+  不再计入文件内容；字段值不再 strip；同名多值字段（含多文件上传）
+  与 urlencoded 语义对齐转为列表。WSGI 路径不再整包
+  `read(content_length)`，文件部件边解析边写入临时文件；
+  流式路径按实际读取字节数强制 `max_upload_size`（413）。
+  测试：`test_handlers_form.py::TestMultipartHardening`
+- **0.12-⭐2 已完成**：`handlers/form.py` 新增同步解码器
+  `read_chunked_body`，Socket 链路（`SocketRequestHandler`）识别
+  `HTTP_TRANSFER_ENCODING: chunked` 后解码请求体（含 chunk 扩展与
+  trailer），`CONTENT_LENGTH` 同步为实际长度，按 `max_request_size`
+  限制（413）；asyncio 链路（`AsyncHTTPRequestHandler`）新增
+  `_read_request_body` / `_read_chunked_body`：chunked 解码、
+  `Content-Length` 精确读取（`readexactly`，keep-alive 下不吞后续
+  请求）、截断回 400、超限回 413。
+  测试：`test_chunked_body.py`
+- **0.12-⭐3 已完成**：新增配置项 `request_queue_size`（默认 2048，
+  内核截断到 `net.core.somaxconn`）；`TCPServer` 类属性由硬编码
+  4194304 改为 2048 并支持构造参数覆盖（backlog 须在
+  `server_activate` 前设置）；`ProcessHTTPServer` 透传；
+  `server_mixin` 将应用配置传入两处服务器创建点；asyncio 服务器
+  经 `asyncio.start_server(backlog=...)` 同语义支持。
+  测试：`test_greenlet_server.py::TestRequestQueueSize`、
+  `test_asyncio_server.py::TestBacklogConfig`
+
 ### 4.5 并入 v0.13.0 —— 插件生态配套
 
 | # | 任务 | 对应缺陷 |

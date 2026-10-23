@@ -19,7 +19,13 @@ from ..exceptions import HttpError
 from ..session import Session
 from ..utils import log_error, render_error
 from .base import BaseRequestHandler
-from .form import parse_form, parse_header, parse_multipart_stream
+from .form import (
+    parse_form,
+    parse_header,
+    parse_multipart_asgi,
+    parse_multipart_stream,
+    read_chunked_body,
+)
 from .response import (  # noqa: F401  # server_info/server_software 为对外再导出
     DEFAULT_STATUS_MESSAGE,
     default_content_type,
@@ -82,16 +88,42 @@ class SocketRequestHandler(SocketResponseMixin, SocketRequestPropertiesMixin, Ba
                     raise HttpError(
                         413, f"Request body too large. Maximum size is {max_request_size} bytes"
                     )
+
+            # chunked 传输编码（无 Content-Length）：解码请求体（修复 D11）
+            chunked_body = None
+            transfer_encoding = ""
+            for te_key in ("HTTP_TRANSFER_ENCODING", "TRANSFER_ENCODING"):
+                if environ.get(te_key):
+                    transfer_encoding = str(environ[te_key]).lower()
+                    break
+            if "chunked" in transfer_encoding:
+                max_request_size = getattr(app.config, "max_request_size", 10485760)
+                chunked_body = read_chunked_body(rw.readline, rw.read, max_request_size)
+                environ["CONTENT_LENGTH"] = str(len(chunked_body))
+                content_length = len(chunked_body)
+
             if content_length:
                 if content_type_raw == "application/x-www-form-urlencoded":
-                    post_content = rw.read(int(content_length))
+                    post_content = (
+                        chunked_body if chunked_body is not None
+                        else rw.read(int(content_length))
+                    )
                     self._post = parse_form(post_content)
                     self._body = post_content
                 elif content_type_raw.startswith("multipart/form-data"):
                     boundary = content_type_params.get("boundary", None)
-                    self._post, self._files = self._parse_multipart(rw, boundary)
+                    if chunked_body is not None:
+                        self._post, self._files = parse_multipart_asgi(
+                            chunked_body, boundary,
+                            getattr(app.config, "max_upload_size", 52428800),
+                        )
+                    else:
+                        self._post, self._files = self._parse_multipart(rw, boundary)
                 else:
-                    post_content = rw.read(int(content_length))
+                    post_content = (
+                        chunked_body if chunked_body is not None
+                        else rw.read(int(content_length))
+                    )
                     environ["POST_CONTENT"] \
                         = unquote_plus(post_content.decode("utf-8"))
                     self._body = post_content

@@ -20,7 +20,7 @@ except ImportError:
 @pytest.mark.skipif(not HAS_GREENLET, reason="greenlet 未安装")
 class TestGreenletServer:
     """Greenlet 服务器测试"""
-    
+
     def test_parse_header_simple(self):
         """测试解析简单头部"""
         from litefs.server.greenlet import parse_header
@@ -364,6 +364,36 @@ class TestGreenletIntegration:
             assert environ is not None
             assert 'REQUEST_METHOD' in environ
             assert 'PATH_INFO' in environ
+
+
+class TestRequestQueueSize:
+    """监听队列长度配置化（对应代码审计 4.4 节 0.12-⭐3，D12）"""
+
+    def test_default_config_value(self):
+        """默认配置提供 request_queue_size 合理默认值"""
+        from litefs.config.core import Config
+
+        assert Config.DEFAULT_CONFIG.get('request_queue_size') == 2048
+
+    def test_tcp_server_default_backlog(self):
+        """未显式传参时使用合理默认值（不再是 4194304）"""
+        from litefs.server.greenlet_server_base import TCPServer
+
+        server = TCPServer(('127.0.0.1', 0), object)
+        try:
+            assert server.request_queue_size == 2048
+        finally:
+            server.server_close()
+
+    def test_tcp_server_custom_backlog(self):
+        """构造参数可覆盖监听队列长度"""
+        from litefs.server.greenlet_server_base import TCPServer
+
+        server = TCPServer(('127.0.0.1', 0), object, request_queue_size=128)
+        try:
+            assert server.request_queue_size == 128
+        finally:
+            server.server_close()
 
 
 if __name__ == '__main__':

@@ -52,6 +52,7 @@ class AsyncHTTPRequestHandler:
         self.keep_alive_timeout = keep_alive_timeout
         self.idle_read_timeout = idle_read_timeout
         self.keep_alive = False
+        self._scope: Dict[str, Any] = {}
 
     async def handle_request(self):
         """处理请求（支持 keep-alive）"""
@@ -216,14 +217,102 @@ class AsyncHTTPRequestHandler:
             'server': (self.server.server_name, int(self.server.server_port)),
             'client': self.client_address,
         }
+        self._scope = scope
 
         return scope
+
+    def _request_headers(self) -> Dict[str, str]:
+        """获取小写化的请求头映射"""
+        headers: Dict[str, str] = {}
+        for name, value in self._scope.get('headers', []):
+            headers.setdefault(
+                name.decode('utf-8').lower(), value.decode('utf-8')
+            )
+        return headers
+
+    async def _read_request_body(self) -> bytes:
+        """读取请求体
+
+        支持 Content-Length 精确读取与 chunked 传输编码解码；
+        实际读取字节数超过 max_request_size 抛 HttpError 413（修复 D11）。
+        """
+        headers = self._request_headers()
+        raw_max = getattr(
+            getattr(self.app, 'config', None), 'max_request_size', None
+        )
+        try:
+            max_request_size = int(raw_max)
+        except (TypeError, ValueError):
+            max_request_size = 10485760
+
+        transfer_encoding = headers.get('transfer-encoding', '').lower()
+        if 'chunked' in transfer_encoding:
+            return await self._read_chunked_body(max_request_size)
+
+        content_length = headers.get('content-length')
+        if content_length:
+            try:
+                length = int(content_length)
+            except ValueError:
+                raise HttpError(400, 'Invalid Content-Length')
+            if length > max_request_size:
+                raise HttpError(
+                    413,
+                    f'Request body too large. Maximum size is {max_request_size} bytes'
+                )
+            try:
+                return await asyncio.wait_for(
+                    self.reader.readexactly(length), timeout=self.idle_read_timeout
+                )
+            except asyncio.IncompleteReadError:
+                raise HttpError(400, 'Truncated request body')
+
+        return await self.reader.read()
+
+    async def _read_chunked_body(self, max_size: int) -> bytes:
+        """解码 chunked 传输编码的请求体
+
+        支持 chunk 扩展声明与 trailer 头部；解码字节数超过 max_size
+        抛 HttpError 413，格式非法或数据截断抛 HttpError 400。
+        """
+        body = bytearray()
+        while True:
+            size_line = await self.reader.readline()
+            if not size_line:
+                raise HttpError(400, 'Invalid chunked body')
+            size_str = size_line.strip().split(b';', 1)[0]
+            try:
+                size = int(size_str, 16)
+            except ValueError:
+                raise HttpError(400, 'Invalid chunk size')
+            if size < 0:
+                raise HttpError(400, 'Invalid chunk size')
+            if size == 0:
+                # 消费 trailer 头部（直到空行）
+                while True:
+                    line = await self.reader.readline()
+                    if not line or not line.strip():
+                        break
+                return bytes(body)
+            if len(body) + size > max_size:
+                raise HttpError(
+                    413, f'Request body too large. Maximum size is {max_size} bytes'
+                )
+            try:
+                data = await self.reader.readexactly(size)
+            except asyncio.IncompleteReadError:
+                raise HttpError(400, 'Truncated chunked body')
+            body.extend(data)
+            # 消费 chunk 数据后的 CRLF
+            crlf = await self.reader.readline()
+            if crlf.strip():
+                raise HttpError(400, 'Invalid chunk delimiter')
 
     def _create_receive(self):
         """创建 ASGI receive 函数"""
         async def receive():
-            # 读取请求体
-            body = await self.reader.read()
+            # 读取请求体（支持 Content-Length 精确读取与 chunked 解码）
+            body = await self._read_request_body()
             return {
                 'type': 'http.request',
                 'body': body,
@@ -296,7 +385,7 @@ class AsyncHTTPServer:
     def __init__(self, app, host: str = '0.0.0.0', port: int = 8080,
                  processes: int = 1, keep_alive_timeout: float = 5.0,
                  max_connections: int = None, idle_read_timeout: float = 30.0,
-                 **kwargs):
+                 request_queue_size: int = 2048, **kwargs):
         self.app = app
         self.host = host
         self.port = port
@@ -304,6 +393,8 @@ class AsyncHTTPServer:
         self.keep_alive_timeout = keep_alive_timeout
         self.max_connections = max_connections
         self.idle_read_timeout = idle_read_timeout
+        # 监听队列（listen backlog）长度：内核会截断到 net.core.somaxconn
+        self.request_queue_size = request_queue_size
         self.server_name = host
         self.server_port = str(port)
 
@@ -347,6 +438,7 @@ class AsyncHTTPServer:
             self.host,
             self.port,
             reuse_address=True,
+            backlog=self.request_queue_size,
         )
 
         addrs = ', '.join(str(sock.getsockname()) for sock in self._server.sockets)
@@ -381,7 +473,7 @@ class AsyncHTTPServer:
 def run_asyncio(app, host: str = '0.0.0.0', port: int = 8080,
                 processes: int = 1, keep_alive_timeout: float = 5.0,
                 max_connections: int = None, idle_read_timeout: float = 30.0,
-                **kwargs):
+                request_queue_size: int = 2048, **kwargs):
     """运行基于 asyncio 的 HTTP 服务器
 
     Args:
@@ -392,11 +484,13 @@ def run_asyncio(app, host: str = '0.0.0.0', port: int = 8080,
         keep_alive_timeout: Keep-Alive 超时时间（秒）
         max_connections: 最大并发连接数（None 表示不限制）
         idle_read_timeout: 空闲读超时时间（秒）
+        request_queue_size: 监听队列（listen backlog）长度
         **kwargs: 其他参数
     """
     server = AsyncHTTPServer(
         app, host, port, processes, keep_alive_timeout,
         max_connections=max_connections, idle_read_timeout=idle_read_timeout,
+        request_queue_size=request_queue_size,
         **kwargs,
     )
     server.run()

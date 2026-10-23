@@ -101,7 +101,10 @@ class TestRunServer:
                       side_effect=KeyboardInterrupt):
             app._run_server(poll_interval=0.1, processes=1)
 
-        server_cls.assert_called_once_with(('127.0.0.1', 0), app.handler)
+        server_cls.assert_called_once_with(
+            ('127.0.0.1', 0), app.handler,
+            request_queue_size=app.config.request_queue_size,
+        )
         server = app.server
         assert server.max_request_size == 1024
         server.start.assert_called_once()
@@ -115,7 +118,8 @@ class TestRunServer:
             app._run_server(poll_interval=0.2, processes=4)
 
         server_cls.assert_called_once_with(
-            ('127.0.0.1', 0), app.handler, processes=4
+            ('127.0.0.1', 0), app.handler, processes=4,
+            request_queue_size=app.config.request_queue_size,
         )
         app.server.max_request_size = 1024
         app.server.server_forever.assert_called_once_with(poll_interval=0.2)

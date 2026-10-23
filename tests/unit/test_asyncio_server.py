@@ -439,5 +439,46 @@ class TestAsyncIOIntegration:
         assert writer.write.called
 
 
+class TestBacklogConfig:
+    """asyncio 服务器 backlog 配置（对应代码审计 4.4 节 0.12-⭐3）"""
+
+    def test_request_queue_size_passed_as_backlog(self):
+        """request_queue_size 经 backlog 参数传给 asyncio.start_server"""
+        class _StopServing(Exception):
+            """用于终止 serve_forever 的测试异常"""
+
+        class _FakeServer:
+            """模拟 asyncio.Server 的最小接口"""
+
+            def __init__(self):
+                self.sockets = []
+                self.serve_forever = AsyncMock(side_effect=_StopServing)
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            def close(self):
+                pass
+
+        async def scenario():
+            captured = {}
+
+            async def fake_start_server(cb, host, port, **kwargs):
+                captured.update(kwargs)
+                return _FakeServer()
+
+            server = AsyncHTTPServer(Mock(), '127.0.0.1', 0, request_queue_size=512)
+            with patch('asyncio.start_server', fake_start_server):
+                with pytest.raises(_StopServing):
+                    await server.start()
+
+            assert captured.get('backlog') == 512
+
+        asyncio.run(scenario())
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

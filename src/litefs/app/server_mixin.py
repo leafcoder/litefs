@@ -93,13 +93,17 @@ class ServerMixin:
         try:
             if processes > 1:
                 self.server = ProcessHTTPServer(
-                    (self.host, self.port), self.handler, processes=processes
+                    (self.host, self.port), self.handler, processes=processes,
+                    request_queue_size=self.config.request_queue_size,
                 )
                 self._apply_connection_governance()
                 self.server.max_request_size = self.config.max_request_size
                 self.server.server_forever(poll_interval=poll_interval)
             else:
-                self.server = HTTPServer((self.host, self.port), self.handler)
+                self.server = HTTPServer(
+                    (self.host, self.port), self.handler,
+                    request_queue_size=self.config.request_queue_size,
+                )
                 self._apply_connection_governance()
                 self.server.max_request_size = self.config.max_request_size
                 self.server.start()

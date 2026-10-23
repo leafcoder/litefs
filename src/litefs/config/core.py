@@ -31,6 +31,7 @@ class Config(ConfigLoadersMixin, ConfigCryptoMixin):
         'debug': False,                   # 调试模式
         'log': './default.log',           # 日志文件路径
         'listen': 1024,                   # 最大监听连接数
+        'request_queue_size': 2048,       # 监听队列（listen backlog）长度，内核截断到 net.core.somaxconn
         'max_request_size': 10485760,     # 最大请求大小（10MB）
         'max_upload_size': 52428800,      # 最大上传大小（50MB）
         'max_connections': 1024,          # 原生服务器最大并发连接数（None 表示不限制）
