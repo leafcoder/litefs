@@ -178,6 +178,113 @@ class TestOpenAPI(unittest.TestCase):
         self.assertEqual(len(openapi._generator._servers), 1)
 
 
+class TestSignatureInference(unittest.TestCase):
+    """基于 handler 签名的参数推断（0.13-⭐2）"""
+
+    def setUp(self):
+        from litefs.openapi.generator import OpenAPIGenerator
+        from litefs.routing.router import Router
+
+        self.generator = OpenAPIGenerator('Test API', '1.0.0')
+        self.router = Router()
+
+    def _generate(self, path, handler, doc_info=None):
+        """注册路由并生成该路径的规范片段"""
+        self.router.add_get(path, handler, 'test_handler')
+        route = self.router.routes[-1]
+        if doc_info is not None:
+            handler._openapi_doc = doc_info
+        return self.generator._generate_path_item(route)
+
+    def test_query_params_inferred_with_defaults(self):
+        """带默认值的签名参数推断为非必填 query 参数"""
+        def handler(request, page: int = 1, q: str = ''):
+            return {}
+
+        spec = self._generate('/items', handler)
+        params = spec['get']['parameters']
+
+        by_name = {p['name']: p for p in params}
+        self.assertEqual(by_name['page']['in'], 'query')
+        self.assertEqual(by_name['page']['schema'], {'type': 'integer'})
+        self.assertFalse(by_name['page']['required'])
+        self.assertEqual(by_name['q']['schema'], {'type': 'string'})
+        self.assertFalse(by_name['q']['required'])
+
+    def test_required_query_param_without_default(self):
+        """无默认值的签名参数推断为必填 query 参数"""
+        def handler(request, keyword: str):
+            return {}
+
+        spec = self._generate('/search', handler)
+        params = spec['get']['parameters']
+        by_name = {p['name']: p for p in params}
+        self.assertTrue(by_name['keyword']['required'])
+        self.assertEqual(by_name['keyword']['schema'], {'type': 'string'})
+
+    def test_path_param_schema_from_annotation(self):
+        """路径参数类型取自签名注解而非硬编码 string"""
+        def handler(request, user_id: int):
+            return {}
+
+        spec = self._generate('/users/{user_id}', handler)
+        params = spec['get']['parameters']
+        by_name = {p['name']: p for p in params}
+        self.assertEqual(by_name['user_id']['in'], 'path')
+        self.assertEqual(by_name['user_id']['schema'], {'type': 'integer'})
+        self.assertTrue(by_name['user_id']['required'])
+
+    def test_body_param_inferred_from_reserved_name(self):
+        """data/body/payload 参数推断为 requestBody"""
+        def handler(request, data: dict):
+            return {}
+
+        spec = self._generate('/items', handler)
+        body = spec['get']['requestBody']
+        self.assertEqual(
+            body['content']['application/json']['schema'], {'type': 'object'},
+        )
+
+    def test_doc_parameters_take_precedence(self):
+        """显式文档参数优先，签名推断不产生重复参数"""
+        def handler(request, page: int = 1):
+            return {}
+
+        doc_info = {
+            'parameters': [{
+                'name': 'page', 'in': 'query', 'required': True,
+                'schema': {'type': 'integer'}, 'description': '页码',
+            }],
+        }
+        spec = self._generate('/items', handler, doc_info)
+        params = spec['get']['parameters']
+        page_params = [p for p in params if p['name'] == 'page']
+        self.assertEqual(len(page_params), 1)
+        self.assertEqual(page_params[0]['description'], '页码')
+
+    def test_var_args_skipped(self):
+        """*args 与 **kwargs 不参与推断"""
+        def handler(request, *args, **kwargs):
+            return {}
+
+        spec = self._generate('/items', handler)
+        self.assertNotIn('parameters', spec['get'])
+
+    def test_lambda_handler_no_params(self):
+        """lambda 处理器仅含 request 参数时不产出参数"""
+        spec = self._generate('/users', lambda r: {'users': []})
+        self.assertNotIn('parameters', spec['get'])
+
+    def test_unannotated_param_defaults_to_string(self):
+        """未注解参数回退为 string 类型 query 参数"""
+        def handler(request, page=1):
+            return {}
+
+        spec = self._generate('/items', handler)
+        params = spec['get']['parameters']
+        self.assertEqual(params[0]['schema'], {'type': 'string'})
+
+
 def run_tests():
     """运行所有测试"""
     loader = unittest.TestLoader()
@@ -186,6 +293,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestOpenAPIGenerator))
     suite.addTests(loader.loadTestsFromTestCase(TestSwaggerUI))
     suite.addTests(loader.loadTestsFromTestCase(TestOpenAPI))
+    suite.addTests(loader.loadTestsFromTestCase(TestSignatureInference))
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

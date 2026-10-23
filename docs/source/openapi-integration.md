@@ -93,6 +93,36 @@ def get_user(request, user_id):
     pass
 ```
 
+## 签名推断（渐进式，v0.13.0+）
+
+除显式文档装饰器外，生成器会基于 `inspect` 解析 handler 签名渐进式补全
+文档。**显式 `@openapi.doc` 声明的参数始终优先，签名推断不会产生重复项。**
+
+推断规则：
+
+- handler 首参数为 `request` 对象，不参与推断
+- 其余签名参数推断为 **query 参数**：类型取自注解（`str` / `int` /
+  `float` / `bool` / `list` / `dict`），无默认值为必填，有默认值非必填
+- 路径参数（如 `{user_id}`）的 schema 类型同样取自签名注解
+- `data` / `body` / `payload` 保留名参数推断为 **JSON requestBody**
+- `*args` / `**kwargs` 不参与推断
+
+```python
+@app.route('/users/{user_id}')
+def get_user(request, user_id: int, verbose: bool = False):
+    # 自动生成：user_id（path, integer, 必填）、verbose（query, boolean, 非必填）
+    return {'id': user_id}
+
+
+@app.route('/users')
+def create_user(request, data: dict):
+    # 自动生成：requestBody（application/json, object, 必填）
+    return {'ok': True}
+```
+
+未注解的参数回退为 `string` 类型。需要更精确的文档（描述、示例、
+复杂 schema）时，请继续使用「文档装饰器」显式声明。
+
 ## Schema 定义
 
 ### 使用装饰器

@@ -8,6 +8,7 @@
 PluginLoader 从文件系统加载插件。
 """
 
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -184,6 +185,174 @@ class TestPluginManager(unittest.TestCase):
     def test_get_plugin_missing_returns_none(self):
         """获取未加载插件返回 None"""
         self.assertIsNone(self.manager.get_plugin('nothing'))
+
+
+class TestPluginIsolation(unittest.TestCase):
+    """插件加载异常隔离（0.13-⭐1）"""
+
+    def setUp(self):
+        self.app = Mock()
+        self.app.config = FakeConfig()
+        self.manager = PluginManager(self.app)
+
+    def test_initialize_failure_isolated(self):
+        """单个插件 initialize 抛错不影响其他插件加载"""
+        class BrokenPlugin(Plugin):
+            name = 'broken'
+
+            def initialize(self):
+                raise RuntimeError('boom')
+
+        self.manager.register(BrokenPlugin)
+        self.manager.register(DummyPlugin)
+        self.manager.load_all()
+
+        self.assertTrue(self.manager.has_plugin('dummy'))
+        self.assertFalse(self.manager.has_plugin('broken'))
+        self.assertIn('broken', self.manager.failed_plugins)
+
+    def test_failed_plugins_records_error(self):
+        """失败清单记录插件名与错误信息"""
+        class BrokenPlugin(Plugin):
+            name = 'broken'
+
+            def initialize(self):
+                raise RuntimeError('boom')
+
+        self.manager.register(BrokenPlugin)
+        self.manager.load_all()
+        self.assertIn('boom', self.manager.failed_plugins['broken'])
+
+    def test_load_success_not_in_failed(self):
+        """加载成功的插件不进入失败清单"""
+        self.manager.register(DummyPlugin)
+        self.manager.load('dummy')
+        self.assertEqual(self.manager.failed_plugins, {})
+
+    def test_load_failure_logged(self):
+        """插件失败通过日志器记录而非 print"""
+        class BrokenPlugin(Plugin):
+            name = 'broken'
+
+            def initialize(self):
+                raise RuntimeError('boom')
+
+        self.manager.register(BrokenPlugin)
+        with self.assertLogs('litefs.plugins', level='ERROR'):
+            self.manager.load_all()
+
+    def test_dependency_failure_propagates_to_dependent(self):
+        """依赖插件失败时依赖方同样失败且不崩溃"""
+        class BrokenPlugin(Plugin):
+            name = 'broken'
+
+            def initialize(self):
+                raise RuntimeError('boom')
+
+        class DependentPlugin(Plugin):
+            name = 'dependent'
+            dependencies = ['broken']
+
+            def initialize(self):
+                pass
+
+        self.manager.register(BrokenPlugin)
+        self.manager.register(DependentPlugin)
+        self.manager.load_all()
+
+        self.assertIn('broken', self.manager.failed_plugins)
+        self.assertIn('dependent', self.manager.failed_plugins)
+        self.assertEqual(len(self.manager.get_all_plugins()), 0)
+
+    def test_incompatible_version_rejected(self):
+        """要求的最低框架版本高于当前版本时拒绝加载"""
+        class FuturePlugin(Plugin):
+            name = 'future'
+            required_litefs_version = '99.0.0'
+
+            def initialize(self):
+                pass
+
+        self.manager.register(FuturePlugin)
+        self.manager.load_all()
+        self.assertFalse(self.manager.has_plugin('future'))
+        self.assertIn('future', self.manager.failed_plugins)
+
+    def test_compatible_version_loaded(self):
+        """要求的最低框架版本不高于当前版本时正常加载"""
+        class OldPlugin(Plugin):
+            name = 'old'
+            required_litefs_version = '0.1.0'
+
+            def initialize(self):
+                self.initialized = True
+
+        self.manager.register(OldPlugin)
+        self.manager.load_all()
+        self.assertTrue(self.manager.has_plugin('old'))
+        self.assertNotIn('old', self.manager.failed_plugins)
+
+    def test_version_check_skipped_when_unset(self):
+        """未声明版本要求时跳过兼容检查"""
+        self.manager.register(DummyPlugin)
+        self.manager.load_all()
+        self.assertTrue(self.manager.has_plugin('dummy'))
+
+
+class TestLoaderIsolation(unittest.TestCase):
+    """PluginLoader 异常隔离（0.13-⭐1）"""
+
+    def setUp(self):
+        self.app = Mock()
+        self.app.config = FakeConfig()
+        self.loader = PluginLoader(self.app)
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self.plugin_root = Path(self.tmpdir.name)
+
+    def _write_plugin_file(self, filename, content):
+        path = self.plugin_root / filename
+        path.write_text(textwrap.dedent(content), encoding='utf-8')
+        return path
+
+    def test_broken_plugin_recorded_in_failed_plugins(self):
+        """加载失败的插件文件进入失败清单"""
+        self._write_plugin_file('broken.py', 'def broken(:\n    pass')
+        self.loader.add_plugin_dir(str(self.plugin_root))
+        self.loader.load_plugins()
+        self.assertEqual(len(self.loader.failed_plugins), 1)
+        self.assertIn('broken.py', self.loader.failed_plugins[0])
+
+    def test_broken_plugin_logged(self):
+        """加载失败通过日志器记录而非 print"""
+        self._write_plugin_file('broken.py', 'def broken(:\n    pass')
+        self.loader.add_plugin_dir(str(self.plugin_root))
+        with self.assertLogs('litefs.plugins', level='ERROR'):
+            self.loader.load_plugins()
+
+    def test_broken_plugin_no_sys_modules_pollution(self):
+        """加载失败的插件模块不残留在 sys.modules"""
+        self._write_plugin_file('broken.py', 'def broken(:\n    pass')
+        self.loader.add_plugin_dir(str(self.plugin_root))
+        self.loader.load_plugins()
+        self.assertNotIn('plugin_broken', sys.modules)
+
+    def test_good_plugin_loaded_alongside_broken(self):
+        """失败插件不影响同目录正常插件加载"""
+        self._write_plugin_file('broken.py', 'def broken(:\n    pass')
+        self._write_plugin_file('good.py', """
+            from litefs.plugins.base import Plugin
+
+            class GoodPlugin(Plugin):
+                name = 'good'
+
+                def initialize(self):
+                    pass
+        """)
+        self.loader.add_plugin_dir(str(self.plugin_root))
+        plugins = self.loader.load_plugins()
+        self.assertIn('good', plugins)
+        self.assertEqual(len(self.loader.failed_plugins), 1)
 
 
 class TestPluginLoader(unittest.TestCase):

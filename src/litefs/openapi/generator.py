@@ -6,7 +6,10 @@ OpenAPI 规范生成器
 """
 
 import inspect
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
+
+# 推断为 JSON requestBody 的保留参数名
+_BODY_PARAM_NAMES = ('data', 'body', 'payload')
 
 
 class OpenAPIGenerator:
@@ -160,6 +163,9 @@ class OpenAPIGenerator:
 
         result = {}
 
+        # 基于 handler 签名的渐进式推断（query 参数与 requestBody）
+        sig_params = self._infer_signature_parameters(route, doc_info)
+
         for method in route.methods:
             method_lower = method.lower()
 
@@ -183,11 +189,13 @@ class OpenAPIGenerator:
             if tags:
                 operation['tags'] = tags
 
-            parameters = self._extract_parameters(route, doc_info)
+            parameters = self._extract_parameters(route, doc_info, sig_params[0])
             if parameters:
                 operation['parameters'] = parameters
 
             request_body = doc_info.get('request_body')
+            if not request_body:
+                request_body = sig_params[1]
             if request_body:
                 operation['requestBody'] = request_body
 
@@ -202,30 +210,140 @@ class OpenAPIGenerator:
 
         return result
 
-    def _extract_parameters(self, route, doc_info: Dict) -> List[Dict]:
+    def _get_handler_annotations(self, handler) -> Dict[str, Any]:
+        """
+        提取 handler 签名中的参数注解
+
+        Args:
+            handler: 处理函数
+
+        Returns:
+            参数名到注解的映射（无法内省时返回空字典）
+        """
+        try:
+            signature = inspect.signature(handler)
+        except (TypeError, ValueError):
+            return {}
+        return {
+            name: param.annotation
+            for name, param in signature.parameters.items()
+            if param.annotation is not inspect.Parameter.empty
+        }
+
+    def _infer_signature_parameters(
+        self, route, doc_info: Dict,
+    ) -> Tuple[List[Dict], Optional[Dict]]:
+        """
+        基于 handler 签名渐进式推断 query 参数与 requestBody
+
+        框架约定 handler 首参数为 request 对象（方法绑定后 self 已被
+        排除），其余签名参数按以下规则推断：
+
+        - 路径参数与显式 ``@openapi.doc`` 参数跳过（文档优先，不重复）
+        - ``data`` / ``body`` / ``payload`` 保留名参数推断为 JSON requestBody
+        - 其余参数推断为 query 参数（有默认值非必填，无默认值必填）
+
+        Args:
+            route: 路由对象
+            doc_info: 显式文档信息
+
+        Returns:
+            (query 参数列表, requestBody 字典或 None)
+        """
+        handler = route.handler
+        try:
+            signature = inspect.signature(handler)
+        except (TypeError, ValueError):
+            return [], None
+
+        params = list(signature.parameters.values())
+        # 框架约定：首参数为 request 对象
+        candidates = params[1:] if params else []
+
+        known_names = set(route.param_names)
+        for param in doc_info.get('parameters', []):
+            known_names.add(param.get('name'))
+
+        query_params: List[Dict] = []
+        request_body: Optional[Dict] = None
+
+        for param in candidates:
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL,
+                              inspect.Parameter.VAR_KEYWORD):
+                continue
+            if param.name in known_names:
+                continue
+
+            annotation = param.annotation
+            annotated = annotation is not inspect.Parameter.empty
+
+            # 保留名参数推断为 JSON requestBody
+            if param.name in _BODY_PARAM_NAMES:
+                if request_body is None:
+                    schema = (
+                        self._get_type_schema(annotation)
+                        if annotated else {'type': 'object'}
+                    )
+                    request_body = {
+                        'required': param.default is inspect.Parameter.empty,
+                        'content': {'application/json': {'schema': schema}},
+                    }
+                continue
+
+            schema = self._get_type_schema(annotation) if annotated \
+                else {'type': 'string'}
+            query_params.append({
+                'name': param.name,
+                'in': 'query',
+                'required': param.default is inspect.Parameter.empty,
+                'schema': schema,
+                'description': f'{param.name} 参数',
+            })
+
+        return query_params, request_body
+
+    def _extract_parameters(
+        self,
+        route,
+        doc_info: Dict,
+        sig_query_params: Optional[List[Dict]] = None,
+    ) -> List[Dict]:
         """
         提取参数
+
+        路径参数类型优先取 handler 签名注解（缺省为 string），
+        显式文档参数次之，签名推断的 query 参数兜底。
 
         Args:
             route: 路由对象
             doc_info: 文档信息
+            sig_query_params: 签名推断的 query 参数列表
 
         Returns:
             参数列表
         """
         parameters = []
 
+        annotations = self._get_handler_annotations(route.handler)
         for param_name in route.param_names:
+            annotation = annotations.get(param_name, inspect.Parameter.empty)
+            if annotation is not inspect.Parameter.empty:
+                schema = self._get_type_schema(annotation)
+            else:
+                schema = {'type': 'string'}
             parameters.append({
                 'name': param_name,
                 'in': 'path',
                 'required': True,
-                'schema': {'type': 'string'},
+                'schema': schema,
                 'description': f'{param_name} 参数',
             })
 
         doc_params = doc_info.get('parameters', [])
         for param in doc_params:
             parameters.append(param)
+
+        if sig_query_params:
+            parameters.extend(sig_query_params)
 
         return parameters

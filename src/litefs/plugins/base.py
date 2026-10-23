@@ -7,8 +7,25 @@
 定义插件的基本接口和管理功能
 """
 
+import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_version(version: str) -> Tuple[int, ...]:
+    """将 '0.13.0' 形式的版本字符串解析为可比较的整数元组
+
+    非数字段按 0 处理，保证比较不抛异常。
+    """
+    parts = []
+    for part in str(version).split('.'):
+        try:
+            parts.append(int(part))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
 
 
 class Plugin(ABC):
@@ -30,6 +47,8 @@ class Plugin(ABC):
     dependencies: List[str] = []
     # 插件配置选项
     config_options: Dict[str, Any] = {}
+    # 要求的最低框架版本声明（如 '0.13.0'，空串表示不检查）
+    required_litefs_version: str = ""
 
     def __init__(self, app):
         """
@@ -102,6 +121,8 @@ class PluginManager:
         self.app = app
         self.plugins: Dict[str, Plugin] = {}
         self.loaded_plugins: List[Plugin] = []
+        # 加载失败的插件清单（插件名 → 失败原因）
+        self.failed_plugins: Dict[str, str] = {}
 
     def register(self, plugin_class):
         """
@@ -122,37 +143,79 @@ class PluginManager:
     def load_all(self):
         """
         加载所有注册的插件
-        """
-        for plugin_name, plugin_class in self.plugins.items():
-            self.load(plugin_name)
 
-    def load(self, plugin_name: str):
+        单个插件失败（含依赖缺失等异常）只记录日志与失败清单，
+        不中断其余插件的加载（异常隔离）。
+        """
+        for plugin_name in list(self.plugins):
+            try:
+                self.load(plugin_name)
+            except Exception as e:
+                reason = "插件 %s 加载失败: %s" % (plugin_name, e)
+                logger.error(reason)
+                self.failed_plugins[plugin_name] = str(e)
+
+    def load(self, plugin_name: str) -> bool:
         """
         加载指定插件
 
+        实例化与 initialize 阶段的异常不向外抛出，而是记录到
+        日志器与 ``failed_plugins`` 失败清单（异常隔离）；注册级
+        错误（插件未注册、依赖未注册）仍抛 ``ValueError``。
+
         Args:
             plugin_name: 插件名称
+
+        Returns:
+            bool: 是否加载成功
         """
         if plugin_name not in self.plugins:
             raise ValueError(f"插件 {plugin_name} 未注册")
 
         plugin_class = self.plugins[plugin_name]
 
-        # 检查依赖
+        # 版本兼容声明检查（未声明 required_litefs_version 时跳过）
+        required = getattr(plugin_class, 'required_litefs_version', '') or ''
+        if required:
+            from .._version import get_version
+            current = get_version()
+            if _parse_version(required) > _parse_version(current):
+                reason = (
+                    "插件 %s 要求 litefs >= %s，当前版本 %s，拒绝加载"
+                    % (plugin_name, required, current)
+                )
+                logger.warning(reason)
+                self.failed_plugins[plugin_name] = reason
+                return False
+
+        # 检查依赖（未注册属于注册级错误，保留抛出语义）
         for dependency in plugin_class.dependencies:
             if dependency not in self.plugins:
-                raise ValueError(f"插件 {plugin_name} 依赖 {dependency}，但该插件未注册")
-            if dependency not in [p.name for p in self.loaded_plugins]:
-                self.load(dependency)
+                raise ValueError(
+                    f"插件 {plugin_name} 依赖 {dependency}，但该插件未注册"
+                )
+            if not any(p.name == dependency for p in self.loaded_plugins):
+                if not self.load(dependency):
+                    reason = (
+                        "插件 %s 依赖 %s 加载失败" % (plugin_name, dependency)
+                    )
+                    logger.error(reason)
+                    self.failed_plugins[plugin_name] = reason
+                    return False
 
-        # 创建插件实例
-        plugin = plugin_class(self.app)
-
-        # 初始化插件
-        plugin.initialize()
+        # 实例化与初始化失败仅记录，不向外抛出（异常隔离）
+        try:
+            plugin = plugin_class(self.app)
+            plugin.initialize()
+        except Exception as e:
+            reason = "插件 %s 加载失败: %s" % (plugin_name, e)
+            logger.error(reason)
+            self.failed_plugins[plugin_name] = str(e)
+            return False
 
         # 添加到已加载插件列表
         self.loaded_plugins.append(plugin)
+        return True
 
     def unload(self, plugin_name: str):
         """

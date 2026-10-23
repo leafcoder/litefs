@@ -5,6 +5,56 @@
 
 ## [未发布]
 
+## [0.13.0] - 2026-10-23
+
+### Added
+
+- 插件加载异常隔离（对应代码审计文档 `code-audit-upgrade-plan` 4.5 节 0.13-⭐1）：
+  - `PluginManager` 新增 `failed_plugins` 失败清单（插件名 → 失败原因）：
+    插件实例化 / `initialize` 抛错不再向外传播（此前 `load_all` 会因单个
+    插件失败整体中断），改为记录日志与失败清单后继续加载其余插件
+  - 依赖插件加载失败时依赖方同样进入失败清单，不再抛出崩溃
+  - `PluginLoader` 加载失败的插件文件 / 目录经日志器（`litefs.plugins`）
+    记录（替代 `print`），进入 `failed_plugins` 路径清单，并清理
+    `sys.modules` 中残留的模块注册（不污染全局命名空间）
+  - 插件新增 `required_litefs_version` 版本兼容声明：要求高于当前框架
+    版本时拒绝加载并记录原因，未声明时跳过检查（向后兼容）
+- OpenAPI 类型推断增强（对应代码审计文档 `code-audit-upgrade-plan`
+  4.5 节 0.13-⭐2）：生成器基于 `inspect` + `typing` 解析 handler 签名，
+  渐进式补全文档（显式 `@openapi.doc` 参数始终优先，不产生重复）：
+  - 签名参数（首参数 `request` 之后）推断为 query 参数：类型取自注解
+    （`int` → integer 等），无默认值必填、有默认值非必填
+  - 路径参数 schema 类型取自签名注解（此前一律硬编码 string）
+  - `data` / `body` / `payload` 保留名参数推断为 JSON requestBody
+
+## [0.12.0] - 2026-10-23
+
+### Added
+
+- multipart 请求体解析流式化与正确性修复（对应代码审计文档
+  `code-audit-upgrade-plan` 4.4 节 0.12-⭐1）：
+  - WSGI 路径改为逐块读取 + 增量边界解析，请求体不再整包驻留内存，
+    文件部分边解析边写入临时文件
+  - 边界感知解析：仅识别行首 `--boundary`（CRLF 前缀校验，RFC 2046），
+    文件内容中出现与 boundary 相同的字节序列不再导致解析损坏
+  - 边界分隔符前的 CRLF 属于分隔符，不再计入文件内容（此前每个文件
+    末尾多出 2 字节）；表单字段值不再被 strip，保留合法前后空白
+  - 同名多值字段（含多文件上传）与 urlencoded 路径语义对齐
+    （重复出现转为列表），此前被直接覆盖
+  - 流式解析器（Socket 链路）按实际读取字节数强制限制
+    `max_upload_size`，超限抛 413（此前完全未校验）
+- 自研服务器链路 chunked 传输编码支持（0.12-⭐2）：
+  - Socket 链路与 asyncio 链路支持 `Transfer-Encoding: chunked`
+    请求体解码（含 chunk 扩展声明与 trailer 头部），并按
+    `max_request_size` 强制限制实际字节数，超限回 413
+  - asyncio 链路 `Content-Length` 精确读取（keep-alive 下不再把
+    连接中的后续数据误并入当前请求体），截断请求体回 400
+- 新增配置项 `request_queue_size`（默认 2048）：原生服务器与
+  asyncio 服务器的监听队列（listen backlog）长度，内核截断到
+  `net.core.somaxconn`；替代此前的硬编码 4194304（0.12-⭐3）
+
+## [0.11.0] - 2026-10-23
+
 ### Added
 
 - 内置中间件支持配置驱动自动挂载：应用创建时（`Litefs(...)` 构造阶段）按
@@ -42,27 +92,6 @@
 - `MemoryCache` 并发保护（0.11-⭐1）：`OrderedDict` LRU 结构与过期字典
   全部读写受 `threading.RLock` 保护，多线程 WSGI 容器下不再存在
   `move_to_end` / `popitem` 结构竞态
-- multipart 请求体解析流式化与正确性修复（对应代码审计文档
-  `code-audit-upgrade-plan` 4.4 节 0.12-⭐1）：
-  - WSGI 路径改为逐块读取 + 增量边界解析，请求体不再整包驻留内存，
-    文件部分边解析边写入临时文件
-  - 边界感知解析：仅识别行首 `--boundary`（CRLF 前缀校验，RFC 2046），
-    文件内容中出现与 boundary 相同的字节序列不再导致解析损坏
-  - 边界分隔符前的 CRLF 属于分隔符，不再计入文件内容（此前每个文件
-    末尾多出 2 字节）；表单字段值不再被 strip，保留合法前后空白
-  - 同名多值字段（含多文件上传）与 urlencoded 路径语义对齐
-    （重复出现转为列表），此前被直接覆盖
-  - 流式解析器（Socket 链路）按实际读取字节数强制限制
-    `max_upload_size`，超限抛 413（此前完全未校验）
-- 自研服务器链路 chunked 传输编码支持（0.12-⭐2）：
-  - Socket 链路与 asyncio 链路支持 `Transfer-Encoding: chunked`
-    请求体解码（含 chunk 扩展声明与 trailer 头部），并按
-    `max_request_size` 强制限制实际字节数，超限回 413
-  - asyncio 链路 `Content-Length` 精确读取（keep-alive 下不再把
-    连接中的后续数据误并入当前请求体），截断请求体回 400
-- 新增配置项 `request_queue_size`（默认 2048）：原生服务器与
-  asyncio 服务器的监听队列（listen backlog）长度，内核截断到
-  `net.core.somaxconn`；替代此前的硬编码 4194304（0.12-⭐3）
 - 补齐低覆盖模块测试用例 211 个（新增 7 个测试文件），整体覆盖率 76% → 84%：
   - `app/server_mixin.py` 10% → 86%（启动/信号/清理/热重载链路）
   - `server/greenlet_server_base.py` 43% → 87%（SocketIO greenlet 切换、
@@ -92,6 +121,8 @@
   `config.toml`，对中间件等配置的修改直接生效
 - 示例（01-quickstart / 03-web-app / 05-production）中间件改为 config.yaml
   配置驱动，03-web-app 演示自定义中间件模块路径配置
+
+## [0.10.1] - 2026-10-23
 
 ### Security
 

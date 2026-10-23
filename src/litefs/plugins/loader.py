@@ -8,11 +8,14 @@
 """
 
 import importlib.util
+import logging
 import sys
 from pathlib import Path
 from typing import List, Dict
 
 from .base import Plugin
+
+logger = logging.getLogger(__name__)
 
 
 class PluginLoader:
@@ -31,6 +34,8 @@ class PluginLoader:
         """
         self.app = app
         self.plugin_dirs: List[str] = []
+        # 加载失败的插件路径清单（异常隔离，不影响其余插件）
+        self.failed_plugins: List[str] = []
 
     def add_plugin_dir(self, plugin_dir: str):
         """
@@ -86,6 +91,7 @@ class PluginLoader:
             plugin_dir: 插件目录路径
             plugins: 插件类字典
         """
+        module_name = None
         try:
             # 创建模块名称
             module_name = f"plugin_{plugin_dir.name}"
@@ -103,7 +109,11 @@ class PluginLoader:
                         if hasattr(obj, 'name') and obj.name:
                             plugins[obj.name] = obj
         except Exception as e:
-            print(f"加载插件目录 {plugin_dir} 失败: {e}")
+            logger.error("加载插件目录 %s 失败: %s", plugin_dir, e)
+            self.failed_plugins.append(str(plugin_dir))
+            # 清理残留的模块注册，避免污染全局 sys.modules
+            if module_name:
+                sys.modules.pop(module_name, None)
 
     def _load_plugin_from_file(self, plugin_file: Path, plugins: Dict[str, Plugin]):
         """
@@ -113,6 +123,7 @@ class PluginLoader:
             plugin_file: 插件文件路径
             plugins: 插件类字典
         """
+        module_name = None
         try:
             # 创建模块名称
             module_name = f"plugin_{plugin_file.stem}"
@@ -130,4 +141,8 @@ class PluginLoader:
                         if hasattr(obj, 'name') and obj.name:
                             plugins[obj.name] = obj
         except Exception as e:
-            print(f"加载插件文件 {plugin_file} 失败: {e}")
+            logger.error("加载插件文件 %s 失败: %s", plugin_file, e)
+            self.failed_plugins.append(str(plugin_file))
+            # 清理残留的模块注册，避免污染全局 sys.modules
+            if module_name:
+                sys.modules.pop(module_name, None)

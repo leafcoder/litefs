@@ -280,6 +280,26 @@
 | 0.13-⭐1 | 插件加载异常隔离：失败插件进入失败清单、走日志器、不污染全局；版本兼容声明 | D10 |
 | 0.13-⭐2 | OpenAPI 类型推断增强：基于 `inspect` + `typing` 解析 handler 签名的 query/body 参数（渐进，不承诺 Pydantic 级） | D9 |
 
+实施状态（全部完成，随 0.13.0 发布）：
+
+- **0.13-⭐1 已完成**：`PluginManager` 新增 `failed_plugins` 失败清单
+  （插件名 → 失败原因），实例化 / `initialize` 抛错不再向外传播，
+  `load_all` 不再因单个插件失败整体中断；依赖插件失败时依赖方同样
+  进入失败清单。`PluginLoader` 失败经 `litefs.plugins` 日志器记录
+  （替代 `print`）、进入 `failed_plugins` 路径清单，并清理
+  `sys.modules` 残留模块注册。`Plugin` 基类新增
+  `required_litefs_version` 版本兼容声明，要求高于当前框架版本时
+  拒绝加载并记录原因（未声明跳过检查，向后兼容）。
+  测试：`test_plugins.py::TestPluginIsolation` / `TestLoaderIsolation`
+- **0.13-⭐2 已完成**：`OpenAPIGenerator` 新增
+  `_infer_signature_parameters`（基于 `inspect.signature` 渐进式推断）：
+  首参数 `request` 之后的签名参数推断为 query 参数（类型取自注解、
+  无默认值必填）；路径参数 schema 类型取自签名注解（此前硬编码
+  string）；`data` / `body` / `payload` 保留名参数推断为 JSON
+  requestBody。显式 `@openapi.doc` 参数始终优先，不产生重复；
+  `*args` / `**kwargs` 跳过。
+  测试：`test_openapi.py::TestSignatureInference`
+
 ### 4.6 并入 v0.14.0 —— 分布式与可观测性
 
 | # | 任务 | 对应缺陷 |
