@@ -18,6 +18,16 @@
 - `Config` 新增 `cors` / `health_check` 中间件构造参数配置段：
   config.yaml 中的同名嵌套段作为 `CORSMiddleware` / `HealthCheck` 构造参数注入
   （此前嵌套段因配置键白名单被静默丢弃，属于死配置）
+- 补齐低覆盖模块测试用例 211 个（新增 7 个测试文件），整体覆盖率 76% → 84%：
+  - `app/server_mixin.py` 10% → 86%（启动/信号/清理/热重载链路）
+  - `server/greenlet_server_base.py` 43% → 87%（SocketIO greenlet 切换、
+    Epoll 事件分发、TCPServer 请求分派、finish_request 全链路集成）
+  - `server/greenlet.py` 23% → 81%（HTTPServer/WSGIServer 绑定、
+    ProcessHTTPServer PID 文件/信号/Master-Worker 生命周期）
+  - `websocket/connection.py` 29% → 93%、`websocket/server.py` 13% → 93%
+    （连接收发/房间/关闭语义、握手/认证/广播真实回环集成）
+  - `session/memcache.py` 65% → 97%、`session/db.py` 69% → 95%、
+    `session/redis.py` 67% → 98%（双客户端分支判定、连接池、过期清理、SCAN）
 
 ### Changed
 

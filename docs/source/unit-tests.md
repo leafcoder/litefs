@@ -97,9 +97,8 @@ python -m unittest tests.unit.test_core
 
 | 指标 | 数值 |
 |------|------|
-| 用例总数（unit + integration） | 1306（全部通过） |
-| 单元测试模块数 | 78 |
-| 代码覆盖率 | **70%**（9121 语句，未覆盖 2434） |
+| 用例总数（unit + integration + performance） | 2082（全部通过） |
+| 代码覆盖率 | **84%**（10510 语句，未覆盖 1416） |
 | 覆盖率基线 | 47%（v0.9.0 升级前） |
 
 ### 覆盖率提升过程（2026-10-20）
@@ -112,6 +111,7 @@ python -m unittest tests.unit.test_core
 | 第一批：forms / context / exceptions / static_handler / cache_decorators / csrf | 6 | 54.1% → 59.1% |
 | 第二批：oauth2 / providers / enhanced_logging / session / auth_password / utils | 8 | 59.8% → 62% |
 | 第三批：debug / auth 全家桶 / handlers / middleware_base / tasks / database / cache / plugins / security | 16 | 65% → 70% |
+| 第四批（v0.12.0，2026-10-23）：server_mixin / greenlet_server_base / greenlet / websocket 连接与服务器 / session 三后端 | 7 | 76% → 84% |
 
 ## 测试中修复的源码 Bug
 
@@ -144,13 +144,14 @@ python -m unittest tests.unit.test_core
 
 ## 待补充测试
 
-以下模块覆盖率仍偏低，计划在 v1.0 前补齐（目标 85%）：
+v0.12.0 第四批已将核心服务器模块提升至 80% 以上（server_mixin 86%、
+greenlet_server_base 87%、greenlet 81%、websocket 90%+），以下模块覆盖率
+仍相对偏低，计划后续补齐：
 
-- ⚠️ `app/server_mixin.py`（7%）
-- ⚠️ `websocket/server.py`（13%）
-- ⚠️ `handlers/socket.py`（21%）
-- ⚠️ `cli.py`（31%）
-- ⚠️ `server/greenlet.py`（33%）
+- ⚠️ `app/server_cli.py`（17%）
+- ⚠️ `server/asyncio.py`（68%）
+- ⚠️ `handlers/socket.py`（65%）/ `handlers/socket_response.py`（69%）
+- ⚠️ `handlers/wsgi.py`（68%）
 
 ## 测试最佳实践
 
@@ -171,4 +172,4 @@ python -m unittest tests.unit.test_core
 
 - 提交代码前运行 `python -m pytest tests/unit tests/integration`
 - 新增功能必须附带单元测试并同步本文档
-- 覆盖率目标：70%（v0.9.0 已达成）→ 85%（v1.0）
+- 覆盖率目标：70%（v0.9.0 已达成）→ 84%（v0.12.0 已达成）→ 85%（v1.0）
