@@ -5,7 +5,162 @@
 
 ## [未发布]
 
-暂无。
+### Added
+
+- 内置中间件支持配置驱动自动挂载：应用创建时（`Litefs(...)` 构造阶段）按
+  `middleware` 配置项（名称列表或 `LITEFS_MIDDLEWARE` 环境变量逗号分隔字符串）
+  自动挂载，无需手动调用 `add_middleware`；默认值为 `None`（不挂载），
+  存量应用零行为变化，`litefs runserver` 未配置时保持默认启用全部的历史行为
+- 支持自定义中间件配置：`middleware` 条目可使用模块路径
+  （如 `myapp.middleware.ThrottleMiddleware`），应用创建时动态导入；
+  构造参数经新增的 `middleware_options` 配置段注入（以条目原文为键，
+  内置中间件亦可用同名配置段 `cors` / `health_check`）
+- `Config` 新增 `cors` / `health_check` 中间件构造参数配置段：
+  config.yaml 中的同名嵌套段作为 `CORSMiddleware` / `HealthCheck` 构造参数注入
+  （此前嵌套段因配置键白名单被静默丢弃，属于死配置）
+- JWT 加固（对应代码审计文档 `code-audit-upgrade-plan` 4.3 节 0.11-⭐2）：
+  - `JWTManager` 新增 `leeway` 构造参数：时间校验（`exp` / `nbf` / `iat`）
+    支持时钟偏移容忍（秒）
+  - `decode_token` 新增 `nbf` / `iat` 校验：`nbf` 未生效或 `iat` 在未来
+    （超出 leeway）的 token 拒绝解码
+  - `decode_token` 新增 `header.alg` 白名单校验：与实例算法不一致即拒绝
+    （防算法混淆攻击）；构造期拒绝白名单外的 `algorithm`（当前仅 `HS256`）
+  - `decode_token` 新增 `expected_type` 参数与 `decode_access_token` /
+    `decode_refresh_token` 方法：refresh token 不能当作 access token 使用
+    （反之亦然），缩短凭证轮换被绕过的风险；不传参数保持向后兼容
+  - `create_token` 尊重调用方显式声明的 `iat`（仅缺省时自动填充）
+- 限流 / 节流中间件加固（0.11-⭐1、0.11-⭐3）：
+  - `RateLimitMiddleware` / `ThrottleMiddleware` 内部状态加锁
+    （`threading.RLock`），多线程 WSGI 容器（gunicorn threads）下并发
+    不再出现丢失窗口，配额不被并发绕过
+  - 键字典（`requests` / `blocked_until` / `last_request_time`）改为
+    OrderedDict 并新增 `max_keys` 参数（默认 65536）执行 LRU 淘汰，
+    不再随攻击者伪造源地址无界增长
+  - 限流键修复 IPv6 截断缺陷：`2001:db8::1` 等完整 IPv6 地址不再被
+    `split(':')[0]` 截断（此前所有 IPv6 用户共享 `2001` 配额）；
+    `IPv4:port` / `[IPv6]:port` 形式剥离端口，保留完整地址
+- `MemoryCache` 并发保护（0.11-⭐1）：`OrderedDict` LRU 结构与过期字典
+  全部读写受 `threading.RLock` 保护，多线程 WSGI 容器下不再存在
+  `move_to_end` / `popitem` 结构竞态
+- 补齐低覆盖模块测试用例 211 个（新增 7 个测试文件），整体覆盖率 76% → 84%：
+  - `app/server_mixin.py` 10% → 86%（启动/信号/清理/热重载链路）
+  - `server/greenlet_server_base.py` 43% → 87%（SocketIO greenlet 切换、
+    Epoll 事件分发、TCPServer 请求分派、finish_request 全链路集成）
+  - `server/greenlet.py` 23% → 81%（HTTPServer/WSGIServer 绑定、
+    ProcessHTTPServer PID 文件/信号/Master-Worker 生命周期）
+  - `websocket/connection.py` 29% → 93%、`websocket/server.py` 13% → 93%
+    （连接收发/房间/关闭语义、握手/认证/广播真实回环集成）
+  - `session/memcache.py` 65% → 97%、`session/db.py` 69% → 95%、
+    `session/redis.py` 67% → 98%（双客户端分支判定、连接池、过期清理、SCAN）
+
+### Changed
+
+- 脚手架模板（`litefs startproject`）全面更新至当前框架口径：
+  - 应用代码仅创建 `Litefs(config_file='config.yaml')`，
+    中间件由框架在创建时按 `middleware` 配置自动挂载
+  - 处理器改用返回值风格（`str` 以 `<` 开头自动 `text/html`，
+    `dict` 自动 `application/json`），移除旧式 `start_response` 调用与手工 orjson 序列化
+  - 修正导入路径（`from litefs.core import Litefs`）、`database_path` → `database_url`、
+    依赖下限提升至 `litefs>=0.10.0`
+
+### Fixed
+
+- 修复 `litefs runserver --config` 指定配置文件时因重复传参抛 `TypeError` 的问题
+- 修复 `litefs runserver` 未指定 `--config` 时不读取项目 `config.yaml` 的问题：
+  现在自动发现当前目录的 `config.yaml` / `config.yml` / `config.json` /
+  `config.toml`，对中间件等配置的修改直接生效
+- 示例（01-quickstart / 03-web-app / 05-production）中间件改为 config.yaml
+  配置驱动，03-web-app 演示自定义中间件模块路径配置
+
+### Security
+
+安全修复包（对应代码审计文档 `code-audit-upgrade-plan` 4.2 节，D1 / D2 / D3 / D5）：
+
+- **WebSocket 帧与缓冲区上限（D1）**：`Frame.parse` 新增 `max_payload_size`
+  参数，帧头声明长度超限立即拒绝（`FrameTooLargeError`）；
+  `WebSocketConnection` 默认单条消息上限 1MB（含接收缓冲区纵深防御上限），
+  超限回 1009（Message Too Big）关闭帧并断连；`WebSocketServer` 握手请求头
+  同步设上限。新增配置项 `websocket_max_message_size`（默认 1048576）
+- **原生服务器连接治理（D2）**：`TCPServer` 新增 `max_connections`
+  （达到上限后新连接被快速拒绝，不再无限接受）与 `idle_read_timeout`
+  （默认 30 秒，阻塞读超时的连接被断开，slowloris 防护）；asyncio 服务器
+  同语义支持。新增配置项 `max_connections`（默认 1024）、
+  `idle_read_timeout`（默认 30.0，0/None 禁用）
+- **500 响应信息泄露（D3）**：asyncio 服务器路径的 500 响应不再携带
+  内部异常细节与堆栈，统一返回 `Internal Server Error`；
+  debug 模式保留完整细节。socket / wsgi / asgi 路径经核实此前已按
+  `config.debug` 门控，无泄露
+- **CORS 加固（D5）**：`CORSMiddleware.process_response` 修复非 tuple
+  响应（Socket 链路 str/bytes 返回值）丢失全部 CORS 响应头的问题，
+  现经请求处理器 `_add_header` 补写；`allow_origins=['*']` 与
+  `allow_credentials=True` 危险组合改为启动期（中间件构造期）抛 `ValueError`
+
+## [0.10.0] - 2026-10-22
+
+v0.10.0 是「契约与结构重构」版本：公共 API 首次全量分级冻结、弃用机制落地、
+JSON 序列化切换 orjson，5 个超 600 行的大文件全部拆分至规范上限以内。
+
+### Added
+
+- **公共 API 分级冻结（H2）**：`litefs/_stable.py` 登记全部 548 个公共符号
+  - `stable`：70 个模块 410 符号；`provisional`：32 个模块 138 符号
+  - 契约测试（`tests/unit/test_api_contract.py`）强制包内每个模块登记分级或豁免，
+    登记模块的公共符号面不得缩小
+- **弃用机制（H6）**：新增 `litefs/deprecation.py`
+  - `LitefsDeprecationWarning` 专用告警类别、`deprecated` 装饰器、`warn_deprecated` 运行时告警，
+    替代符号与移除版本自动从 `_stable.DEPRECATED` 登记表回填
+- Memcache 缓存后端新增 `incr` / `decr` 原子计数器方法
+  - 基于 memcached 原生 `incr` / `decr` 命令，与 JSON 整数存储天然兼容
+  - pymemcache 分支显式关闭 `noreply` 以获取返回值；键不存在返回 `None`；
+    递减下限钳位为 0
+  - 补充 mock 单元测试与真实服务集成测试（原先因方法缺失被 skip 的 2 个用例转正）
+- Makefile 新增 `test` / `test-unit` / `test-cov` 目标（覆盖率报告含 HTML 输出）
+
+### Changed
+
+- **JSON 序列化统一改用 orjson，框架内不再使用标准库 `json`**
+  - 新增 `src/litefs/_json.py` 序列化抽象层，作为框架内唯一的 JSON 编解码出口
+  - 24 处 `import json` 全部替换为抽象层调用，覆盖：会话后端（DB / Redis / Memcache）、
+    缓存后端（DB / Redis / Memcache）、HTTP 响应与请求体解析、Socket 处理器、
+    中间件（增强日志 / 安全 / CSRF）、JWT 与 OAuth2 提供方、配置加密、
+    Asyncio / Greenlet 服务器、调试中间件、WebSocket 帧编解码
+  - orjson 基于 Rust 实现，JSON 编解码吞吐约为标准库的 3~5 倍，
+    直接改善请求热路径的 P99 延迟
+  - 依赖声明同步至 `pyproject.toml`、`requirements.txt` 与脚手架模板
+    （`orjson>=3.10`，3.10.15 为支持 Python 3.8 的最高版本）
+- **拆分 5 个超 600 行源文件（H3），全部 ≤600 行，公开 API 零变更**
+  - `handlers/socket.py` 827 → 598（请求属性 / 响应转换拆为 Mixin 模块）
+  - `server/greenlet.py` 780 → 365（SocketIO / Epoll / TCPServer 拆至 `greenlet_server_base`）
+  - `error_pages.py` 775 → 包（HTML 模板拆至 `templates_4xx` / `templates_5xx`）
+  - `config.py` 627 → 包（加密与文件加载拆为 `crypto` / `loaders` Mixin）
+  - `handlers/base.py` 639 → 489（请求属性拆至 `base_request` Mixin）
+
+### Deprecated
+
+- `Litefs.session` 自 0.10.0 起废弃，计划 1.3.0 移除，替代符号 `Litefs.db_session`
+  （详见 `docs/source/deprecation-timeline.md`）
+
+### Fixed
+
+- 修复 `MemcacheCache` / `MemcacheSession` 注入 `memcache_client` 实例时
+  未设置 `_use_pymemcache` 属性的问题：调用 `put()` 会抛 `AttributeError`
+  - 修复：按客户端所属模块自动判定调用约定（pymemcache 用 `expire=`，
+    python-memcached 用 `time=`），注入原生 pymemcache 客户端开箱即用
+- 修复 Memcache 后端写入非 ASCII 内容失败的问题
+  - 根因：标准库 `json.dumps` 默认 `ensure_ascii=True` 保证了纯 ASCII 输出，
+    而 orjson 始终输出原始 UTF-8，`pymemcache` 客户端默认按 ASCII 编码值，
+    导致 `MemcacheIllegalInputError: Data values must be binary-safe`
+  - 修复：抽象层新增 `dumps_ascii` 出口（非 ASCII 字符转义为 `\uXXXX`），
+    与标准库 `ensure_ascii=True` 逐字节一致，Memcache 缓存与 Session 后端改用该出口
+  - 迁移前写入的旧缓存数据可被新代码正确读取，双向兼容
+
+### 文档
+
+- 新增 `docs/source/api-stability.md`：API 稳定性与 SemVer 政策（分级体系、冻结基线、
+  SemVer 语义、破坏性变更流程）
+- 新增 `docs/source/deprecation-timeline.md`：弃用机制说明与废弃时间表
+- 新增 `docs/source/json-serialization.md`：JSON 序列化规范，
+  记录抽象层 API、语义对齐策略、与标准库的固有差异、ASCII 安全出口与迁移检查清单
 
 ## [0.9.0] - 2026-10-21
 

@@ -18,18 +18,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from litefs.core import Litefs
 from litefs.routing import get, post
-from litefs.middleware.logging import LoggingMiddleware
 from litefs.session.session import MemorySessionStore
 
-app = Litefs(
-    host='0.0.0.0',
-    port=8081,
-    debug=True,
-)
+# 中间件由 config.yaml 的 middleware 配置项驱动，应用创建时自动挂载
+app = Litefs(config_file='config.yaml')
 
 app.add_static('/static', 'static')
-
-app.add_middleware(LoggingMiddleware)
 
 session_store = MemorySessionStore()
 

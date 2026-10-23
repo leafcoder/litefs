@@ -7,9 +7,9 @@ Memcache 缓存后端
 提供基于 Memcache 的缓存实现
 """
 
-import json
 from typing import Any, Optional
 
+from .._json import dumps_ascii, loads
 from .base import CacheBackendBase
 
 
@@ -43,6 +43,12 @@ class MemcacheCache(CacheBackendBase):
 
         if memcache_client is not None:
             self._mc = memcache_client
+            # 按客户端类型判定调用约定：pymemcache 的 set 带 expire= 参数，
+            # python-memcached 带 time= 参数。依据客户端所属模块判定，
+            # 未标注模块的客户端（如测试 Mock）按 python-memcached 分支处理
+            self._use_pymemcache = (
+                type(memcache_client).__module__.split(".")[0] == "pymemcache"
+            )
         else:
             try:
                 import pymemcache  # noqa: F401  # 仅用于探测 pymemcache 是否可用
@@ -90,7 +96,9 @@ class MemcacheCache(CacheBackendBase):
 
         # 序列化值
         try:
-            val_str = json.dumps(val)
+            # 使用 ASCII 安全序列化：pymemcache 客户端默认按 ASCII 编码值，
+            # 非 ASCII 内容会直接写入失败
+            val_str = dumps_ascii(val)
         except Exception as e:
             raise ValueError(f"无法序列化值: {e}")
 
@@ -118,7 +126,7 @@ class MemcacheCache(CacheBackendBase):
 
         # 反序列化值
         try:
-            value = json.loads(val_str)
+            value = loads(val_str)
         except Exception:
             # 如果反序列化失败，返回原始字符串
             value = val_str
@@ -204,6 +212,51 @@ class MemcacheCache(CacheBackendBase):
             return -2
         return -1
 
+    def incr(self, key: str, delta: int = 1) -> Optional[int]:
+        """
+        原子递增计数器
+
+        基于 memcached 原生 ``incr`` 命令，要求缓存值为数字字符串。
+        经由 :meth:`put` 存储的整数会序列化为 ``"42"`` 这类数字字符串，
+        与原生命令天然兼容；递增后 :meth:`get` 仍能正确反序列化为整数。
+
+        Args:
+            key: 缓存键
+            delta: 递增步长
+
+        Returns:
+            递增后的新值，键不存在时返回 None
+        """
+        memcache_key = self._make_key(key)
+        if self._use_pymemcache:
+            # pymemcache 默认 noreply=True 会导致拿不到返回值，须显式关闭
+            result = self._mc.incr(memcache_key, delta, noreply=False)
+        else:
+            result = self._mc.incr(memcache_key, delta)
+        return result if isinstance(result, int) else None
+
+    def decr(self, key: str, delta: int = 1) -> Optional[int]:
+        """
+        原子递减计数器
+
+        基于 memcached 原生 ``decr`` 命令，要求缓存值为数字字符串。
+        memcached 保证计数不会递减至 0 以下（下限钳位为 0）。
+
+        Args:
+            key: 缓存键
+            delta: 递减步长
+
+        Returns:
+            递减后的新值，键不存在时返回 None
+        """
+        memcache_key = self._make_key(key)
+        if self._use_pymemcache:
+            # pymemcache 默认 noreply=True 会导致拿不到返回值，须显式关闭
+            result = self._mc.decr(memcache_key, delta, noreply=False)
+        else:
+            result = self._mc.decr(memcache_key, delta)
+        return result if isinstance(result, int) else None
+
     def clear(self) -> None:
         """
         清空所有缓存
@@ -246,7 +299,7 @@ class MemcacheCache(CacheBackendBase):
                 if val_str is not None:
                     # 反序列化值
                     try:
-                        result[original_key] = json.loads(val_str)
+                        result[original_key] = loads(val_str)
                     except Exception:
                         # 如果反序列化失败，返回原始字符串
                         result[original_key] = val_str
@@ -259,7 +312,7 @@ class MemcacheCache(CacheBackendBase):
                 if val_str is not None:
                     # 反序列化值
                     try:
-                        result[original_key] = json.loads(val_str)
+                        result[original_key] = loads(val_str)
                     except Exception:
                         # 如果反序列化失败，返回原始字符串
                         result[original_key] = val_str
@@ -282,7 +335,9 @@ class MemcacheCache(CacheBackendBase):
         for key, value in mapping.items():
             # 序列化值
             try:
-                val_str = json.dumps(value)
+                # 使用 ASCII 安全序列化：pymemcache 客户端默认按 ASCII 编码值，
+                # 非 ASCII 内容会直接写入失败
+                val_str = dumps_ascii(value)
             except Exception as e:
                 raise ValueError(f"无法序列化值: {e}")
 

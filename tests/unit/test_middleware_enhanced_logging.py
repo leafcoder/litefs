@@ -9,6 +9,7 @@
 """
 
 import asyncio
+import json
 import logging
 import unittest
 from unittest.mock import Mock
@@ -155,7 +156,8 @@ class TestFormatLogMessage(unittest.TestCase):
         """结构化模式输出 JSON"""
         mw = self._make(structured=True)
         msg = mw._format_log_message({"path": "/a", "status_code": 200}, logging.INFO)
-        self.assertIn('"path": "/a"', msg)
+        # 断言 JSON 语义而非字面量，避免绑定到具体序列化器的分隔符风格
+        self.assertEqual(json.loads(msg), {"path": "/a", "status_code": 200})
 
 
 class TestProcessRequestResponse(unittest.TestCase):

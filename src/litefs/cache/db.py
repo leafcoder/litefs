@@ -7,13 +7,13 @@
 提供基于关系数据库的缓存实现
 """
 
-import json
 import random
 import sqlite3
 import time
 import zlib
 from typing import Any, Optional
 
+from .._json import JSONDecodeError, dumps, loads
 from .base import CacheBackendBase
 
 
@@ -130,8 +130,7 @@ class DatabaseCache(CacheBackendBase):
         Raises:
             TypeError: 如果值包含 JSON 不支持的类型
         """
-        json_str = json.dumps(value, ensure_ascii=False, default=str)
-        compressed = zlib.compress(json_str.encode("utf-8"))
+        compressed = zlib.compress(dumps(value, default=str))
         import base64
         return base64.b64encode(compressed).decode("ascii")
 
@@ -151,9 +150,8 @@ class DatabaseCache(CacheBackendBase):
         import base64
         try:
             compressed = base64.b64decode(data.encode("ascii"))
-            json_str = zlib.decompress(compressed).decode("utf-8")
-            return json.loads(json_str)
-        except (json.JSONDecodeError, zlib.error, Exception) as e:
+            return loads(zlib.decompress(compressed))
+        except (JSONDecodeError, zlib.error, Exception) as e:
             raise ValueError(f"缓存数据反序列化失败: {e}")
 
     def put(self, key: str, val: Any, expiration: Optional[int] = None) -> None:

@@ -176,7 +176,12 @@ function connect() {
         currentUsername = '访客' + Math.floor(Math.random() * 1000);
     }
     
-    ws = new WebSocket('ws://localhost:8081/ws');
+    // WebSocket 端口跟随页面地址动态推导：WS 端口 = HTTP 端口 + 1
+    // （与 Litefs WebSocket 默认端口规则保持一致，避免硬编码端口漂移）
+    var wsPort = parseInt(location.port || (location.protocol === 'https:' ? '443' : '80'), 10) + 1;
+    var wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = wsProtocol + '//' + location.hostname + ':' + wsPort + '/ws';
+    ws = new WebSocket(wsUrl);
     
     ws.onopen = function() {
         updateConnectionStatus(true);

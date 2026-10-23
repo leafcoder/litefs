@@ -20,6 +20,9 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``listen`` | int | ``1024`` | 服务器监听队列大小 |
 | ``max_request_size`` | int | ``10485760`` | 最大请求体大小（字节，默认 10MB） |
 | ``max_upload_size`` | int | ``52428800`` | 最大上传文件大小（字节，默认 50MB） |
+| ``max_connections`` | int | ``1024`` | 原生服务器最大并发连接数，达到上限后新连接被快速拒绝（``None`` 表示不限制） |
+| ``idle_read_timeout`` | float | ``30.0`` | 原生服务器空闲读超时（秒），连接阻塞等待读数据超时后断开（slowloris 防护；0/``None`` 禁用） |
+| ``websocket_max_message_size`` | int | ``1048576`` | WebSocket 单条消息（帧负载）上限（字节），超限回 1009 关闭帧并断连 |
 | ``config_file`` | str | ``None`` | 配置文件路径 |
 | ``session_backend`` | str | ``memory`` | 会话后端（memory/redis/database/memcache） |
 | ``session_expiration_time`` | int | ``3600`` | 会话过期时间（秒） |
@@ -28,6 +31,10 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``session_http_only`` | bool | ``true`` | 是否仅 HTTP 访问 cookie |
 | ``session_same_site`` | str | ``Lax`` | SameSite 策略（Strict, Lax, None） |
 | ``cache_backend`` | str | ``tree`` | 缓存后端（memory, tree, redis, database, memcache） |
+| ``middleware`` | list | ``None`` | 中间件挂载列表（应用创建时按此列表自动挂载，支持内置名称与自定义模块路径，见 :doc:`middleware-guide`；未配置不挂载，``litefs runserver`` 未配置时默认启用全部） |
+| ``middleware_options`` | dict | ``None`` | 中间件构造参数（以 ``middleware`` 条目原文为键的字典，仅支持配置文件与代码方式） |
+| ``cors`` | dict | ``None`` | ``CORSMiddleware`` 构造参数（``middleware`` 含 ``cors`` 时生效） |
+| ``health_check`` | dict | ``None`` | ``HealthCheck`` 构造参数（``middleware`` 含 ``health`` 时生效） |
 
 ## 环境感知配置
 
@@ -128,6 +135,66 @@ export LITEFS_PORT=8080
 export LITEFS_DEBUG=true
 export LITEFS_MAX_REQUEST_SIZE=20971520
 ```
+
+## 中间件配置
+
+中间件的挂载由 ``middleware`` 配置项驱动：**应用创建时**（``Litefs(...)``
+构造阶段）按该列表自动挂载，列表顺序即挂载顺序，配置为 ``None`` 或空列表时
+不挂载任何中间件。条目支持两种形式：
+
+- **内置中间件名称**：``logging`` / ``security`` / ``cors`` / ``health``
+- **自定义中间件模块路径**：如 ``myapp.middleware.ThrottleMiddleware``，
+  应用创建时动态导入（导入目标必须是类，建议继承
+  ``litefs.middleware.Middleware``）
+
+```yaml
+# config.yaml
+middleware:
+  - logging
+  - security
+  - cors
+  - health
+  - myapp.middleware.ThrottleMiddleware   # 自定义中间件
+```
+
+也可通过环境变量覆盖（逗号分隔，内置名称与模块路径可混用）：
+
+```bash
+export LITEFS_MIDDLEWARE=logging,cors
+```
+
+中间件构造参数的注入方式：
+
+- **内置中间件**：同名配置段（``cors`` / ``health`` 对应 ``health_check``），
+  或统一使用 ``middleware_options``
+- **自定义中间件**：``middleware_options`` 配置段，以 ``middleware`` 条目
+  原文为键
+
+```yaml
+cors:
+  allow_origins: ["*"]
+  allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allow_headers: ["Content-Type", "Authorization"]
+  allow_credentials: false
+  max_age: 3600
+
+health_check:
+  path: "/health"
+  ready_path: "/health/ready"
+
+middleware_options:
+  myapp.middleware.ThrottleMiddleware:
+    rate: 100
+    period: 60
+```
+
+包含未知的内置中间件名称（不含 ``.`` 且不在白名单内）时应用创建直接抛出
+``ValueError``（``litefs runserver`` 会预校验并以错误信息退出）；自定义
+模块路径无法导入或目标不是类时同样抛出 ``ValueError``。
+
+``litefs runserver`` 未指定 ``--config`` 时自动发现当前目录的配置文件
+（``config.yaml`` / ``config.yml`` / ``config.json`` / ``config.toml``），
+对 ``config.yaml`` 的中间件修改直接生效。
 
 ## 相关文档
 

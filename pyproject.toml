@@ -34,6 +34,7 @@ dependencies = [
     "greenlet>=0.4.13",
     "Mako>=1.0.6",
     "MarkupSafe>=1.1.1",
+    "orjson>=3.10",
     "PyYAML>=5.1",
     "watchdog>=0.8.3",
     "SQLAlchemy>=2.0.0",
@@ -223,6 +224,14 @@ module = [
     "memcache.*",
     "pymemcache.*",
     "watchdog.*",
+    "yaml.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    # 标准库 3.11+ 模块，CI 的 py3.8 环境下 mypy 找不到实现
+    "tomllib",
 ]
 ignore_missing_imports = true
 
@@ -231,6 +240,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+# 强制测试导入仓库 src/ 实时代码，避免误测 site-packages 中的安装快照
+pythonpath = ["src"]
 addopts = [
     "-ra",
     "--strict-markers",

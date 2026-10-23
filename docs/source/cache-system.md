@@ -4,6 +4,10 @@
 
 ### MemoryCache（内存缓存）
 
+线程安全说明（v0.11.0 起）：``MemoryCache`` 内部结构与过期字典的全部读写
+受 ``threading.RLock`` 保护，可在多线程 WSGI 容器（如 gunicorn threads）下
+安全使用；LRU 淘汰顺序为「最近访问的键保留，最久未访问的键先逐出」。
+
 最快的缓存类型，基于 Python 字典实现。
 
 **特点：**
@@ -211,7 +215,6 @@ assert cache is cache2
 
 ```python
 from litefs.cache import RedisCache
-import json
 
 cache = RedisCache(
     host="localhost",
@@ -236,6 +239,11 @@ cache.delete("key1")           # 删除键
 cache.put("temp_key", "temp_value")
 ttl = cache.ttl("temp_key")    # 查询剩余过期时间
 cache.expire("temp_key", 7200) # 设置新的过期时间
+
+# 计数器（Memcache 后端，基于原生 incr/decr 原子命令）
+cache.put("counter", 10)
+cache.incr("counter", 5)       # 15，键不存在返回 None
+cache.decr("counter", 3)       # 12，下限钳位为 0
 
 # 批量操作
 cache.set_many({

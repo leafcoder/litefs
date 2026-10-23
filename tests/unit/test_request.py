@@ -9,6 +9,7 @@ LiteFS Request 模块测试
 
 import sys
 import os
+import json
 import unittest
 import tempfile
 from io import BytesIO
@@ -531,7 +532,9 @@ class TestSocketRequestHandler(unittest.TestCase):
         handler = SocketRequestHandler(self.mock_app, mock_rw, environ, Mock())
         handler._response_headers["Content-Type"] = "application/json"
         result = handler._cast({"name": "tom"})
-        self.assertEqual(result, [b'{"name": "tom"}'])
+        # 断言 JSON 语义而非字面量，避免绑定到具体序列化器的分隔符风格
+        self.assertEqual(len(result), 1)
+        self.assertEqual(json.loads(result[0]), {"name": "tom"})
 
 
 class TestBaseRequestHandler(unittest.TestCase):

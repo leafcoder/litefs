@@ -349,5 +349,71 @@ class TestLitefsMiddlewareIntegration(unittest.TestCase):
         self.assertEqual(len(app.middleware_manager._middlewares), 3)
 
 
+class TestCORSMiddlewareSecurity(unittest.TestCase):
+    """CORS 中间件安全修复测试"""
+
+    def test_wildcard_origin_with_credentials_rejected(self):
+        """测试 allow_origins=['*'] 与 allow_credentials 组合在初始化期抛错"""
+        app = Mock()
+        with self.assertRaises(ValueError):
+            CORSMiddleware(app, allow_origins=['*'], allow_credentials=True)
+
+    def test_wildcard_without_credentials_ok(self):
+        """测试 allow_origins=['*'] 且未开启凭证时正常初始化"""
+        middleware = CORSMiddleware(Mock(), allow_origins=['*'], allow_credentials=False)
+        self.assertEqual(middleware.allow_origins, ['*'])
+
+    def test_string_response_gets_cors_headers(self):
+        """测试非 tuple（str/bytes）响应通过请求处理器补写 CORS 响应头"""
+        app = Mock()
+        middleware = CORSMiddleware(app)
+        request_handler = Mock()
+        request_handler.environ = {'HTTP_ORIGIN': 'http://localhost:3000'}
+
+        result = middleware.process_response(request_handler, 'plain text')
+
+        self.assertEqual(result, 'plain text')
+        added = {
+            call.args[0]: call.args[1]
+            for call in request_handler._add_header.call_args_list
+        }
+        self.assertEqual(added.get('Access-Control-Allow-Origin'), '*')
+
+    def test_string_response_specific_origin_echoed(self):
+        """测试显式来源列表时非 tuple 响应回显请求来源"""
+        app = Mock()
+        middleware = CORSMiddleware(
+            app,
+            allow_origins=['http://localhost:3000'],
+            allow_credentials=True,
+        )
+        request_handler = Mock()
+        request_handler.environ = {'HTTP_ORIGIN': 'http://localhost:3000'}
+
+        middleware.process_response(request_handler, b'content')
+
+        added = {
+            call.args[0]: call.args[1]
+            for call in request_handler._add_header.call_args_list
+        }
+        self.assertEqual(
+            added.get('Access-Control-Allow-Origin'), 'http://localhost:3000'
+        )
+        self.assertEqual(added.get('Access-Control-Allow-Credentials'), 'true')
+
+    def test_string_response_disallowed_origin_untouched(self):
+        """测试来源不被允许时非 tuple 响应不写入任何 CORS 头"""
+        app = Mock()
+        middleware = CORSMiddleware(
+            app, allow_origins=['http://localhost:3000']
+        )
+        request_handler = Mock()
+        request_handler.environ = {'HTTP_ORIGIN': 'http://evil.com'}
+
+        middleware.process_response(request_handler, 'plain text')
+
+        request_handler._add_header.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

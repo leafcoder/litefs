@@ -7,9 +7,9 @@ Memcache Session 后端
 提供基于 Memcache 的 Session 实现
 """
 
-import json
 from typing import Optional
 
+from .._json import dumps_ascii, loads
 from .base import SessionStoreBase
 from .session import Session
 
@@ -44,6 +44,12 @@ class MemcacheSession(SessionStoreBase):
 
         if memcache_client is not None:
             self._mc = memcache_client
+            # 按客户端类型判定调用约定：pymemcache 的 set 带 expire= 参数，
+            # python-memcached 带 time= 参数。依据客户端所属模块判定，
+            # 未标注模块的客户端（如测试 Mock）按 python-memcached 分支处理
+            self._use_pymemcache = (
+                type(memcache_client).__module__.split(".")[0] == "pymemcache"
+            )
         else:
             try:
                 import pymemcache  # noqa: F401  # 仅用于探测 pymemcache 是否可用
@@ -90,7 +96,9 @@ class MemcacheSession(SessionStoreBase):
 
         # 序列化 Session 数据
         try:
-            data = json.dumps(dict(session))
+            # 使用 ASCII 安全序列化：pymemcache 客户端默认按 ASCII 编码值，
+            # 非 ASCII 内容会直接写入失败
+            data = dumps_ascii(dict(session))
         except Exception as e:
             raise ValueError(f"无法序列化 Session 数据: {e}")
 
@@ -117,7 +125,7 @@ class MemcacheSession(SessionStoreBase):
 
         # 反序列化 Session 数据
         try:
-            data = json.loads(data_str)
+            data = loads(data_str)
         except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)

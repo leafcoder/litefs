@@ -55,6 +55,14 @@ class CORSMiddleware(Middleware):
         self.allow_credentials = allow_credentials
         self.max_age = max_age
 
+        if self.allow_credentials and "*" in self.allow_origins:
+            # 安全约束：通配来源与凭证携带不能组合（浏览器亦拒绝该组合），
+            # 在启动期（中间件构造期）直接失败，避免运行期静默产生无效头部
+            raise ValueError(
+                "CORS 配置冲突：allow_origins 为 ['*'] 时不能同时开启 "
+                "allow_credentials，请显式列出允许的来源"
+            )
+
     def process_request(self, request_handler):
         """
         处理请求，检查是否为预检请求
@@ -79,7 +87,7 @@ class CORSMiddleware(Middleware):
 
         Args:
             request_handler: 请求处理器实例
-            response: 响应数据
+            response: 响应数据（tuple 三元组或 str/bytes 等普通内容）
 
         Returns:
             添加了 CORS 响应头的响应数据
@@ -87,27 +95,45 @@ class CORSMiddleware(Middleware):
         origin = request_handler.environ.get("HTTP_ORIGIN", "")
 
         if self._is_origin_allowed(origin):
+            cors_headers = self._build_cors_headers(origin)
+
             if isinstance(response, tuple) and len(response) == 3:
                 status, headers, content = response
-                headers = list(headers)
-            else:
-                headers = []
+                return status, list(headers) + cors_headers, content
 
-            if "*" in self.allow_origins:
-                headers.append(("Access-Control-Allow-Origin", "*"))
-            else:
-                headers.append(("Access-Control-Allow-Origin", origin))
-
-            if self.allow_credentials:
-                headers.append(("Access-Control-Allow-Credentials", "true"))
-
-            if self.expose_headers:
-                headers.append(("Access-Control-Expose-Headers", ", ".join(self.expose_headers)))
-
-            if isinstance(response, tuple) and len(response) == 3:
-                return status, headers, content
+            # 非 tuple 响应（Socket 链路的 str/bytes 返回值）：
+            # 将 CORS 头写入请求处理器，由响应构建流程统一输出
+            add_header = getattr(request_handler, "_add_header", None)
+            if add_header is not None:
+                for key, value in cors_headers:
+                    add_header(key, value)
 
         return response
+
+    def _build_cors_headers(self, origin: str) -> List[tuple]:
+        """
+        构建 CORS 响应头列表
+
+        Args:
+            origin: 请求来源
+
+        Returns:
+            (header, value) 元组列表
+        """
+        headers = []
+
+        if "*" in self.allow_origins:
+            headers.append(("Access-Control-Allow-Origin", "*"))
+        else:
+            headers.append(("Access-Control-Allow-Origin", origin))
+
+        if self.allow_credentials:
+            headers.append(("Access-Control-Allow-Credentials", "true"))
+
+        if self.expose_headers:
+            headers.append(("Access-Control-Expose-Headers", ", ".join(self.expose_headers)))
+
+        return headers
 
     def _is_origin_allowed(self, origin: str) -> bool:
         """

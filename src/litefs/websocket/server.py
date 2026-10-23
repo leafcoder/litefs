@@ -14,7 +14,11 @@ from typing import Callable, Dict, Optional, Any
 from urllib.parse import urlparse
 
 from .protocol import CloseCode, compute_accept_key
-from .connection import WebSocketConnection, ConnectionManager
+from .connection import (
+    WebSocketConnection,
+    ConnectionManager,
+    DEFAULT_MAX_MESSAGE_SIZE,
+)
 
 
 class WebSocketServer:
@@ -33,6 +37,7 @@ class WebSocketServer:
         auth_handler: Optional[Callable] = None,
         ping_interval: int = 30,
         ping_timeout: int = 60,
+        max_message_size: int = DEFAULT_MAX_MESSAGE_SIZE,
     ):
         self.host = host
         self.port = port
@@ -41,6 +46,7 @@ class WebSocketServer:
         self.auth_handler = auth_handler
         self.ping_interval = ping_interval
         self.ping_timeout = ping_timeout
+        self.max_message_size = max_message_size
 
         self._manager = ConnectionManager()
         self._handlers: Dict[str, Callable] = {}
@@ -156,6 +162,7 @@ class WebSocketServer:
                 path=ws_path,
                 query_string=query_string,
                 headers=headers,
+                max_message_size=self.max_message_size,
             )
 
             if self.auth_required and self.auth_handler:
@@ -183,9 +190,10 @@ class WebSocketServer:
                 pass
 
     def _read_http_request(self, client_socket: socket.socket) -> Optional[tuple]:
-        """读取 HTTP 请求"""
+        """读取 HTTP 请求（握手请求头超过 max_message_size 上限时直接拒绝）"""
         client_socket.settimeout(5.0)
 
+        header_limit = self.max_message_size + 2048
         buffer = b''
         while b'\r\n\r\n' not in buffer:
             try:
@@ -193,6 +201,8 @@ class WebSocketServer:
                 if not chunk:
                     return None
                 buffer += chunk
+                if len(buffer) > header_limit:
+                    return None
             except Exception:
                 return None
 
@@ -285,18 +295,21 @@ class WebSocket:
         port: int = None,
         auth_required: bool = False,
         auth_handler: Optional[Callable] = None,
+        max_message_size: int = None,
     ):
         self.path = path
         self.auth_required = auth_required
         self.auth_handler = auth_handler
+        self._explicit_max_message_size = max_message_size
 
         self._server: Optional[WebSocketServer] = None
         self._handlers: Dict[str, Callable] = {}
 
         if app:
-            self.init_app(app, host, port)
+            self.init_app(app, host, port, max_message_size)
 
-    def init_app(self, app, host: str = None, port: int = None):
+    def init_app(self, app, host: str = None, port: int = None,
+                 max_message_size: int = None):
         """
         初始化应用
 
@@ -304,10 +317,22 @@ class WebSocket:
             app: Litefs 应用实例
             host: WebSocket 服务器主机
             port: WebSocket 服务器端口
+            max_message_size: 单条消息上限（字节），未指定时从应用配置
+                ``websocket_max_message_size`` 读取，默认 1MB
         """
         self._app = app
         self._ws_host = host or getattr(app.config, 'host', '0.0.0.0')
         self._ws_port = port or (getattr(app.config, 'port', 8080) + 1)
+        self._max_message_size = (
+            max_message_size
+            if max_message_size is not None
+            else self._explicit_max_message_size
+        )
+        if self._max_message_size is None:
+            self._max_message_size = getattr(
+                app.config, 'websocket_max_message_size',
+                DEFAULT_MAX_MESSAGE_SIZE,
+            )
 
         app._websocket = self
 
@@ -318,6 +343,7 @@ class WebSocket:
             port=self._ws_port,
             auth_required=self.auth_required,
             auth_handler=self.auth_handler,
+            max_message_size=self._max_message_size,
         )
 
         for path, handler in self._handlers.items():

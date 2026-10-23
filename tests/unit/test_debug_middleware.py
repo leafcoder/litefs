@@ -435,7 +435,9 @@ class TestDebugMiddleware(DebugTestCase):
 
         response = {'message': 'ok', '中文': '数据'}
         middleware.process_response(handler, response)
-        expected = len(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+        # 与框架统一的 JSON 编码器保持一致，避免绑定到具体序列化器的分隔符风格
+        from litefs._json import dumps
+        expected = len(dumps(response))
         self.assertEqual(debug.response_size, expected)
 
     @patch.dict(os.environ, {'LITEFS_DEBUG': '1'})

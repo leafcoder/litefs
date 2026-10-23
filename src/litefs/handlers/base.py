@@ -7,12 +7,12 @@
 提供所有请求处理器共用的基础功能
 """
 
-import json
 from hashlib import sha256
 from http.cookies import SimpleCookie
 from http.client import responses as http_status_codes
 from os import urandom
 
+from .._json import loads  # noqa: F401  # 对外再导出（保持模块符号面）
 from .response import (
     DEFAULT_STATUS_MESSAGE,
     default_content_type,
@@ -20,9 +20,10 @@ from .response import (
     server_info,
 )
 from .form import parse_form, parse_header  # noqa: F401  # parse_form 为对外再导出
+from .base_request import RequestPropertiesMixin as _RequestPropertiesMixin
 
 
-class BaseRequestHandler:
+class BaseRequestHandler(_RequestPropertiesMixin):
     """
     请求处理器基类，提供通用的请求处理功能
 
@@ -386,157 +387,6 @@ class BaseRequestHandler:
             (status, response_headers, content)
         """
         return self._prepare_response(status_code, headers, content)
-
-    # ==================== 请求属性（共享） ====================
-
-    @property
-    def config(self):
-        return self._app.config
-
-    @property
-    def app(self):
-        """
-        获取应用实例
-
-        Returns:
-            应用实例
-        """
-        return self._app
-
-    @property
-    def session_id(self):
-        return self._session_id
-
-    @property
-    def session(self):
-        return self._session
-
-    @property
-    def get(self):
-        return self._get
-
-    @property
-    def post(self):
-        return self._post
-
-    @property
-    def body(self):
-        return self._body
-
-    @property
-    def files(self):
-        return self._files or {}
-
-    @property
-    def form(self):
-        """
-        表单数据，与 post 属性相同
-
-        Returns:
-            表单数据字典
-        """
-        return self._post
-
-    @property
-    def json(self):
-        body = self._body
-        if not body:
-            return {}
-        content_type = self._environ.get("CONTENT_TYPE", "")
-        content_type, _ = parse_header(content_type)
-        content_type = content_type.lower()
-        if content_type not in ("application/json", "application/json-rpc"):
-            return {}
-        return json.loads(body)
-
-    @property
-    def environ(self):
-        return self._environ
-
-    @property
-    def params(self):
-        return self._get
-
-    @property
-    def data(self):
-        return self._post
-
-    @property
-    def request_method(self):
-        return self._environ.get("REQUEST_METHOD", "GET")
-
-    method = request_method
-
-    @property
-    def server_protocol(self):
-        return self._environ.get("SERVER_PROTOCOL", "HTTP/1.1")
-
-    @property
-    def content_type(self):
-        return self._environ.get("CONTENT_TYPE")
-
-    @property
-    def charset(self):
-        content_type = self.content_type
-        if content_type:
-            _, params = parse_header(content_type)
-            return params.get("charset", "UTF-8")
-        return "UTF-8"
-
-    @property
-    def content_length(self):
-        return int(self._environ.get("CONTENT_LENGTH", 0) or 0)
-
-    @property
-    def path_info(self):
-        return self._environ.get("PATH_INFO", "/")
-
-    @property
-    def query_string(self):
-        return self._environ.get("QUERY_STRING", "")
-
-    @property
-    def request_uri(self):
-        path_info = self.path_info
-        query_string = self.query_string
-        if not query_string:
-            return path_info
-        return "?".join((path_info, query_string))
-
-    @property
-    def referer(self):
-        return self._environ.get("HTTP_REFERER")
-
-    @staticmethod
-    def _build_request_headers(environ):
-        """
-        从 environ 字典中提取所有 HTTP 请求头并缓存
-
-        Args:
-            environ: WSGI/ASGI environ 字典
-
-        Returns:
-            包含所有请求头的字典
-        """
-        headers = {}
-        for key, value in environ.items():
-            if key.startswith('HTTP_'):
-                header_name = key[5:].replace('_', '-').lower()
-                headers[header_name] = value
-            elif key in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
-                header_name = key.replace('_', '-').lower()
-                headers[header_name] = value
-        return headers
-
-    @property
-    def headers(self):
-        """
-        获取所有请求头（已缓存，O(1) 访问）
-
-        Returns:
-            包含所有请求头的字典
-        """
-        return self._request_headers
 
     def handle_response(self, result):
         """

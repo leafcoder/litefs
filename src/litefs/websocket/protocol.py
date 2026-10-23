@@ -42,6 +42,14 @@ class CloseCode(IntEnum):
     UNAUTHORIZED = 4001
 
 
+class FrameTooLargeError(Exception):
+    """帧负载超过允许上限时抛出
+
+    在帧头声明长度超出上限时立即抛出（无需等待完整负载到达），
+    防止恶意声明的超大帧耗尽服务器内存。
+    """
+
+
 class Frame:
     """WebSocket 帧"""
 
@@ -66,15 +74,20 @@ class Frame:
         self.masking_key = masking_key
 
     @classmethod
-    def parse(cls, data: bytes) -> Tuple['Frame', int]:
+    def parse(cls, data: bytes, max_payload_size: int = None) -> Tuple['Frame', int]:
         """
         解析 WebSocket 帧
 
         Args:
             data: 原始字节数据
+            max_payload_size: 帧负载上限（字节），None 表示不限制；
+                声明长度超限时立即抛出 FrameTooLargeError
 
         Returns:
             (Frame 对象, 消耗的字节数)
+
+        Raises:
+            FrameTooLargeError: 声明的负载长度超过 max_payload_size
         """
         if len(data) < 2:
             return None, 0
@@ -103,6 +116,11 @@ class Frame:
                 return None, 0
             payload_len = struct.unpack('!Q', data[offset:offset+8])[0]
             offset += 8
+
+        if max_payload_size is not None and payload_len > max_payload_size:
+            raise FrameTooLargeError(
+                f"Frame payload {payload_len} exceeds limit {max_payload_size}"
+            )
 
         masking_key = None
         if masked:

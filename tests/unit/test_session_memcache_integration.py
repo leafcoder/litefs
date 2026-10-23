@@ -4,9 +4,10 @@
 Memcache Session 测试（使用真实 memcached 服务）
 """
 
+import json
 import pytest
 import time
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 from litefs.session.memcache import MemcacheSession
 from litefs.session.session import Session
 
@@ -48,9 +49,21 @@ class TestMemcacheSessionInit:
             key_prefix='test:',
             expiration_time=3600
         )
-        
+
         assert session._key_prefix == 'test:'
         assert session._expiration_time == 3600
+
+    def test_init_with_injected_client_detection(self):
+        """回归：注入客户端时自动判定后端类型，put 不再抛 AttributeError"""
+        client = MagicMock()
+        client.stats.return_value = {}
+        session = MemcacheSession(memcache_client=client)
+
+        # Mock 所属模块为 unittest.mock，按 python-memcached 分支处理
+        assert session._use_pymemcache is False
+
+        session.put('injected', {'k': 'v'})
+        assert client.set.called
     
     def test_init_with_custom_params(self):
         """测试自定义参数初始化"""
@@ -295,6 +308,25 @@ class TestMemcacheSessionIntegration:
         assert result['chinese'] == '中文测试'
         assert result['emoji'] == '😀😁😂'
         assert result['special'] == '!@#$%^&*()'
+
+
+class TestMemcacheSessionAsciiSafety:
+    """Session 写入值的 ASCII 安全回归测试"""
+
+    def test_put_writes_ascii_safe_value(self):
+        """回归：写入值必须是纯 ASCII（pymemcache 默认按 ASCII 编码）"""
+        client = MagicMock()
+        client.stats.return_value = {}
+        session = MemcacheSession(memcache_client=client)
+        # 注入客户端时框架不判定客户端类型，与缓存后端测试保持一致
+        session._use_pymemcache = True
+
+        session.put('ascii_safety', {'chinese': '中文测试', 'emoji': '😀'})
+
+        stored = client.set.call_args[0][1]
+        assert stored.isascii()
+        # 转义后仍可还原原始内容
+        assert json.loads(stored) == {'chinese': '中文测试', 'emoji': '😀'}
 
 
 if __name__ == '__main__':

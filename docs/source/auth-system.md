@@ -167,6 +167,7 @@ jwt = JWTManager(
     algorithm='HS256',
     access_token_expires=3600,
     refresh_token_expires=604800,
+    leeway=0,  # 时间校验时钟偏移容忍（秒），多实例部署建议设置
 )
 
 payload = {'sub': 1, 'username': 'test'}
@@ -174,6 +175,23 @@ access_token = jwt.create_access_token(payload)
 refresh_token = jwt.create_refresh_token(payload)
 
 decoded = jwt.decode_token(access_token)
+```
+
+安全校验语义（v0.11.0 起）：
+
+- ``decode_token`` 校验 ``exp`` / ``nbf`` / ``iat``（均受 ``leeway`` 容忍），
+  ``nbf`` 未生效或 ``iat`` 在未来的 token 直接拒绝
+- ``header.alg`` 与实例算法不一致即拒绝（防算法混淆）；
+  ``JWTManager`` 构造期拒绝白名单外的算法（当前仅 ``HS256``）
+- 类型区分：``decode_access_token(token)`` / ``decode_refresh_token(token)``
+  强制校验 ``type`` claim，refresh token 不能当作 access token 使用；
+  也可用 ``decode_token(token, expected_type='access')`` 显式指定
+- 不传 ``expected_type`` 时 ``decode_token`` 不校验 type（向后兼容）
+
+```python
+# 推荐：按用途使用强类型解码
+claims = jwt.decode_access_token(access_token)      # 仅接受 access
+refresh_claims = jwt.decode_refresh_token(refresh_token)  # 仅接受 refresh
 ```
 
 ### 密码哈希
@@ -512,8 +530,14 @@ JWT Token 管理器。
 **方法**：
 - `create_access_token(payload)` - 创建 Access Token
 - `create_refresh_token(payload)` - 创建 Refresh Token
-- `decode_token(token)` - 解码并验证 Token
+- `decode_token(token, expected_type=None)` - 解码并验证 Token（校验 exp/nbf/iat/alg，可选 type 强制校验）
+- `decode_access_token(token)` - 解码 Access Token（强制 type == 'access'）
+- `decode_refresh_token(token)` - 解码 Refresh Token（强制 type == 'refresh'）
 - `revoke_token(token)` - 撤销 Token
+
+**构造参数**：`secret_key`、`algorithm='HS256'`（白名单校验，当前仅支持 HS256）、
+`access_token_expires=3600`、`refresh_token_expires=604800`、
+`blacklist_backend=None`、`leeway=0`（时间校验时钟偏移容忍，秒）
 
 ### litefs.auth.password
 

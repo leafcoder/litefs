@@ -7,9 +7,9 @@ Redis 缓存后端
 提供基于 Redis 的缓存实现
 """
 
-import json
 from typing import Any, Optional
 
+from .._json import dumps_str, loads
 from .base import CacheBackendBase
 
 
@@ -123,7 +123,7 @@ class RedisCache(CacheBackendBase):
 
         # 序列化值
         try:
-            val_str = json.dumps(val)
+            val_str = dumps_str(val)
         except Exception as e:
             raise ValueError(f"无法序列化值: {e}")
 
@@ -151,7 +151,7 @@ class RedisCache(CacheBackendBase):
 
         # 反序列化值
         try:
-            value = json.loads(val_str)
+            value = loads(val_str)
         except Exception:
             # 如果反序列化失败，返回原始字符串
             value = val_str
@@ -269,7 +269,7 @@ class RedisCache(CacheBackendBase):
             if val_str is not None:
                 # 反序列化值
                 try:
-                    result[key] = json.loads(val_str)
+                    result[key] = loads(val_str)
                 except Exception:
                     # 如果反序列化失败，返回原始字符串
                     result[key] = val_str
@@ -293,7 +293,7 @@ class RedisCache(CacheBackendBase):
         for key, value in mapping.items():
             # 序列化值
             try:
-                val_str = json.dumps(value)
+                val_str = dumps_str(value)
             except Exception as e:
                 raise ValueError(f"无法序列化值: {e}")
 

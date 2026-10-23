@@ -3,6 +3,7 @@
 
 import os
 import sqlite3
+import threading
 import time
 from collections import OrderedDict
 from gzip import GzipFile
@@ -402,6 +403,9 @@ class MemoryCache(CacheBackendBase):
         self._max_size = int(max_size)
         self._cache = OrderedDict()
         self._expiry = {}  # key -> expires_at (time.time() + expiration)
+        # 结构锁：保护 OrderedDict / _expiry 的并发读写（多线程 WSGI 容器下
+        # move_to_end / popitem 存在竞态）。RLock 支持 _is_expired 内重入 delete
+        self._lock = threading.RLock()
 
     def __str__(self):
         return str(self._cache)
@@ -426,46 +430,51 @@ class MemoryCache(CacheBackendBase):
             del self._expiry[key]
 
     def put(self, key, val, expiration=None):
-        if key in self._cache:
-            del self._cache[key]
-        elif len(self._cache) >= self._max_size:
-            # Try cleanup before evicting LRU
-            self._cleanup_expired()
-            if len(self._cache) >= self._max_size:
-                evicted_key, _ = self._cache.popitem(last=False)
-                self._expiry.pop(evicted_key, None)
-        self._cache[key] = val
-        if expiration is not None:
-            self._expiry[key] = time.time() + expiration
-        else:
-            self._expiry.pop(key, None)
+        with self._lock:
+            if key in self._cache:
+                del self._cache[key]
+            elif len(self._cache) >= self._max_size:
+                # Try cleanup before evicting LRU
+                self._cleanup_expired()
+                if len(self._cache) >= self._max_size:
+                    evicted_key, _ = self._cache.popitem(last=False)
+                    self._expiry.pop(evicted_key, None)
+            self._cache[key] = val
+            if expiration is not None:
+                self._expiry[key] = time.time() + expiration
+            else:
+                self._expiry.pop(key, None)
 
     def get(self, key):
-        if self._is_expired(key):
-            self.stats.record_miss()
-            return None
-        val = self._cache.get(key)
-        if val is None:
-            self.stats.record_miss()
-            return None
-        self._cache.move_to_end(key)
-        self.stats.record_hit()
-        return val
+        with self._lock:
+            if self._is_expired(key):
+                self.stats.record_miss()
+                return None
+            val = self._cache.get(key)
+            if val is None:
+                self.stats.record_miss()
+                return None
+            self._cache.move_to_end(key)
+            self.stats.record_hit()
+            return val
 
     def delete(self, key):
-        self._cache.pop(key, None)
-        self._expiry.pop(key, None)
+        with self._lock:
+            self._cache.pop(key, None)
+            self._expiry.pop(key, None)
 
     def exists(self, key):
         """检查键是否存在且未过期"""
-        if self._is_expired(key):
-            return False
-        return key in self._cache
+        with self._lock:
+            if self._is_expired(key):
+                return False
+            return key in self._cache
 
     def clear(self):
         """清空所有缓存"""
-        self._cache.clear()
-        self._expiry.clear()
+        with self._lock:
+            self._cache.clear()
+            self._expiry.clear()
 
     def expire(self, key, expiration):
         """设置键的过期时间
@@ -477,10 +486,11 @@ class MemoryCache(CacheBackendBase):
         Returns:
             是否设置成功
         """
-        if key not in self._cache or self._is_expired(key):
-            return False
-        self._expiry[key] = time.time() + expiration
-        return True
+        with self._lock:
+            if key not in self._cache or self._is_expired(key):
+                return False
+            self._expiry[key] = time.time() + expiration
+            return True
 
     def ttl(self, key):
         """获取键的剩余过期时间
@@ -488,13 +498,14 @@ class MemoryCache(CacheBackendBase):
         Returns:
             剩余过期时间（秒），键不存在返回 -2，无过期时间返回 -1
         """
-        if key not in self._cache or self._is_expired(key):
-            return -2
-        expires_at = self._expiry.get(key)
-        if expires_at is None:
-            return -1
-        remaining = expires_at - time.time()
-        return max(0, int(remaining))
+        with self._lock:
+            if key not in self._cache or self._is_expired(key):
+                return -2
+            expires_at = self._expiry.get(key)
+            if expires_at is None:
+                return -1
+            remaining = expires_at - time.time()
+            return max(0, int(remaining))
 
     def close(self):
         """关闭（内存缓存无需操作）"""

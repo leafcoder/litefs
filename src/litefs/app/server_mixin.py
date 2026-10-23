@@ -95,10 +95,12 @@ class ServerMixin:
                 self.server = ProcessHTTPServer(
                     (self.host, self.port), self.handler, processes=processes
                 )
+                self._apply_connection_governance()
                 self.server.max_request_size = self.config.max_request_size
                 self.server.server_forever(poll_interval=poll_interval)
             else:
                 self.server = HTTPServer((self.host, self.port), self.handler)
+                self._apply_connection_governance()
                 self.server.max_request_size = self.config.max_request_size
                 self.server.start()
                 mainloop(poll_interval=poll_interval)
@@ -110,6 +112,17 @@ class ServerMixin:
             log_error(self.logger, "Server error: %s" % str(e))
         finally:
             self._cleanup_server()
+
+    def _apply_connection_governance(self):
+        """将连接治理配置应用到原生服务器实例
+
+        - ``max_connections``：最大并发连接数，达到上限后新连接被快速拒绝
+        - ``idle_read_timeout``：空闲读超时，连接阻塞等待读数据超时后断开
+        """
+        if self.server is None:
+            return
+        self.server.max_connections = self.config.max_connections
+        self.server.idle_read_timeout = self.config.idle_read_timeout
 
     def _cleanup_server(self):
         """清理服务器资源"""

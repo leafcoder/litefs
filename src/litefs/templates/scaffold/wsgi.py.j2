@@ -1,80 +1,75 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+"""
+${project_name} - Litefs WSGI 入口
+
+供 Gunicorn / uWSGI 等生产级 WSGI 服务器托管::
+
+    gunicorn -w 4 -b 0.0.0.0:9090 wsgi:application
+"""
+
 import litefs
-from litefs import Litefs
-from litefs.middleware import (
-    CORSMiddleware,
-    LoggingMiddleware,
-    SecurityMiddleware,
-    HealthCheck,
-)
+from litefs.core import Litefs
+
 
 # 配置 Litefs 应用
-app = (
-    Litefs(config_file="config.yaml")
-    .add_middleware(LoggingMiddleware)
-    .add_middleware(SecurityMiddleware)
-    .add_middleware(CORSMiddleware)
-    .add_middleware(HealthCheck)
-)
+# 配置全部来自 config.yaml，其中 middleware 配置项控制自动挂载的内置中间件，
+# 同名配置段（如 cors: / health_check:）作为对应中间件的构造参数
+app = Litefs(config_file='config.yaml')
+
 
 # 挂载静态文件目录
 app.add_static('/static', 'static')
+
 
 # 定义默认首页处理函数
 def index_handler(request):
     """
     处理首页请求
-    
+
     Args:
         request: 请求对象
-        
+
     Returns:
-        str: 响应内容
+        str: 响应内容（以 < 开头的字符串自动以 text/html 输出）
     """
-    request.start_response(200, [("Content-Type", "text/html; charset=utf-8")])
     with open('templates/index.html', 'r', encoding='utf-8') as f:
-        content = f.read().replace('${project_name}', '${project_name}')
-    return content
+        return f.read()
 
 
 # 定义关于页面处理函数
 def about_handler(request):
     """
     处理关于页面请求
-    
+
     Args:
         request: 请求对象
-        
+
     Returns:
-        str: 响应内容
+        str: 响应内容（以 < 开头的字符串自动以 text/html 输出）
     """
-    request.start_response(200, [("Content-Type", "text/html; charset=utf-8")])
     with open('templates/about.html', 'r', encoding='utf-8') as f:
-        content = f.read().replace('${project_name}', '${project_name}')
-    return content
+        return f.read()
 
 
 # 定义 API 接口处理函数
 def api_handler(request):
     """
     处理 API 请求
-    
+
     Args:
         request: 请求对象
-        
+
     Returns:
-        str: 响应内容
+        dict: 响应数据（自动序列化为 application/json）
     """
-    request.start_response(200, [("Content-Type", "application/json; charset=utf-8")])
-    import json
-    return json.dumps({
+    return {
         "name": "${project_name}",
         "version": "1.0.0",
         "status": "ok",
-        "message": "Welcome to the API!"
-    }, ensure_ascii=False)
+        "message": "Welcome to the API!",
+    }
 
 
 # 添加路由

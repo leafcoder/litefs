@@ -1,4 +1,4 @@
-.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help sync-deps lint lint-fix benchmark benchmark-check audit help
+.PHONY: docs-serve docs-build docs-check docs-clean docs-stats build publish-test publish clean-build release publish-help sync-deps lint lint-fix test test-unit test-cov benchmark benchmark-check audit help
 
 # 文档相关命令
 
@@ -70,6 +70,26 @@ lint-fix:
 	@echo ">>> ruff 安全自动修复"
 	python -m ruff check src --fix
 	@echo "自动修复完成，请复核 diff 后再提交"
+
+# 测试命令
+
+# 全量测试（单元 + 集成 + 回归），静默输出仅显示进度与摘要
+test:
+	@echo ">>> 运行全量测试"
+	python -m pytest tests/ -q
+	@echo "全量测试通过"
+
+# 仅运行单元测试
+test-unit:
+	@echo ">>> 运行单元测试"
+	python -m pytest tests/unit -q
+	@echo "单元测试通过"
+
+# 带覆盖率报告的测试（生成终端摘要与 HTML 报告 htmlcov/index.html）
+test-cov:
+	@echo ">>> 运行测试并统计覆盖率"
+	python -m pytest tests/ -q --cov=src/litefs --cov-report=term-missing --cov-report=html
+	@echo "覆盖率报告已生成：htmlcov/index.html"
 
 # 打包和发布命令
 
@@ -156,6 +176,11 @@ help:
 	@echo "静态检查:"
 	@echo "  make lint          - 全量静态检查（flake8 + ruff + mypy）"
 	@echo "  make lint-fix      - 应用 ruff 安全自动修复"
+	@echo ""
+	@echo "测试:"
+	@echo "  make test          - 运行全量测试"
+	@echo "  make test-unit     - 仅运行单元测试"
+	@echo "  make test-cov      - 运行测试并生成覆盖率报告（HTML）"
 	@echo ""
 	@echo "打包和发布:"
 	@echo "  make build         - 构建sdist和wheel包"

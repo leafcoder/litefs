@@ -8,14 +8,13 @@
 直接操作 socket 进行请求处理
 """
 
-import itertools
-import json
 import re
 from errno import EAGAIN, EWOULDBLOCK
 from http.cookies import SimpleCookie
 from io import DEFAULT_BUFFER_SIZE, StringIO
 from urllib.parse import unquote_plus
 
+from .._json import dumps_str
 from ..exceptions import HttpError
 from ..session import Session
 from ..utils import log_error, render_error
@@ -28,6 +27,8 @@ from .response import (  # noqa: F401  # server_info/server_software 为对外�
     server_info,
     server_software,
 )
+from .socket_request import SocketRequestPropertiesMixin
+from .socket_response import SocketResponseMixin
 
 
 def is_bytes(s):
@@ -40,7 +41,7 @@ def imap(func, iterable):
     return map(func, iterable)
 
 
-class SocketRequestHandler(BaseRequestHandler):
+class SocketRequestHandler(SocketResponseMixin, SocketRequestPropertiesMixin, BaseRequestHandler):
     """
     原生 Socket 请求处理器
 
@@ -135,237 +136,6 @@ class SocketRequestHandler(BaseRequestHandler):
         sessions.put(session_id, session)
         return None, session
 
-    @property
-    def config(self):
-        return self._app.config
-
-    @property
-    def files(self):
-        return self._files or {}
-
-    @property
-    def body(self):
-        return self._body
-
-    @property
-    def json(self):
-        body = self._body
-        if not self._body:
-            return {}
-        content_type = self.content_type
-        content_type, _ = parse_header(content_type)
-        content_type = content_type.lower()
-        if content_type not in ("application/json", "application/json-rpc"):
-            return {}
-        return json.loads(body)
-
-    @property
-    def environ(self):
-        return self._environ
-
-    @property
-    def params(self):
-        return self._get
-
-    @property
-    def data(self):
-        return self._post
-
-    @property
-    def session_id(self):
-        return self._session_id
-
-    @property
-    def session(self):
-        return self._session
-
-    @property
-    def request_method(self):
-        return self.environ["REQUEST_METHOD"]
-
-    method = request_method
-
-    @property
-    def server_protocol(self):
-        return self.environ["SERVER_PROTOCOL"]
-
-    @property
-    def content_type(self):
-        return self.environ.get("CONTENT_TYPE")
-
-    @property
-    def charset(self, default="UTF-8"):
-        _, params = parse_header(self.content_type)
-        return params.get("charset", default)
-
-    @property
-    def content_length(self):
-        return int(self.environ.get("CONTENT_LENGTH") or -1)
-
-    @property
-    def path_info(self):
-        return self.environ["PATH_INFO"]
-
-    @property
-    def query_string(self):
-        return self.environ["QUERY_STRING"]
-
-    @property
-    def request_uri(self):
-        environ = self.environ
-        path_info = environ["PATH_INFO"]
-        query_string = environ["QUERY_STRING"]
-        if not query_string:
-            return path_info
-        return "?".join((path_info, query_string))
-
-    @property
-    def referer(self):
-        return self.environ.get("HTTP_REFERER")
-
-    @property
-    def cookie(self):
-        cookie_str = self.environ.get("HTTP_COOKIE", "")
-        cookie = SimpleCookie()
-        cookie.load(cookie_str)
-        return cookie
-
-    def _add_header(self, key, value):
-        # 添加到 _response_headers 字典中
-        response_headers = self._response_headers
-        response_headers[key] = value
-
-    def _add_response_headers(self, headers):
-        for header, value in headers:
-            self._response_headers[header] = value
-
-    def set_cookie(self, name, value, **options):
-        if self._cookies is None:
-            self._cookies = {}
-        cookie = SimpleCookie()
-        cookie[name] = value
-        for key, val in options.items():
-            # 将下划线参数转换为连字符形式（如 max_age -> max-age）
-            cookie_key = key.replace('_', '-')
-            cookie[name][cookie_key] = val
-        self._cookies[name] = cookie
-
-    def redirect(self, url=None):
-        if self._headers_responsed:
-            raise ValueError("Http headers already responsed.")
-        url = "/" if url is None else url
-        response_headers = self._response_headers
-        response_headers["Content-Type"] = "text/html;charset=utf-8"
-        host = self._environ.get("HTTP_HOST")
-        if not host:
-            server_name = self._environ.get("SERVER_NAME", "localhost")
-            server_port = self._environ.get("SERVER_PORT", "80")
-            if server_port not in ("80", "443"):
-                host = "%s:%s" % (server_name, server_port)
-            else:
-                host = server_name
-        scheme = (
-            "https"
-            if self._environ.get("HTTPS") == "on" or self._environ.get("SERVER_PORT") == "443"
-            else "http"
-        )
-        response_headers["Location"] = "%s://%s%s" % (scheme, host, url)
-        status_code = 302
-        status_text = "Found"
-        content = "%d %s" % (status_code, status_text)
-        headers = response_headers.items()
-        self.start_response(status_code, headers=headers)
-        return content
-
-    def _cast(self, s=None):
-        response_headers = self._response_headers
-
-        if not s:
-            if "Content-Length" not in response_headers:
-                response_headers["Content-Length"] = 0
-            return []
-
-        # 对于 3xx 重定向响应，设置 Content-Type 为 text/html; charset=utf-8
-        if 300 <= self._status_code < 400:
-            response_headers["Content-Type"] = "text/html; charset=utf-8"
-            # 直接返回空字符串，不需要转换为 JSON 格式
-            return [b""]
-
-        content_type = response_headers.get("Content-Type", "")
-        is_json_response = "application/json" in content_type
-
-        # 先处理 dict 类型（dict 是 Iterable 但需要特殊处理）
-        if isinstance(s, dict):
-            if is_json_response:
-                try:
-                    s = json.dumps(s, ensure_ascii=False)
-                except (TypeError, ValueError) as e:
-                    raise TypeError("Response data cannot be JSON serialized: %s" % e)
-            else:
-                s = str(s)
-
-        # 先检查是否是可迭代对象（但不是字符串、字节、元组、列表或字典）
-        from collections.abc import Iterable
-        if (
-            not isinstance(s, (str, bytes, tuple, list, dict, type(None)))
-            and isinstance(s, Iterable)
-        ):
-            try:
-                iter_s = iter(s)
-                first = next(iter_s)
-                while not first:
-                    first = next(iter_s)
-            except StopIteration:
-                return self._cast()
-            if is_bytes(first):
-                new_iter_s = itertools.chain([first], iter_s)
-            elif isinstance(first, str):
-
-                def encoder(item):
-                    """将元素编码为 UTF-8 字节串"""
-                    return str(item).encode("utf-8")
-
-                new_iter_s = itertools.chain([first], iter_s)
-                new_iter_s = imap(encoder, new_iter_s)
-            else:
-                raise TypeError("response type is not allowd: %s" % type(first))
-            return new_iter_s
-
-        if isinstance(s, (tuple, list)):
-            if is_json_response:
-                s = [json.dumps(item, ensure_ascii=False) for item in s]
-                s = "[" + ",".join(s) + "]"
-            else:
-                if len(s) > 0 and (isinstance(s[0], str) or is_bytes(s[0])):
-                    first_type = type(s[0])
-                    if isinstance(first_type, type) and issubclass(first_type, str):
-                        s = [item if isinstance(item, str) else str(item) for item in s]
-                        join_chr = s[0][:0]
-                        s = join_chr.join(s)
-                    else:
-                        s = [item if is_bytes(item) else str(item).encode("utf-8") for item in s]
-                        join_chr = s[0][:0]
-                        s = join_chr.join(s)
-                else:
-                    s = [str(item) for item in s]
-                    s = "".join(s)
-        elif not (isinstance(s, str) or is_bytes(s)):
-            if is_json_response:
-                try:
-                    s = json.dumps(s, ensure_ascii=False)
-                except (TypeError, ValueError) as e:
-                    raise TypeError("Response data cannot be JSON serialized: %s" % e)
-            else:
-                s = str(s)
-
-        if isinstance(s, str):
-            s = s.encode("utf-8")
-        if is_bytes(s):
-            if "Content-Length" not in response_headers:
-                response_headers["Content-Length"] = len(s)
-            return [s]
-        return []
-
     def handle_response(self, result):
         """
         处理响应结果，支持 Response 对象
@@ -377,7 +147,7 @@ class SocketRequestHandler(BaseRequestHandler):
                 self._add_header(header, value)
             content = result.content
             if isinstance(content, dict):
-                return json.dumps(content, ensure_ascii=False)
+                return dumps_str(content)
             return content
         return result
 

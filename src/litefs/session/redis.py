@@ -7,9 +7,9 @@ Redis Session 后端
 提供基于 Redis 的 Session 实现
 """
 
-import json
 from typing import Optional
 
+from .._json import dumps_str, loads
 from .base import SessionStoreBase
 from .session import Session
 
@@ -122,7 +122,7 @@ class RedisSession(SessionStoreBase):
         expiration = self._expiration_time
         # 序列化 Session 数据
         try:
-            data = json.dumps(dict(session))
+            data = dumps_str(dict(session))
         except Exception as e:
             raise ValueError(f"无法序列化 Session 数据: {e}")
 
@@ -149,7 +149,7 @@ class RedisSession(SessionStoreBase):
 
         # 反序列化 Session 数据
         try:
-            data = json.loads(data_str)
+            data = loads(data_str)
         except Exception:
             # 如果反序列化失败，删除损坏的 Session
             self.delete(session_id)

@@ -7,7 +7,6 @@
 提供请求追踪、结构化日志、性能监控等功能
 """
 
-import json
 import logging
 import os
 import time
@@ -16,6 +15,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from functools import wraps
 
+from .._json import dumps_str
 from .base import Middleware
 
 
@@ -188,7 +188,7 @@ class EnhancedLoggingMiddleware(Middleware):
             格式化后的日志消息
         """
         if self.structured:
-            return json.dumps(data, ensure_ascii=False, default=str)
+            return dumps_str(data, default=str)
         else:
             # 传统格式
             request_id = data.get('request_id', '-')
