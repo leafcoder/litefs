@@ -75,6 +75,39 @@ app = (
 )
 ```
 
+## 配置驱动挂载
+
+内置中间件的挂载由 config.yaml 的 ``middleware`` 配置项驱动：
+**应用创建时**（``Litefs(...)`` 构造阶段）按该列表自动挂载，无需手动调用
+``add_middleware``（详见 :doc:`configuration`）：
+
+```yaml
+# config.yaml
+middleware:
+  - logging
+  - security
+  - cors
+  - health
+
+# 同名配置段作为中间件构造参数注入
+cors:
+  allow_origins: ["*"]
+  allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+
+health_check:
+  path: "/health"
+  ready_path: "/health/ready"
+```
+
+应用代码只需正常创建实例：
+
+```python
+from litefs.core import Litefs
+
+# middleware 配置项控制的中间件在构造阶段自动挂载
+app = Litefs(config_file='config.yaml')
+```
+
 ## 自定义中间件
 
 ```python

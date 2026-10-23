@@ -84,6 +84,9 @@ class Litefs(RoutingMixin, ProtocolMixin, ExtensionMixin, ServerMixin):
         self._init_prometheus_middleware()
         self._init_i18n_middleware()
 
+        # 按配置挂载内置中间件（middleware 配置项，未配置时保持零中间件）
+        self.add_middleware_from_config()
+
         error_pages_dir = getattr(config, "error_pages_dir", None)
         self.error_page_renderer = ErrorPageRenderer(error_pages_dir)
 

@@ -38,6 +38,16 @@ class Config(ConfigLoadersMixin, ConfigCryptoMixin):
         'config_env': None,               # 环境名称（如 development, production）
         'default_page': 'index,index.html',  # 默认页面
 
+        # 内置中间件挂载配置（应用创建时按此列表自动挂载，
+        # 可选值: logging, security, cors, health；None 表示不挂载，
+        # litefs runserver 未配置时默认启用全部四件套）
+        'middleware': None,
+
+        # 中间件构造参数配置段（middleware 列表含对应名称时生效，
+        # 以字典形式作为对应中间件类的构造参数注入）
+        'cors': None,                     # CORSMiddleware 构造参数（allow_origins/allow_methods 等）
+        'health_check': None,             # HealthCheck 构造参数（path/ready_path）
+
         # 缓存配置
         'cache_backend': 'tree',          # 缓存后端类型（memory, tree, redis, database, memcache）
         'cache_max_size': 10000,          # 内存缓存最大容量

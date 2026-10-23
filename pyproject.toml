@@ -240,6 +240,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+# 强制测试导入仓库 src/ 实时代码，避免误测 site-packages 中的安装快照
+pythonpath = ["src"]
 addopts = [
     "-ra",
     "--strict-markers",

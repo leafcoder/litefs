@@ -3,6 +3,32 @@
 本文件记录 Litefs 的所有重要变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### Added
+
+- 内置中间件支持配置驱动自动挂载：应用创建时（`Litefs(...)` 构造阶段）按
+  `middleware` 配置项（名称列表或 `LITEFS_MIDDLEWARE` 环境变量逗号分隔字符串）
+  自动挂载，无需手动调用 `add_middleware`；默认值为 `None`（不挂载），
+  存量应用零行为变化，`litefs runserver` 未配置时保持默认启用全部的历史行为
+- `Config` 新增 `cors` / `health_check` 中间件构造参数配置段：
+  config.yaml 中的同名嵌套段作为 `CORSMiddleware` / `HealthCheck` 构造参数注入
+  （此前嵌套段因配置键白名单被静默丢弃，属于死配置）
+
+### Changed
+
+- 脚手架模板（`litefs startproject`）全面更新至当前框架口径：
+  - 应用代码仅创建 `Litefs(config_file='config.yaml')`，
+    中间件由框架在创建时按 `middleware` 配置自动挂载
+  - 处理器改用返回值风格（`str` 以 `<` 开头自动 `text/html`，
+    `dict` 自动 `application/json`），移除旧式 `start_response` 调用与手工 orjson 序列化
+  - 修正导入路径（`from litefs.core import Litefs`）、`database_path` → `database_url`、
+    依赖下限提升至 `litefs>=0.10.0`
+
+### Fixed
+
+- 修复 `litefs runserver --config` 指定配置文件时因重复传参抛 `TypeError` 的问题
+
 ## [0.10.0] - 2026-10-22
 
 v0.10.0 是「契约与结构重构」版本：公共 API 首次全量分级冻结、弃用机制落地、

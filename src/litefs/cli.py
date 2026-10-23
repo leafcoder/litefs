@@ -157,6 +157,38 @@ def _create_project_files(project_path: Path, project_name: str, template: str):
             print(f"  警告: 无法创建文件 {file_path}: {e}")
 
 
+#: runserver 可选中间件白名单
+_RUNSERVER_MIDDLEWARE = ('logging', 'security', 'cors', 'health')
+
+
+def _parse_middleware_selection(middleware) -> list:
+    """
+    解析配置中的中间件名称列表
+
+    Args:
+        middleware: 中间件名称列表或逗号分隔字符串（来自 config.yaml
+            的 ``middleware`` 配置项，或环境变量 ``LITEFS_MIDDLEWARE``）
+
+    Returns:
+        启用的中间件名称列表（保持配置顺序）
+
+    Raises:
+        SystemExit: 包含未知中间件名称时
+    """
+    if middleware is None:
+        return []
+    if isinstance(middleware, str):
+        selected = [m.strip() for m in middleware.split(',') if m.strip()]
+    else:
+        selected = [str(m).strip() for m in middleware if str(m).strip()]
+    unknown = [m for m in selected if m not in _RUNSERVER_MIDDLEWARE]
+    if unknown:
+        print(f"错误: 未知的中间件: {', '.join(unknown)}")
+        print(f"可选值: {', '.join(_RUNSERVER_MIDDLEWARE)}（配置为空列表则全部关闭）")
+        sys.exit(1)
+    return selected
+
+
 def runserver(
     host: str = '0.0.0.0',
     port: int = 8080,
@@ -169,6 +201,17 @@ def runserver(
     """
     运行开发服务器
 
+    中间件通过配置文件的 ``middleware`` 配置项控制（未配置时默认全部启用，
+    由 Litefs 应用创建时按配置自动挂载），也可通过环境变量
+    ``LITEFS_MIDDLEWARE`` 覆盖::
+
+        # config.yaml
+        middleware:
+          - logging
+          - security
+          - cors
+          - health
+
     Args:
         host: 服务器地址
         port: 服务器端口
@@ -178,29 +221,13 @@ def runserver(
         workers: 工作进程数
         **kwargs: 其他配置参数
     """
-    if config:
-        kwargs["config_file"] = config
-
     try:
         from litefs.core import Litefs
-        from litefs.middleware import (
-            CORSMiddleware,
-            LoggingMiddleware,
-            SecurityMiddleware,
-            HealthCheck,
-        )
         from litefs.config import load_config
     except ImportError:
         print("错误: 无法导入 litefs 模块")
         print("请确保已安装 litefs: pip install litefs")
         sys.exit(1)
-
-    print("启动 Litefs 开发服务器")
-    print(f"地址: http://{host}:{port}")
-    print(f"调试模式: {'开启' if debug else '关闭'}")
-    print(f"自动重载: {'开启' if reload else '关闭'}")
-    print(f"工作进程: {workers}")
-    print("\n按 Ctrl+C 停止服务器")
 
     app_config = load_config(
         config_file=config,
@@ -210,15 +237,26 @@ def runserver(
         **kwargs
     )
 
-    litefs = (
-        Litefs(**app_config.to_dict())
-        .add_middleware(LoggingMiddleware)
-        .add_middleware(SecurityMiddleware)
-        .add_middleware(CORSMiddleware)
-        .add_middleware(HealthCheck)
-    )
+    configured = app_config.get('middleware')
+    if configured is None:
+        # 保持历史行为：未配置时默认启用全部内置中间件
+        configured = list(_RUNSERVER_MIDDLEWARE)
+    selected_middleware = _parse_middleware_selection(configured)
+    app_config.set('middleware', selected_middleware)
 
-    litefs.run()
+    print("启动 Litefs 开发服务器")
+    print(f"地址: http://{host}:{port}")
+    print(f"调试模式: {'开启' if debug else '关闭'}")
+    print(f"自动重载: {'开启' if reload else '关闭'}")
+    print(f"工作进程: {workers}")
+    print(
+        "中间件: "
+        f"{', '.join(selected_middleware) if selected_middleware else '无'}"
+    )
+    print("\n按 Ctrl+C 停止服务器")
+
+    # 中间件由 Litefs 应用创建时按 middleware 配置自动挂载
+    Litefs(**app_config.to_dict()).run()
 
 
 def shell():

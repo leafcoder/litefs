@@ -117,6 +117,51 @@ class ExtensionMixin:
         self._middleware_instances = None
         return self
 
+    def add_middleware_from_config(self):
+        """按配置挂载内置中间件
+
+        依据配置的 ``middleware`` 配置项（名称列表或逗号分隔字符串，
+        可选值: logging, security, cors, health）在应用创建时挂载对应
+        内置中间件；配置为 ``None`` 或空列表时不挂载任何中间件。
+        同名配置段（如 ``cors:`` / ``health_check:``）作为对应中间件
+        的构造参数注入。
+
+        Returns:
+            self: 支持链式调用
+
+        Raises:
+            ValueError: 配置包含未知的中间件名称时
+        """
+        names = self.config.get('middleware')
+        if not names:
+            return self
+        if isinstance(names, str):
+            names = [n.strip() for n in names.split(',') if n.strip()]
+
+        # 延迟导入避免循环依赖
+        from ..middleware import (
+            CORSMiddleware,
+            HealthCheck,
+            LoggingMiddleware,
+            SecurityMiddleware,
+        )
+
+        registry = {
+            'logging': LoggingMiddleware,
+            'security': SecurityMiddleware,
+            'cors': CORSMiddleware,
+            'health': HealthCheck,
+        }
+        for name in names:
+            middleware_class = registry.get(name)
+            if middleware_class is None:
+                raise ValueError(
+                    f"未知的中间件: {name}，可选值: {', '.join(registry)}"
+                )
+            section = 'health_check' if name == 'health' else name
+            self.add_middleware(middleware_class, **(self.config.get(section) or {}))
+        return self
+
     def remove_middleware(self, middleware_class):
         """
         移除中间件

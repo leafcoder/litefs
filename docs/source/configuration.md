@@ -28,6 +28,9 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``session_http_only`` | bool | ``true`` | 是否仅 HTTP 访问 cookie |
 | ``session_same_site`` | str | ``Lax`` | SameSite 策略（Strict, Lax, None） |
 | ``cache_backend`` | str | ``tree`` | 缓存后端（memory, tree, redis, database, memcache） |
+| ``middleware`` | list | ``None`` | 内置中间件挂载列表（应用创建时按此列表自动挂载，可选值见 :doc:`middleware-guide`；未配置不挂载，``litefs runserver`` 未配置时默认启用全部） |
+| ``cors`` | dict | ``None`` | ``CORSMiddleware`` 构造参数（``middleware`` 含 ``cors`` 时生效） |
+| ``health_check`` | dict | ``None`` | ``HealthCheck`` 构造参数（``middleware`` 含 ``health`` 时生效） |
 
 ## 环境感知配置
 
@@ -128,6 +131,46 @@ export LITEFS_PORT=8080
 export LITEFS_DEBUG=true
 export LITEFS_MAX_REQUEST_SIZE=20971520
 ```
+
+## 中间件配置
+
+内置中间件的挂载由 ``middleware`` 配置项驱动：**应用创建时**（``Litefs(...)``
+构造阶段）按该列表自动挂载，列表顺序即挂载顺序，配置为 ``None`` 或空列表时
+不挂载任何中间件：
+
+```yaml
+# config.yaml
+middleware:
+  - logging
+  - security
+  - cors
+  - health
+```
+
+也可通过环境变量覆盖（逗号分隔）：
+
+```bash
+export LITEFS_MIDDLEWARE=logging,cors
+```
+
+``middleware`` 列表含 ``cors`` 或 ``health`` 时，同名配置段作为对应中间件的
+构造参数注入：
+
+```yaml
+cors:
+  allow_origins: ["*"]
+  allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allow_headers: ["Content-Type", "Authorization"]
+  allow_credentials: false
+  max_age: 3600
+
+health_check:
+  path: "/health"
+  ready_path: "/health/ready"
+```
+
+包含未知中间件名称时应用创建直接抛出 ``ValueError``（``litefs runserver``
+会预校验并以错误信息退出），可选值为 ``logging, security, cors, health``。
 
 ## 相关文档
 
