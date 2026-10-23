@@ -211,6 +211,30 @@
 | 0.11-⭐2 | JWT：校验 `nbf`/`iat`、leeway 参数、`header.alg` 白名单校验、access/refresh type 区分 | D7 |
 | 0.11-⭐3 | IPv6 限流键修复（保留完整地址，不截断） | D6-3 |
 
+实施状态（全部完成，待随 0.11.0 发布）：
+
+- **0.11-⭐1 已完成**：`MemoryCache` 全部公共方法（put/get/delete/exists/
+  clear/expire/ttl）受 `threading.RLock` 保护（`_is_expired` 内重入
+  delete 安全）；`RateLimitMiddleware` / `ThrottleMiddleware` 状态读写
+  加锁，并发不再突破配额（回归测试以 20 线程 × 10 请求断言恰好
+  `max_requests` 个放行）。键字典改为 `OrderedDict` + `max_keys` 参数
+  （默认 65536）LRU 淘汰：先清理窗口过期条目，仍超限时从最旧一端逐出。
+  测试：`test_memorycache.py::TestMemoryCacheHardening`、
+  `test_rate_limit_fixes.py::TestRateLimitHardening` / `TestThrottleHardening`
+- **0.11-⭐2 已完成**：`JWTManager` 构造期白名单校验 `algorithm`
+  （当前仅 `HS256`，其余抛 `ValueError`）；`decode_token` 校验
+  `header.alg` 与实例算法一致（防算法混淆）、`nbf` 未生效与 `iat`
+  未来时间（超 leeway）拒绝；新增 `leeway` 构造参数与
+  `decode_token(expected_type=...)` 强制类型区分，并提供
+  `decode_access_token` / `decode_refresh_token` 便捷方法。
+  不传 `expected_type` 时行为不变（向后兼容）。
+  测试：`test_auth_jwt.py::TestJWTManagerHardening`（9 项）
+- **0.11-⭐3 已完成**：限流 / 节流默认键函数统一走 `_extract_client_ip`：
+  基于 `ipaddress` 解析，完整 IPv6 地址（含 `::1`）不截断；
+  `IPv4:port` / `[IPv6]:port` 剥离端口。原有 `IPv4:port` 剥离行为
+  由既有测试 `test_remote_addr_port_removal` 持续保障。
+  测试：`test_rate_limit_fixes.py::TestRateLimitHardening`
+
 ### 4.4 并入 v0.12.0 —— 请求体解析与连接治理重构
 
 | # | 任务 | 对应缺陷 |

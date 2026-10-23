@@ -3,6 +3,7 @@
 
 import sys
 import os
+import threading
 import time
 import unittest
 from unittest.mock import Mock
@@ -137,6 +138,181 @@ class TestRateLimitFixes(unittest.TestCase):
         # 第 4 个请求应该被限流
         result = rate_limit_middleware.process_request(request_handler1)
         self.assertIsNotNone(result)
+
+
+class TestRateLimitHardening(unittest.TestCase):
+    """v0.11.0 限流中间件加固（并发安全 / 键淘汰 / IPv6 键）"""
+
+    def test_concurrent_requests_exact_quota(self):
+        """
+        测试并发请求不突破配额
+
+        多线程同时打满配额时，放行数必须恰好等于 max_requests，
+        无锁实现存在丢失窗口会导致超发。
+        """
+        app = Mock()
+        middleware = RateLimitMiddleware(app, max_requests=100, window_seconds=60)
+
+        handler = Mock()
+        handler.environ = {'REMOTE_ADDR': '10.0.0.1'}
+
+        allowed = []
+        barrier = threading.Barrier(20)
+
+        def worker():
+            barrier.wait()
+            for _ in range(10):
+                result = middleware.process_request(handler)
+                allowed.append(result is None)
+
+        threads = [threading.Thread(target=worker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(sum(allowed), 100)
+        self.assertEqual(len(allowed), 200)
+
+    def test_key_dictionary_eviction(self):
+        """
+        测试键字典淘汰策略
+
+        键数量超过 max_keys 上限后，最旧的键被逐出，字典不无界增长。
+        """
+        app = Mock()
+        middleware = RateLimitMiddleware(
+            app, max_requests=100, window_seconds=60, max_keys=2
+        )
+
+        for ip in ('10.0.0.1', '10.0.0.2', '10.0.0.3'):
+            handler = Mock()
+            handler.environ = {'REMOTE_ADDR': ip}
+            middleware.process_request(handler)
+
+        self.assertLessEqual(len(middleware.requests), 2)
+        self.assertNotIn('10.0.0.1', middleware.requests)
+        self.assertIn('10.0.0.3', middleware.requests)
+
+    def test_blocked_until_eviction_and_cleanup(self):
+        """
+        测试封禁键字典的过期清理与淘汰
+        """
+        app = Mock()
+        middleware = RateLimitMiddleware(
+            app, max_requests=1, window_seconds=60, block_duration=60,
+            max_keys=2,
+        )
+
+        # 打满两个 IP 的配额触发封禁
+        for ip in ('10.0.0.1', '10.0.0.2'):
+            handler = Mock()
+            handler.environ = {'REMOTE_ADDR': ip}
+            middleware.process_request(handler)
+            middleware.process_request(handler)
+
+        self.assertEqual(len(middleware.blocked_until), 2)
+
+        # 封禁过期且窗口内无请求记录时，条目被清理并允许重新请求
+        middleware.blocked_until['10.0.0.1'] = time.time() - 1
+        del middleware.requests['10.0.0.1']
+        handler = Mock()
+        handler.environ = {'REMOTE_ADDR': '10.0.0.1'}
+        self.assertIsNone(middleware.process_request(handler))
+        self.assertNotIn('10.0.0.1', middleware.blocked_until)
+
+    def test_ipv6_full_address_key(self):
+        """
+        测试 IPv6 限流键保留完整地址
+
+        旧的 split(':')[0] 逻辑会将 2001:db8::* 全部截断为 2001，
+        导致不同 IPv6 用户共享配额；修复后必须保留完整地址。
+        """
+        app = Mock()
+        middleware = RateLimitMiddleware(app, max_requests=1, window_seconds=60)
+
+        handler_a = Mock()
+        handler_a.environ = {'REMOTE_ADDR': '2001:db8::1'}
+        handler_b = Mock()
+        handler_b.environ = {'REMOTE_ADDR': '2001:db8::2'}
+        handler_loopback = Mock()
+        handler_loopback.environ = {'REMOTE_ADDR': '::1'}
+
+        # 各自的第一个请求都应放行（不共享配额）
+        self.assertIsNone(middleware.process_request(handler_a))
+        self.assertIsNone(middleware.process_request(handler_b))
+        self.assertIsNone(middleware.process_request(handler_loopback))
+
+        # 各自的第二个请求都被限流
+        self.assertEqual(middleware.process_request(handler_a).status_code, 429)
+        self.assertEqual(middleware.process_request(handler_b).status_code, 429)
+        self.assertEqual(middleware.process_request(handler_loopback).status_code, 429)
+
+        # 键为完整地址
+        self.assertIn('2001:db8::1', middleware.requests)
+        self.assertIn('2001:db8::2', middleware.requests)
+        self.assertIn('::1', middleware.requests)
+
+    def test_ipv6_with_port_and_brackets(self):
+        """
+        测试 [IPv6]:port 形式剥离端口并保留完整地址
+        """
+        app = Mock()
+        middleware = RateLimitMiddleware(app, max_requests=1, window_seconds=60)
+
+        handler = Mock()
+        handler.environ = {'REMOTE_ADDR': '[2001:db8::1]:8080'}
+        self.assertIsNone(middleware.process_request(handler))
+        self.assertIn('2001:db8::1', middleware.requests)
+
+
+class TestThrottleHardening(unittest.TestCase):
+    """v0.11.0 节流中间件加固（并发安全 / 键淘汰）"""
+
+    def test_key_dictionary_eviction(self):
+        """
+        测试节流键字典淘汰策略
+        """
+        from litefs.middleware import ThrottleMiddleware
+
+        app = Mock()
+        middleware = ThrottleMiddleware(app, min_interval=0.01, max_keys=2)
+
+        for ip in ('10.0.0.1', '10.0.0.2', '10.0.0.3'):
+            handler = Mock()
+            handler.environ = {'REMOTE_ADDR': ip}
+            middleware.process_request(handler)
+
+        self.assertLessEqual(len(middleware.last_request_time), 2)
+        self.assertNotIn('10.0.0.1', middleware.last_request_time)
+
+    def test_concurrent_no_crash(self):
+        """
+        测试并发访问节流中间件无异常
+        """
+        from litefs.middleware import ThrottleMiddleware
+
+        app = Mock()
+        middleware = ThrottleMiddleware(app, min_interval=0.001)
+
+        handler = Mock()
+        handler.environ = {'REMOTE_ADDR': '10.0.0.9'}
+        errors = []
+
+        def worker():
+            try:
+                for _ in range(50):
+                    middleware.process_request(handler)
+            except Exception as e:  # pragma: no cover
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
 
 
 if __name__ == '__main__':

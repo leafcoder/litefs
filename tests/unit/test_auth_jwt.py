@@ -201,5 +201,101 @@ class TestJWTConvenienceFunctions(unittest.TestCase):
         self.assertIsNone(decode_token(token, secret_key='wrong'))
 
 
+class TestJWTManagerHardening(unittest.TestCase):
+    """v0.11.0 JWT 加固（nbf/iat/leeway/alg 白名单/type 区分）"""
+
+    def setUp(self):
+        self.manager = JWTManager(SECRET)
+
+    def test_unsupported_algorithm_rejected_at_init(self):
+        """测试构造期拒绝不支持的算法（当前实现仅 HMAC-SHA256）"""
+        with self.assertRaises(ValueError):
+            JWTManager(SECRET, algorithm='HS512')
+
+        with self.assertRaises(ValueError):
+            JWTManager(SECRET, algorithm='none')
+
+    def test_tampered_alg_header_rejected(self):
+        """测试篡改 header.alg 的 token 被拒绝（防算法混淆）"""
+        import hashlib
+        import hmac as hmac_mod
+
+        from litefs._json import dumps
+
+        token = self.manager.create_token({'sub': 'alice'})
+        _, payload_encoded, _ = token.split('.')
+
+        # 用相同密钥伪造 HS512 算法头的合法签名
+        forged_header = self.manager._base64url_encode(
+            dumps({'alg': 'HS512', 'typ': 'JWT'})
+        )
+        message = f"{forged_header}.{payload_encoded}".encode('utf-8')
+        signature = hmac_mod.new(
+            SECRET.encode('utf-8'), message, hashlib.sha256
+        ).digest()
+        forged_sig = self.manager._base64url_encode(signature)
+
+        forged_token = f"{forged_header}.{payload_encoded}.{forged_sig}"
+        self.assertIsNone(self.manager.decode_token(forged_token))
+
+    def test_nbf_future_token_rejected(self):
+        """测试 nbf 在未来（未生效）的 token 被拒绝"""
+        token = self.manager.create_token({
+            'sub': 'alice', 'nbf': int(time.time()) + 600,
+        })
+        self.assertIsNone(self.manager.decode_token(token))
+
+    def test_nbf_past_token_accepted(self):
+        """测试 nbf 已生效的 token 正常解码"""
+        token = self.manager.create_token({
+            'sub': 'alice', 'nbf': int(time.time()) - 60,
+        })
+        payload = self.manager.decode_token(token)
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload['sub'], 'alice')
+
+    def test_iat_future_beyond_leeway_rejected(self):
+        """测试 iat 在未来（超出容忍）的 token 被拒绝"""
+        token = self.manager.create_token({
+            'sub': 'alice', 'iat': int(time.time()) + 600,
+        })
+        self.assertIsNone(self.manager.decode_token(token))
+
+    def test_leeway_tolerates_recent_expiry(self):
+        """测试 leeway 时钟偏移容忍：刚过期 token 在容忍窗口内仍有效"""
+        strict = JWTManager(SECRET)
+        lenient = JWTManager(SECRET, leeway=30)
+
+        token = strict.create_token({'sub': 'alice'}, expires_in=-20)
+
+        self.assertIsNone(strict.decode_token(token))
+        self.assertIsNotNone(lenient.decode_token(token))
+
+    def test_type_enforcement_on_decode(self):
+        """测试 decode_token 按 expected_type 强制校验 type claim"""
+        access = self.manager.create_access_token({'sub': 'alice'})
+        refresh = self.manager.create_refresh_token({'sub': 'alice'})
+
+        # refresh token 不能当作 access token 使用
+        self.assertIsNone(self.manager.decode_token(refresh, expected_type='access'))
+        # access token 不能当作 refresh token 使用
+        self.assertIsNone(self.manager.decode_token(access, expected_type='refresh'))
+        # 正确类型可解码
+        self.assertIsNotNone(self.manager.decode_token(access, expected_type='access'))
+        self.assertIsNotNone(self.manager.decode_token(refresh, expected_type='refresh'))
+
+    def test_decode_without_expected_type_backward_compatible(self):
+        """测试不传 expected_type 时保持向后兼容（不校验 type）"""
+        access = self.manager.create_access_token({'sub': 'alice'})
+        payload = self.manager.decode_token(access)
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload['type'], 'access')
+
+    def test_token_without_type_claim_rejected_when_expected(self):
+        """测试无 type claim 的 token 在指定 expected_type 时被拒绝"""
+        token = self.manager.create_token({'sub': 'alice'})
+        self.assertIsNone(self.manager.decode_token(token, expected_type='access'))
+
+
 if __name__ == '__main__':
     unittest.main()

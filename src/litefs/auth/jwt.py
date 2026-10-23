@@ -112,6 +112,9 @@ class TokenBlacklist:
 class JWTManager:
     """JWT Token 管理器"""
 
+    #: 当前签名实现支持的算法白名单（固定 HMAC-SHA256）
+    _SUPPORTED_ALGORITHMS = ('HS256',)
+
     def __init__(
         self,
         secret_key: str,
@@ -119,22 +122,34 @@ class JWTManager:
         access_token_expires: int = 3600,
         refresh_token_expires: int = 604800,
         blacklist_backend=None,
+        leeway: int = 0,
     ):
         """
         初始化 JWT 管理器
 
         Args:
             secret_key: 密钥
-            algorithm: 算法（目前仅支持 HS256）
+            algorithm: 算法（目前仅支持 HS256，其他算法在构造期直接拒绝）
             access_token_expires: Access Token 过期时间（秒）
             refresh_token_expires: Refresh Token 过期时间（秒）
             blacklist_backend: 黑名单缓存后端（如 RedisCache），
                                为 None 则使用内存（单实例，重启丢失）
+            leeway: 时间校验时钟偏移容忍（秒），用于多实例间时钟不完全同步的场景
+
+        Raises:
+            ValueError: algorithm 不在支持的白名单内
         """
+        if algorithm not in self._SUPPORTED_ALGORITHMS:
+            raise ValueError(
+                "不支持的 JWT 算法: %r（当前实现仅支持 %s）"
+                % (algorithm, ', '.join(self._SUPPORTED_ALGORITHMS))
+            )
+
         self.secret_key = secret_key
         self.algorithm = algorithm
         self.access_token_expires = access_token_expires
         self.refresh_token_expires = refresh_token_expires
+        self.leeway = int(leeway)
 
         self._blacklist = TokenBlacklist(backend=blacklist_backend)
 
@@ -177,7 +192,9 @@ class JWTManager:
 
         now = int(time.time())
         token_payload = payload.copy()
-        token_payload['iat'] = now
+        if 'iat' not in token_payload:
+            # 尊重调用方显式声明的 iat（如回签场景），仅缺省时自动填充
+            token_payload['iat'] = now
 
         if expires_in:
             token_payload['exp'] = now + expires_in
@@ -189,12 +206,18 @@ class JWTManager:
 
         return f"{header_encoded}.{payload_encoded}.{signature}"
 
-    def decode_token(self, token: str) -> Optional[Dict[str, Any]]:
+    def decode_token(self, token: str, expected_type: str = None) -> Optional[Dict[str, Any]]:
         """
         解码 JWT Token
 
+        校验项：签名、``exp``（含 leeway）、``nbf``、``iat``、
+        ``header.alg`` 与实例算法一致性，以及可选的 ``type`` claim 匹配。
+
         Args:
             token: JWT Token 字符串
+            expected_type: 期望的 token 类型（'access' / 'refresh'）。
+                           指定时，``type`` claim 不匹配（或缺失）的 token
+                           返回 None；不指定时不校验 type（向后兼容）
 
         Returns:
             载荷数据或 None
@@ -209,15 +232,34 @@ class JWTManager:
 
             header_encoded, payload_encoded, signature = parts
 
+            # header.alg 白名单校验：与实例算法不一致即拒绝（防算法混淆）
+            header = loads(self._base64url_decode(header_encoded))
+            if not isinstance(header, dict) or header.get('alg') != self.algorithm:
+                return None
+
             expected_signature = self._create_signature(header_encoded, payload_encoded)
             if not hmac.compare_digest(signature, expected_signature):
                 return None
 
             payload = loads(self._base64url_decode(payload_encoded))
 
+            now = int(time.time())
+            leeway = self.leeway
+
             if 'exp' in payload:
-                if payload['exp'] < int(time.time()):
+                if payload['exp'] < now - leeway:
                     return None
+
+            if 'nbf' in payload:
+                if payload['nbf'] > now + leeway:
+                    return None
+
+            if 'iat' in payload:
+                if payload['iat'] > now + leeway:
+                    return None
+
+            if expected_type is not None and payload.get('type') != expected_type:
+                return None
 
             return payload
 
@@ -225,6 +267,30 @@ class JWTManager:
             import logging
             logging.getLogger(__name__).warning("Failed to decode JWT token: %s", e)
             return None
+
+    def decode_access_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """
+        解码 Access Token（强制校验 type == 'access'）
+
+        Args:
+            token: JWT Token 字符串
+
+        Returns:
+            载荷数据或 None
+        """
+        return self.decode_token(token, expected_type='access')
+
+    def decode_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """
+        解码 Refresh Token（强制校验 type == 'refresh'）
+
+        Args:
+            token: JWT Token 字符串
+
+        Returns:
+            载荷数据或 None
+        """
+        return self.decode_token(token, expected_type='refresh')
 
     def create_access_token(self, payload: Dict[str, Any]) -> str:
         """

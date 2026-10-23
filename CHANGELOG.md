@@ -18,6 +18,30 @@
 - `Config` 新增 `cors` / `health_check` 中间件构造参数配置段：
   config.yaml 中的同名嵌套段作为 `CORSMiddleware` / `HealthCheck` 构造参数注入
   （此前嵌套段因配置键白名单被静默丢弃，属于死配置）
+- JWT 加固（对应代码审计文档 `code-audit-upgrade-plan` 4.3 节 0.11-⭐2）：
+  - `JWTManager` 新增 `leeway` 构造参数：时间校验（`exp` / `nbf` / `iat`）
+    支持时钟偏移容忍（秒）
+  - `decode_token` 新增 `nbf` / `iat` 校验：`nbf` 未生效或 `iat` 在未来
+    （超出 leeway）的 token 拒绝解码
+  - `decode_token` 新增 `header.alg` 白名单校验：与实例算法不一致即拒绝
+    （防算法混淆攻击）；构造期拒绝白名单外的 `algorithm`（当前仅 `HS256`）
+  - `decode_token` 新增 `expected_type` 参数与 `decode_access_token` /
+    `decode_refresh_token` 方法：refresh token 不能当作 access token 使用
+    （反之亦然），缩短凭证轮换被绕过的风险；不传参数保持向后兼容
+  - `create_token` 尊重调用方显式声明的 `iat`（仅缺省时自动填充）
+- 限流 / 节流中间件加固（0.11-⭐1、0.11-⭐3）：
+  - `RateLimitMiddleware` / `ThrottleMiddleware` 内部状态加锁
+    （`threading.RLock`），多线程 WSGI 容器（gunicorn threads）下并发
+    不再出现丢失窗口，配额不被并发绕过
+  - 键字典（`requests` / `blocked_until` / `last_request_time`）改为
+    OrderedDict 并新增 `max_keys` 参数（默认 65536）执行 LRU 淘汰，
+    不再随攻击者伪造源地址无界增长
+  - 限流键修复 IPv6 截断缺陷：`2001:db8::1` 等完整 IPv6 地址不再被
+    `split(':')[0]` 截断（此前所有 IPv6 用户共享 `2001` 配额）；
+    `IPv4:port` / `[IPv6]:port` 形式剥离端口，保留完整地址
+- `MemoryCache` 并发保护（0.11-⭐1）：`OrderedDict` LRU 结构与过期字典
+  全部读写受 `threading.RLock` 保护，多线程 WSGI 容器下不再存在
+  `move_to_end` / `popitem` 结构竞态
 - 补齐低覆盖模块测试用例 211 个（新增 7 个测试文件），整体覆盖率 76% → 84%：
   - `app/server_mixin.py` 10% → 86%（启动/信号/清理/热重载链路）
   - `server/greenlet_server_base.py` 43% → 87%（SocketIO greenlet 切换、

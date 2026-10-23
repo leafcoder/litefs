@@ -62,6 +62,14 @@ app = (
 )
 ```
 
+构造参数：`max_requests=100`（窗口内最大请求数）、`window_seconds=60`、
+`block_duration=60`（超限封禁时长）、`key_func=None`（默认按完整 IP 地址限流，
+IPv6 不截断）、`max_keys=65536`（键字典 LRU 淘汰上限）。
+
+内部状态受锁保护（多线程 WSGI 容器安全）；达到配额后按 `block_duration`
+封禁来源并返回 429（含 `Retry-After` 头）。注意该实现为进程内计数，
+多进程 / 多实例部署下实际配额为 `配置值 × 实例数`（分布式共享后端规划于 v0.14.0）。
+
 ### HealthCheck
 
 健康检查中间件：

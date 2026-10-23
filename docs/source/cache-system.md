@@ -4,6 +4,10 @@
 
 ### MemoryCache（内存缓存）
 
+线程安全说明（v0.11.0 起）：``MemoryCache`` 内部结构与过期字典的全部读写
+受 ``threading.RLock`` 保护，可在多线程 WSGI 容器（如 gunicorn threads）下
+安全使用；LRU 淘汰顺序为「最近访问的键保留，最久未访问的键先逐出」。
+
 最快的缓存类型，基于 Python 字典实现。
 
 **特点：**
