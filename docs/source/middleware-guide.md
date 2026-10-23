@@ -77,9 +77,10 @@ app = (
 
 ## 配置驱动挂载
 
-内置中间件的挂载由 config.yaml 的 ``middleware`` 配置项驱动：
+中间件的挂载由 config.yaml 的 ``middleware`` 配置项驱动：
 **应用创建时**（``Litefs(...)`` 构造阶段）按该列表自动挂载，无需手动调用
-``add_middleware``（详见 :doc:`configuration`）：
+``add_middleware``（详见 :doc:`configuration`）。条目支持内置中间件名称与
+自定义中间件模块路径：
 
 ```yaml
 # config.yaml
@@ -88,8 +89,9 @@ middleware:
   - security
   - cors
   - health
+  - myapp.middleware.ThrottleMiddleware   # 自定义中间件（模块路径，动态导入）
 
-# 同名配置段作为中间件构造参数注入
+# 内置中间件可用同名配置段注入构造参数
 cors:
   allow_origins: ["*"]
   allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -97,6 +99,13 @@ cors:
 health_check:
   path: "/health"
   ready_path: "/health/ready"
+
+# 自定义（或内置）中间件统一经 middleware_options 注入构造参数，
+# 以 middleware 条目原文为键
+middleware_options:
+  myapp.middleware.ThrottleMiddleware:
+    rate: 100
+    period: 60
 ```
 
 应用代码只需正常创建实例：

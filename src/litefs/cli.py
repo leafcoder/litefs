@@ -181,10 +181,17 @@ def _parse_middleware_selection(middleware) -> list:
         selected = [m.strip() for m in middleware.split(',') if m.strip()]
     else:
         selected = [str(m).strip() for m in middleware if str(m).strip()]
-    unknown = [m for m in selected if m not in _RUNSERVER_MIDDLEWARE]
+    # 内置名称直接放行；含 "." 的条目视为自定义中间件模块路径
+    unknown = [
+        m for m in selected
+        if m not in _RUNSERVER_MIDDLEWARE and '.' not in m
+    ]
     if unknown:
         print(f"错误: 未知的中间件: {', '.join(unknown)}")
-        print(f"可选值: {', '.join(_RUNSERVER_MIDDLEWARE)}（配置为空列表则全部关闭）")
+        print(f"内置可选值: {', '.join(_RUNSERVER_MIDDLEWARE)}"
+              f"（配置为空列表则全部关闭）")
+        print("自定义中间件请使用模块路径（如 myapp.middleware.ThrottleMiddleware），"
+              "构造参数通过 middleware_options 配置段注入")
         sys.exit(1)
     return selected
 

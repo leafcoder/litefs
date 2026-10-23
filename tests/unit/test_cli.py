@@ -57,6 +57,15 @@ class TestParseMiddlewareSelection(unittest.TestCase):
             _parse_middleware_selection('cors,bogus')
         self.assertEqual(ctx.exception.code, 1)
 
+    def test_dotted_path_allowed(self):
+        """自定义中间件模块路径（含 .）放行"""
+        result = _parse_middleware_selection(
+            ['logging', 'myapp.middleware.ThrottleMiddleware']
+        )
+        self.assertEqual(
+            result, ['logging', 'myapp.middleware.ThrottleMiddleware']
+        )
+
     def test_whitelist_covers_all_choices(self):
         """白名单常量与文档口径一致"""
         self.assertEqual(
@@ -147,6 +156,92 @@ class TestConfigMiddlewareMount(unittest.TestCase):
         )
 
 
+class TestCustomMiddlewareMount(unittest.TestCase):
+    """测试自定义中间件通过模块路径配置挂载"""
+
+    def test_custom_middleware_by_dotted_path(self):
+        """模块路径条目在应用创建时动态导入并挂载"""
+        from litefs.core import Litefs
+
+        app = Litefs(middleware=['litefs.middleware.CSRFMiddleware'])
+        instances = app.middleware_manager.get_middleware_instances(app)
+        self.assertEqual(
+            [type(inst).__name__ for inst in instances], ['CSRFMiddleware']
+        )
+
+    def test_custom_middleware_kwargs_from_middleware_options(self):
+        """自定义中间件构造参数由 middleware_options 按条目原文注入"""
+        from litefs.core import Litefs
+
+        app = Litefs(
+            middleware=['litefs.middleware.CSRFMiddleware'],
+            middleware_options={
+                'litefs.middleware.CSRFMiddleware': {
+                    'token_name': 'my_token',
+                },
+            },
+        )
+        (instance,) = app.middleware_manager.get_middleware_instances(app)
+        self.assertEqual(instance.token_name, 'my_token')
+
+    def test_builtin_kwargs_from_middleware_options(self):
+        """内置中间件也可经 middleware_options 注入构造参数"""
+        from litefs.core import Litefs
+
+        app = Litefs(
+            middleware=['health'],
+            middleware_options={'health': {'path': '/custom/health'}},
+        )
+        (instance,) = app.middleware_manager.get_middleware_instances(app)
+        self.assertEqual(instance.path, '/custom/health')
+
+    def test_invalid_dotted_path_raises_value_error(self):
+        """模块路径无法导入时抛出带原因的 ValueError"""
+        from litefs.core import Litefs
+
+        with self.assertRaises(ValueError) as ctx:
+            Litefs(middleware=['myapp.missing.Middleware'])
+        self.assertIn('myapp.missing.Middleware', str(ctx.exception))
+
+    def test_non_class_target_raises_value_error(self):
+        """模块路径指向非类目标时抛出 ValueError"""
+        from litefs.core import Litefs
+
+        with self.assertRaises(ValueError) as ctx:
+            Litefs(middleware=['os.path.join'])
+        self.assertIn('不是类', str(ctx.exception))
+
+    def test_middleware_options_loaded_from_config_file(self):
+        """middleware_options 嵌套段可从配置文件完整加载"""
+        import tempfile
+        import os as _os
+
+        from litefs.config import load_config
+
+        content = (
+            'middleware:\n'
+            '  - logging\n'
+            '  - myapp.middleware.ThrottleMiddleware\n'
+            'middleware_options:\n'
+            '  myapp.middleware.ThrottleMiddleware:\n'
+            '    rate: 100\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = _os.path.join(tmp, 'config.yaml')
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            config = load_config(config_file=config_path)
+
+        self.assertEqual(
+            config.get('middleware'),
+            ['logging', 'myapp.middleware.ThrottleMiddleware'],
+        )
+        self.assertEqual(
+            config.get('middleware_options'),
+            {'myapp.middleware.ThrottleMiddleware': {'rate': 100}},
+        )
+
+
 class TestRunserverMiddlewareDefault(unittest.TestCase):
     """测试 runserver 未配置时默认启用全部内置中间件（历史行为兼容）"""
 
@@ -172,6 +267,21 @@ class TestRunserverMiddlewareDefault(unittest.TestCase):
         try:
             kwargs = self._run_runserver()
             self.assertEqual(kwargs['middleware'], ['cors'])
+        finally:
+            if original is None:
+                os.environ.pop('LITEFS_MIDDLEWARE', None)
+            else:
+                os.environ['LITEFS_MIDDLEWARE'] = original
+
+    def test_env_var_custom_dotted_path(self):
+        """环境变量中的自定义中间件模块路径放行"""
+        original = os.environ.get('LITEFS_MIDDLEWARE')
+        os.environ['LITEFS_MIDDLEWARE'] = 'litefs.middleware.CSRFMiddleware'
+        try:
+            kwargs = self._run_runserver()
+            self.assertEqual(
+                kwargs['middleware'], ['litefs.middleware.CSRFMiddleware']
+            )
         finally:
             if original is None:
                 os.environ.pop('LITEFS_MIDDLEWARE', None)

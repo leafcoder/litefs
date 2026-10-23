@@ -7,6 +7,7 @@
 提供中间件管理、健康检查、插件注册加载与数据库访问等扩展方法。
 """
 
+import importlib
 import os
 from typing import TYPE_CHECKING, Any, List, Optional
 
@@ -118,19 +119,27 @@ class ExtensionMixin:
         return self
 
     def add_middleware_from_config(self):
-        """按配置挂载内置中间件
+        """按配置挂载中间件（内置 + 自定义）
 
-        依据配置的 ``middleware`` 配置项（名称列表或逗号分隔字符串，
-        可选值: logging, security, cors, health）在应用创建时挂载对应
-        内置中间件；配置为 ``None`` 或空列表时不挂载任何中间件。
-        同名配置段（如 ``cors:`` / ``health_check:``）作为对应中间件
-        的构造参数注入。
+        依据配置的 ``middleware`` 配置项（名称列表或逗号分隔字符串）在应用
+        创建时挂载对应中间件；配置为 ``None`` 或空列表时不挂载任何中间件。
+
+        条目支持两种形式：
+
+        - 内置中间件名称：``logging`` / ``security`` / ``cors`` / ``health``
+        - 自定义中间件模块路径：如 ``myapp.middleware.ThrottleMiddleware``，
+          在应用创建时动态导入
+
+        构造参数解析优先级：``middleware_options`` 配置段中以条目原文为键的
+        子字典 → 同名配置段（内置 ``cors`` / ``health`` 对应 ``health_check``）
+        → 无参数。
 
         Returns:
             self: 支持链式调用
 
         Raises:
-            ValueError: 配置包含未知的中间件名称时
+            ValueError: 配置包含未知的内置中间件名称，或自定义中间件
+                模块路径无法导入 / 导入目标不是类时
         """
         names = self.config.get('middleware')
         if not names:
@@ -152,15 +161,51 @@ class ExtensionMixin:
             'cors': CORSMiddleware,
             'health': HealthCheck,
         }
+        options = self.config.get('middleware_options')
+        options = options if isinstance(options, dict) else {}
+
         for name in names:
             middleware_class = registry.get(name)
             if middleware_class is None:
-                raise ValueError(
-                    f"未知的中间件: {name}，可选值: {', '.join(registry)}"
-                )
+                if '.' not in name:
+                    raise ValueError(
+                        f"未知的中间件: {name}，内置可选值: "
+                        f"{', '.join(registry)}；自定义中间件请使用模块路径"
+                        f"（如 myapp.middleware.ThrottleMiddleware）"
+                    )
+                middleware_class = self._import_middleware_class(name)
             section = 'health_check' if name == 'health' else name
-            self.add_middleware(middleware_class, **(self.config.get(section) or {}))
+            kwargs = options.get(name) or self.config.get(section) or {}
+            self.add_middleware(middleware_class, **kwargs)
         return self
+
+    @staticmethod
+    def _import_middleware_class(dotted_path: str) -> type:
+        """按模块路径导入自定义中间件类
+
+        Args:
+            dotted_path: 中间件类的完整模块路径（如
+                ``myapp.middleware.ThrottleMiddleware``）
+
+        Returns:
+            中间件类
+
+        Raises:
+            ValueError: 模块或类不存在，或导入目标不是类时
+        """
+        module_path, _, class_name = dotted_path.rpartition('.')
+        try:
+            module = importlib.import_module(module_path)
+            middleware_class = getattr(module, class_name)
+        except (ImportError, AttributeError) as exc:
+            raise ValueError(
+                f"无法加载自定义中间件 {dotted_path}: {exc}"
+            ) from exc
+        if not isinstance(middleware_class, type):
+            raise ValueError(
+                f"自定义中间件 {dotted_path} 不是类: {middleware_class!r}"
+            )
+        return middleware_class
 
     def remove_middleware(self, middleware_class):
         """

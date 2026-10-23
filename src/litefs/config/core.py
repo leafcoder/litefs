@@ -43,8 +43,10 @@ class Config(ConfigLoadersMixin, ConfigCryptoMixin):
         # litefs runserver 未配置时默认启用全部四件套）
         'middleware': None,
 
-        # 中间件构造参数配置段（middleware 列表含对应名称时生效，
-        # 以字典形式作为对应中间件类的构造参数注入）
+        # 中间件构造参数配置段（以 middleware 条目原文为键的字典，
+        # 如 myapp.middleware.ThrottleMiddleware: {rate: 100}；
+        # 内置中间件也可用同名配置段 cors: / health_check:）
+        'middleware_options': None,       # 自定义/内置中间件构造参数（仅配置文件与代码方式）
         'cors': None,                     # CORSMiddleware 构造参数（allow_origins/allow_methods 等）
         'health_check': None,             # HealthCheck 构造参数（path/ready_path）
 

@@ -28,7 +28,8 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``session_http_only`` | bool | ``true`` | 是否仅 HTTP 访问 cookie |
 | ``session_same_site`` | str | ``Lax`` | SameSite 策略（Strict, Lax, None） |
 | ``cache_backend`` | str | ``tree`` | 缓存后端（memory, tree, redis, database, memcache） |
-| ``middleware`` | list | ``None`` | 内置中间件挂载列表（应用创建时按此列表自动挂载，可选值见 :doc:`middleware-guide`；未配置不挂载，``litefs runserver`` 未配置时默认启用全部） |
+| ``middleware`` | list | ``None`` | 中间件挂载列表（应用创建时按此列表自动挂载，支持内置名称与自定义模块路径，见 :doc:`middleware-guide`；未配置不挂载，``litefs runserver`` 未配置时默认启用全部） |
+| ``middleware_options`` | dict | ``None`` | 中间件构造参数（以 ``middleware`` 条目原文为键的字典，仅支持配置文件与代码方式） |
 | ``cors`` | dict | ``None`` | ``CORSMiddleware`` 构造参数（``middleware`` 含 ``cors`` 时生效） |
 | ``health_check`` | dict | ``None`` | ``HealthCheck`` 构造参数（``middleware`` 含 ``health`` 时生效） |
 
@@ -134,9 +135,14 @@ export LITEFS_MAX_REQUEST_SIZE=20971520
 
 ## 中间件配置
 
-内置中间件的挂载由 ``middleware`` 配置项驱动：**应用创建时**（``Litefs(...)``
+中间件的挂载由 ``middleware`` 配置项驱动：**应用创建时**（``Litefs(...)``
 构造阶段）按该列表自动挂载，列表顺序即挂载顺序，配置为 ``None`` 或空列表时
-不挂载任何中间件：
+不挂载任何中间件。条目支持两种形式：
+
+- **内置中间件名称**：``logging`` / ``security`` / ``cors`` / ``health``
+- **自定义中间件模块路径**：如 ``myapp.middleware.ThrottleMiddleware``，
+  应用创建时动态导入（导入目标必须是类，建议继承
+  ``litefs.middleware.Middleware``）
 
 ```yaml
 # config.yaml
@@ -145,16 +151,21 @@ middleware:
   - security
   - cors
   - health
+  - myapp.middleware.ThrottleMiddleware   # 自定义中间件
 ```
 
-也可通过环境变量覆盖（逗号分隔）：
+也可通过环境变量覆盖（逗号分隔，内置名称与模块路径可混用）：
 
 ```bash
 export LITEFS_MIDDLEWARE=logging,cors
 ```
 
-``middleware`` 列表含 ``cors`` 或 ``health`` 时，同名配置段作为对应中间件的
-构造参数注入：
+中间件构造参数的注入方式：
+
+- **内置中间件**：同名配置段（``cors`` / ``health`` 对应 ``health_check``），
+  或统一使用 ``middleware_options``
+- **自定义中间件**：``middleware_options`` 配置段，以 ``middleware`` 条目
+  原文为键
 
 ```yaml
 cors:
@@ -167,10 +178,16 @@ cors:
 health_check:
   path: "/health"
   ready_path: "/health/ready"
+
+middleware_options:
+  myapp.middleware.ThrottleMiddleware:
+    rate: 100
+    period: 60
 ```
 
-包含未知中间件名称时应用创建直接抛出 ``ValueError``（``litefs runserver``
-会预校验并以错误信息退出），可选值为 ``logging, security, cors, health``。
+包含未知的内置中间件名称（不含 ``.`` 且不在白名单内）时应用创建直接抛出
+``ValueError``（``litefs runserver`` 会预校验并以错误信息退出）；自定义
+模块路径无法导入或目标不是类时同样抛出 ``ValueError``。
 
 ## 相关文档
 

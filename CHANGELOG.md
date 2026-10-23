@@ -11,6 +11,10 @@
   `middleware` 配置项（名称列表或 `LITEFS_MIDDLEWARE` 环境变量逗号分隔字符串）
   自动挂载，无需手动调用 `add_middleware`；默认值为 `None`（不挂载），
   存量应用零行为变化，`litefs runserver` 未配置时保持默认启用全部的历史行为
+- 支持自定义中间件配置：`middleware` 条目可使用模块路径
+  （如 `myapp.middleware.ThrottleMiddleware`），应用创建时动态导入；
+  构造参数经新增的 `middleware_options` 配置段注入（以条目原文为键，
+  内置中间件亦可用同名配置段 `cors` / `health_check`）
 - `Config` 新增 `cors` / `health_check` 中间件构造参数配置段：
   config.yaml 中的同名嵌套段作为 `CORSMiddleware` / `HealthCheck` 构造参数注入
   （此前嵌套段因配置键白名单被静默丢弃，属于死配置）
