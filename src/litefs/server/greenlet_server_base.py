@@ -341,7 +341,9 @@ class TCPServer(object):
     """Classic Python TCPServer"""
 
     allow_reuse_address = True
-    request_queue_size = 4194304
+    # 监听队列（listen backlog）长度：内核会截断到 net.core.somaxconn；
+    # 可由应用配置 request_queue_size 经构造参数覆盖
+    request_queue_size = 2048
     # 最大并发连接数（None 表示不限制），达到上限后新连接被快速拒绝；
     # 可由应用配置 max_connections 覆盖
     max_connections = None
@@ -354,10 +356,14 @@ class TCPServer(object):
         self,
         server_address: Tuple[str, int],
         RequestHandlerClass: Any,
-        bind_and_activate: bool = True
+        bind_and_activate: bool = True,
+        request_queue_size: int = None
     ) -> None:
         self.server_address = server_address
         self.RequestHandlerClass = RequestHandlerClass
+        if request_queue_size is not None:
+            # listen 在 server_activate 中调用，backlog 必须在激活前设置
+            self.request_queue_size = request_queue_size
         self.socket = socket.socket(self.address_family, self.socket_type)
         self._started = False
         if bind_and_activate:

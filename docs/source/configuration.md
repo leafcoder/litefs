@@ -23,6 +23,7 @@ Litefs 支持多种配置来源，按优先级从高到低排列：
 | ``max_connections`` | int | ``1024`` | 原生服务器最大并发连接数，达到上限后新连接被快速拒绝（``None`` 表示不限制） |
 | ``idle_read_timeout`` | float | ``30.0`` | 原生服务器空闲读超时（秒），连接阻塞等待读数据超时后断开（slowloris 防护；0/``None`` 禁用） |
 | ``websocket_max_message_size`` | int | ``1048576`` | WebSocket 单条消息（帧负载）上限（字节），超限回 1009 关闭帧并断连 |
+| ``request_queue_size`` | int | ``2048`` | 监听队列（listen backlog）长度，内核会截断到 ``net.core.somaxconn`` |
 | ``config_file`` | str | ``None`` | 配置文件路径 |
 | ``session_backend`` | str | ``memory`` | 会话后端（memory/redis/database/memcache） |
 | ``session_expiration_time`` | int | ``3600`` | 会话过期时间（秒） |

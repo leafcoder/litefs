@@ -130,7 +130,8 @@ class TestParseMultipartWSGI(unittest.TestCase):
         posts, files = parse_multipart_wsgi(stream, 'BOUNDARY', stream.getbuffer().nbytes)
         self.assertEqual(posts, {'title': 'hello world'})
         self.assertIn('up', files)
-        self.assertEqual(files['up'].read(), b'file-bytes\r\n')
+        # 边界分隔符前的 CRLF 属于分隔符，不计入文件内容（RFC 2046）
+        self.assertEqual(files['up'].read(), b'file-bytes')
         files['up'].close()
 
     def test_oversized_body_raises_413(self):
@@ -165,7 +166,8 @@ class TestParseMultipartASGI(unittest.TestCase):
         )
         posts, files = parse_multipart_asgi(body, 'BOUNDARY')
         self.assertEqual(posts, {'note': 'memo text'})
-        self.assertEqual(files['doc'].read(), b'\x00\x01\x02\r\n')
+        # 边界分隔符前的 CRLF 属于分隔符，不计入文件内容（RFC 2046）
+        self.assertEqual(files['doc'].read(), b'\x00\x01\x02')
         files['doc'].close()
 
     def test_oversized_body_raises_413(self):
@@ -197,13 +199,122 @@ class TestParseMultipartStream(unittest.TestCase):
         stream = io.BytesIO(self._body())
         posts, files = parse_multipart_stream(stream, 'BOUNDARY')
         self.assertEqual(posts, {'title': 'hello stream'})
-        self.assertEqual(files['up'].read(), b'stream-bytes\r\n')
+        # 边界分隔符前的 CRLF 属于分隔符，不计入文件内容（RFC 2046）
+        self.assertEqual(files['up'].read(), b'stream-bytes')
         files['up'].close()
 
-    def test_unexpected_start_asserts(self):
-        """起始边界不匹配时触发断言"""
-        with self.assertRaises(AssertionError):
-            parse_multipart_stream(io.BytesIO(b'not-boundary\r\n'), 'BOUNDARY')
+    def test_unexpected_start_returns_empty(self):
+        """起始边界不匹配时宽容返回空结果（与 WSGI/ASGI 路径行为一致）"""
+        posts, files = parse_multipart_stream(io.BytesIO(b'not-boundary\r\n'), 'BOUNDARY')
+        self.assertEqual(posts, {})
+        self.assertEqual(files, {})
+
+
+class TestMultipartHardening(unittest.TestCase):
+    """multipart 解析加固（对应代码审计 4.4 节 0.12-⭐1，D4）"""
+
+    @staticmethod
+    def _field_body(value_bytes):
+        return (
+            b'--BOUNDARY\r\n'
+            b'Content-Disposition: form-data; name="title"\r\n'
+            b'\r\n' + value_bytes + b'\r\n'
+            b'--BOUNDARY--\r\n'
+        )
+
+    def test_content_with_boundary_like_sequence(self):
+        """文件内容包含类边界字节序列不破坏解析（CRLF 前缀校验，D4-2）"""
+        body = (
+            b'--BOUNDARY\r\n'
+            b'Content-Disposition: form-data; name="up"; filename="a.bin"\r\n'
+            b'\r\n'
+            b'EMBED--BOUNDARY-INSIDE\r\n'
+            b'--BOUNDARY--\r\n'
+        )
+        posts, files = parse_multipart_asgi(body, 'BOUNDARY')
+        self.assertEqual(posts, {})
+        self.assertEqual(files['up'].read(), b'EMBED--BOUNDARY-INSIDE')
+        files['up'].close()
+
+    def test_field_value_whitespace_preserved(self):
+        """字段值保留合法前后空白（不再 strip，D4-3）"""
+        posts, files = parse_multipart_asgi(self._field_body(b'  spaced value  '), 'BOUNDARY')
+        self.assertEqual(posts, {'title': '  spaced value  '})
+        self.assertEqual(files, {})
+
+    def test_multiline_field_value(self):
+        """多行字段值完整保留"""
+        posts, files = parse_multipart_asgi(
+            self._field_body(b'line1\r\nline2'), 'BOUNDARY'
+        )
+        self.assertEqual(posts, {'title': 'line1\r\nline2'})
+        self.assertEqual(files, {})
+
+    def test_repeated_field_becomes_list(self):
+        """同名多值字段与 urlencoded 语义对齐转为列表（D4-4）"""
+        body = (
+            b'--BOUNDARY\r\n'
+            b'Content-Disposition: form-data; name="tag"\r\n'
+            b'\r\none\r\n'
+            b'--BOUNDARY\r\n'
+            b'Content-Disposition: form-data; name="tag"\r\n'
+            b'\r\ntwo\r\n'
+            b'--BOUNDARY\r\n'
+            b'Content-Disposition: form-data; name="tag"\r\n'
+            b'\r\nthree\r\n'
+            b'--BOUNDARY--\r\n'
+        )
+        posts, files = parse_multipart_asgi(body, 'BOUNDARY')
+        self.assertEqual(posts, {'tag': ['one', 'two', 'three']})
+        self.assertEqual(files, {})
+
+    def test_repeated_file_becomes_list(self):
+        """同名多文件上传转为列表（D4-4）"""
+        def part(content):
+            return (
+                b'--BOUNDARY\r\n'
+                b'Content-Disposition: form-data; name="up"; filename="a.txt"\r\n'
+                b'\r\n' + content + b'\r\n'
+            )
+
+        body = part(b'first') + part(b'second') + b'--BOUNDARY--\r\n'
+        _, files = parse_multipart_asgi(body, 'BOUNDARY')
+        self.assertIsInstance(files['up'], list)
+        self.assertEqual([fp.read() for fp in files['up']], [b'first', b'second'])
+        for fp in files['up']:
+            fp.close()
+
+    def test_wsgi_tiny_chunk_streaming(self):
+        """WSGI 路径逐块读取请求体，不整包一次性读入内存（D4-1）"""
+
+        class TinyChunkStream:
+            """每次 read 最多返回 cap 字节的流，模拟分片到达的请求体"""
+
+            def __init__(self, data, cap=7):
+                self._fp = io.BytesIO(data)
+                self.cap = cap
+                self.max_read_request = 0
+
+            def read(self, n=-1):
+                if n is None or n < 0:
+                    return self._fp.read(self.cap)
+                self.max_read_request = max(self.max_read_request, n)
+                return self._fp.read(min(n, self.cap))
+
+        body = self._field_body(b'streaming works')
+        stream = TinyChunkStream(body)
+        posts, files = parse_multipart_wsgi(stream, 'BOUNDARY', len(body))
+        self.assertEqual(posts, {'title': 'streaming works'})
+        self.assertEqual(files, {})
+        # 单次读取请求不大于解析器 chunk_size（流式，而非整包 read(content_length)）
+        self.assertLessEqual(stream.max_read_request, 65536)
+
+    def test_stream_actual_read_size_enforced(self):
+        """流式路径按实际读取字节数强制限制（修复流式解析器忽略 max_upload_size）"""
+        body = self._field_body(b'x' * 100)
+        with self.assertRaises(HttpError) as ctx:
+            parse_multipart_stream(io.BytesIO(body), 'BOUNDARY', max_upload_size=50)
+        self.assertEqual(ctx.exception.status_code, 413)
 
 
 if __name__ == '__main__':

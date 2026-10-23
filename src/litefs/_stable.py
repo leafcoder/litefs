@@ -119,7 +119,7 @@ STABLE: Dict[str, Tuple[str, ...]] = {
     ),
     "litefs.handlers.form": (
         "form_dict_match", "parse_form", "parse_header", "parse_multipart_asgi",
-        "parse_multipart_stream", "parse_multipart_wsgi",
+        "parse_multipart_stream", "parse_multipart_wsgi", "read_chunked_body",
     ),
     "litefs.handlers.enhanced": (
         "EnhancedRequestHandler",

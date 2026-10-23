@@ -42,6 +42,27 @@
 - `MemoryCache` 并发保护（0.11-⭐1）：`OrderedDict` LRU 结构与过期字典
   全部读写受 `threading.RLock` 保护，多线程 WSGI 容器下不再存在
   `move_to_end` / `popitem` 结构竞态
+- multipart 请求体解析流式化与正确性修复（对应代码审计文档
+  `code-audit-upgrade-plan` 4.4 节 0.12-⭐1）：
+  - WSGI 路径改为逐块读取 + 增量边界解析，请求体不再整包驻留内存，
+    文件部分边解析边写入临时文件
+  - 边界感知解析：仅识别行首 `--boundary`（CRLF 前缀校验，RFC 2046），
+    文件内容中出现与 boundary 相同的字节序列不再导致解析损坏
+  - 边界分隔符前的 CRLF 属于分隔符，不再计入文件内容（此前每个文件
+    末尾多出 2 字节）；表单字段值不再被 strip，保留合法前后空白
+  - 同名多值字段（含多文件上传）与 urlencoded 路径语义对齐
+    （重复出现转为列表），此前被直接覆盖
+  - 流式解析器（Socket 链路）按实际读取字节数强制限制
+    `max_upload_size`，超限抛 413（此前完全未校验）
+- 自研服务器链路 chunked 传输编码支持（0.12-⭐2）：
+  - Socket 链路与 asyncio 链路支持 `Transfer-Encoding: chunked`
+    请求体解码（含 chunk 扩展声明与 trailer 头部），并按
+    `max_request_size` 强制限制实际字节数，超限回 413
+  - asyncio 链路 `Content-Length` 精确读取（keep-alive 下不再把
+    连接中的后续数据误并入当前请求体），截断请求体回 400
+- 新增配置项 `request_queue_size`（默认 2048）：原生服务器与
+  asyncio 服务器的监听队列（listen backlog）长度，内核截断到
+  `net.core.somaxconn`；替代此前的硬编码 4194304（0.12-⭐3）
 - 补齐低覆盖模块测试用例 211 个（新增 7 个测试文件），整体覆盖率 76% → 84%：
   - `app/server_mixin.py` 10% → 86%（启动/信号/清理/热重载链路）
   - `server/greenlet_server_base.py` 43% → 87%（SocketIO greenlet 切换、
