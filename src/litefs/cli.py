@@ -160,6 +160,11 @@ def _create_project_files(project_path: Path, project_name: str, template: str):
 #: runserver 可选中间件白名单
 _RUNSERVER_MIDDLEWARE = ('logging', 'security', 'cors', 'health')
 
+#: runserver 自动发现的配置文件名（未指定 --config 时按优先级依次查找）
+_RUNSERVER_CONFIG_FILES = (
+    'config.yaml', 'config.yml', 'config.json', 'config.toml',
+)
+
 
 def _parse_middleware_selection(middleware) -> list:
     """
@@ -208,6 +213,9 @@ def runserver(
     """
     运行开发服务器
 
+    未指定 ``--config`` 时自动发现当前目录的配置文件
+    （config.yaml / config.yml / config.json / config.toml）。
+
     中间件通过配置文件的 ``middleware`` 配置项控制（未配置时默认全部启用，
     由 Litefs 应用创建时按配置自动挂载），也可通过环境变量
     ``LITEFS_MIDDLEWARE`` 覆盖::
@@ -222,7 +230,7 @@ def runserver(
     Args:
         host: 服务器地址
         port: 服务器端口
-        config: 配置文件路径
+        config: 配置文件路径（默认自动发现当前目录的配置文件）
         debug: 调试模式
         reload: 自动重载
         workers: 工作进程数
@@ -235,6 +243,12 @@ def runserver(
         print("错误: 无法导入 litefs 模块")
         print("请确保已安装 litefs: pip install litefs")
         sys.exit(1)
+
+    if config is None:
+        # 自动发现当前目录的配置文件，保证 config.yaml 的修改对 runserver 生效
+        config = next(
+            (f for f in _RUNSERVER_CONFIG_FILES if os.path.exists(f)), None
+        )
 
     app_config = load_config(
         config_file=config,

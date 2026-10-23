@@ -1,0 +1,10 @@
+# Litefs 配置
+
+# 服务器配置
+host: "0.0.0.0"
+port: 8081
+debug: true
+
+# 中间件（应用创建时自动挂载，支持内置名称与自定义模块路径）
+middleware:
+  - logging

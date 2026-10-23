@@ -189,6 +189,10 @@ middleware_options:
 ``ValueError``（``litefs runserver`` 会预校验并以错误信息退出）；自定义
 模块路径无法导入或目标不是类时同样抛出 ``ValueError``。
 
+``litefs runserver`` 未指定 ``--config`` 时自动发现当前目录的配置文件
+（``config.yaml`` / ``config.yml`` / ``config.json`` / ``config.toml``），
+对 ``config.yaml`` 的中间件修改直接生效。
+
 ## 相关文档
 
 * :doc:`getting-started` - 快速开始

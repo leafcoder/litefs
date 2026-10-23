@@ -26,8 +26,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from litefs.core import Litefs
 from litefs.handlers import Response
 from litefs.routing import get, post
-from litefs.middleware.csrf import CSRFMiddleware
-from litefs.middleware.logging import LoggingMiddleware
 from litefs.auth import OAuth2, OAuth2UserInfo
 
 from models import db
@@ -45,16 +43,11 @@ def get_query_params(request) -> dict:
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = Litefs(
-    host='0.0.0.0',
-    port=8083,
-    debug=True,
-    secret_key='blog-secret-key-change-in-production'
-)
+# 中间件由 config.yaml 的 middleware 配置项驱动，应用创建时自动挂载
+# （CSRFMiddleware 为自定义中间件示例，以模块路径配置）
+app = Litefs(config_file='config.yaml')
 
 app.add_static('/static', os.path.join(APP_DIR, 'static'))
-app.add_middleware(CSRFMiddleware)
-app.add_middleware(LoggingMiddleware)
 
 SECRET_KEY = 'blog-secret-key-change-in-production'
 

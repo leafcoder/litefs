@@ -28,7 +28,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from litefs.core import Litefs
 from litefs.handlers import Response
 from litefs.routing import get, post
-from litefs.middleware.logging import LoggingMiddleware
 from litefs.middleware.csrf import CSRFMiddleware
 from litefs.cache import MemoryCache
 from litefs.debug import DebugMiddleware
@@ -67,7 +66,10 @@ def setup_logging(app: Litefs) -> None:
     app_logger.addHandler(console_handler)
 
 
+# 日志中间件由 config.yaml 的 middleware 配置项驱动，应用创建时自动挂载；
+# 条件性中间件（CSRF、调试工具栏）按环境变量在下方按需挂载
 app = Litefs(
+    config_file='config.yaml',
     host='0.0.0.0',
     port=8085,
     debug=debug_mode,
@@ -78,8 +80,6 @@ app = Litefs(
 app.add_static('/static', os.path.join(APP_DIR, 'static'))
 
 setup_logging(app)
-
-app.add_middleware(LoggingMiddleware)
 
 if not debug_mode:
     app.add_middleware(CSRFMiddleware)

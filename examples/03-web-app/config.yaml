@@ -1,0 +1,13 @@
+# Litefs 配置
+
+# 服务器配置
+host: "0.0.0.0"
+port: 8083
+debug: true
+secret_key: "blog-secret-key-change-in-production"
+
+# 中间件（应用创建时自动挂载）
+# CSRFMiddleware 为自定义中间件示例：以模块路径配置，应用创建时动态导入
+middleware:
+  - litefs.middleware.CSRFMiddleware
+  - logging

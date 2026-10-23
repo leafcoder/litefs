@@ -288,6 +288,50 @@ class TestRunserverMiddlewareDefault(unittest.TestCase):
             else:
                 os.environ['LITEFS_MIDDLEWARE'] = original
 
+    def test_config_file_auto_discovery(self):
+        """未指定 --config 时自动发现当前目录的 config.yaml"""
+        import tempfile
+
+        from litefs import cli
+
+        content = (
+            'middleware:\n'
+            '  - cors\n'
+            '  - health\n'
+        )
+        original_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'config.yaml'), 'w', encoding='utf-8') as f:
+                f.write(content)
+            os.chdir(tmp)
+            try:
+                with mock.patch('litefs.core.Litefs') as mock_litefs:
+                    cli.runserver()
+                kwargs = mock_litefs.call_args.kwargs
+                self.assertEqual(kwargs['middleware'], ['cors', 'health'])
+            finally:
+                os.chdir(original_cwd)
+
+    def test_no_config_file_uses_default(self):
+        """当前目录无配置文件时保持四件套默认"""
+        import tempfile
+
+        from litefs import cli
+
+        original_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            try:
+                with mock.patch('litefs.core.Litefs') as mock_litefs:
+                    cli.runserver()
+                kwargs = mock_litefs.call_args.kwargs
+                self.assertEqual(
+                    kwargs['middleware'],
+                    ['logging', 'security', 'cors', 'health'],
+                )
+            finally:
+                os.chdir(original_cwd)
+
 
 class TestRunserverSignature(unittest.TestCase):
     """测试 runserver 命令签名（argh 据此生成 CLI 参数）"""

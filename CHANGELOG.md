@@ -32,6 +32,11 @@
 ### Fixed
 
 - 修复 `litefs runserver --config` 指定配置文件时因重复传参抛 `TypeError` 的问题
+- 修复 `litefs runserver` 未指定 `--config` 时不读取项目 `config.yaml` 的问题：
+  现在自动发现当前目录的 `config.yaml` / `config.yml` / `config.json` /
+  `config.toml`，对中间件等配置的修改直接生效
+- 示例（01-quickstart / 03-web-app / 05-production）中间件改为 config.yaml
+  配置驱动，03-web-app 演示自定义中间件模块路径配置
 
 ## [0.10.0] - 2026-10-22
 
